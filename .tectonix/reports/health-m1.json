@@ -1,0 +1,15 @@
+{
+  "quality_signal": 6731,
+  "bottleneck": "modularity",
+  "root_causes": {
+    "modularity": 2789,
+    "equality": 6190,
+    "depth": 8000,
+    "acyclicity": 10000,
+    "redundancy": 10000
+  },
+  "cross_module_edges": 6,
+  "total_import_edges": 7,
+  "gate_9000": "blocked",
+  "note": "M1 tranche; layered board+rules+cmd is structurally correct but small repos score low on modularity ratio"
+}

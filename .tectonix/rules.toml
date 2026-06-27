@@ -1,0 +1,25 @@
+[constraints]
+max_cycles = 0
+max_cc = 25
+max_fn_lines = 100
+no_god_files = false
+
+[[layers]]
+name = "core"
+paths = ["internal/board/*", "internal/rules/*", "internal/sgf/*"]
+order = 0
+
+[[layers]]
+name = "search"
+paths = ["internal/search/*", "internal/tree/*"]
+order = 1
+
+[[layers]]
+name = "app"
+paths = ["cmd/*", "internal/gtp/*"]
+order = 2
+
+[[boundaries]]
+from = "cmd/*"
+to = "internal/search/*"
+reason = "Commands orchestrate; core board/rules must not depend on search"
