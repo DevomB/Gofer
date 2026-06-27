@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-06-27T14:38:20Z",
+  "results": [
+    {
+      "name": "BenchmarkApplyStone",
+      "ns_per_op": 5.169,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkUndo",
+      "ns_per_op": 25.5,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkClone",
+      "ns_per_op": 135.1,
+      "bytes_per_op": 384,
+      "allocs_per_op": 1
+    },
+    {
+      "name": "BenchmarkHashUpdate",
+      "ns_per_op": 5.05,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkCloneVsUndo/Clone",
+      "ns_per_op": 141,
+      "bytes_per_op": 384,
+      "allocs_per_op": 1
+    },
+    {
+      "name": "BenchmarkCloneVsUndo/Undo",
+      "ns_per_op": 25.02,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkLegalMoves",
+      "ns_per_op": 186816,
+      "bytes_per_op": 36136,
+      "allocs_per_op": 1158
+    },
+    {
+      "name": "BenchmarkMakeMove",
+      "ns_per_op": 1351,
+      "bytes_per_op": 911,
+      "allocs_per_op": 8
+    },
+    {
+      "name": "BenchmarkPlay",
+      "ns_per_op": 1319,
+      "bytes_per_op": 911,
+      "allocs_per_op": 8
+    },
+    {
+      "name": "BenchmarkCaptureHeavy",
+      "ns_per_op": 1239211,
+      "bytes_per_op": 357281,
+      "allocs_per_op": 14524
+    },
+    {
+      "name": "BenchmarkScore",
+      "ns_per_op": 50904,
+      "bytes_per_op": 23490,
+      "allocs_per_op": 1030
+    },
+    {
+      "name": "BenchmarkSGFReplay",
+      "ns_per_op": 4967,
+      "bytes_per_op": 3328,
+      "allocs_per_op": 45
+    }
+  ]
+}
