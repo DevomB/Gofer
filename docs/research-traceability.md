@@ -4,12 +4,12 @@ Maps paper/KataGo research concepts → Gofer implementation. Status updated at 
 
 **Legend:** `[PAPER]` arXiv:1902.10565 | `[POST-PAPER]` later KataGo/docs | `[GOFER]` project-only
 
-**Package note:** M2–M11 logic lives in `internal/gofer` (board, rules, search, eval, GTP, self-play merged for cohesion).
+**Package note:** Engine code lives in `cmd/gofer` (single `package main` binary: `-gtp`, `-selfplay`, default demo).
 
 | Research concept | Implementation target | Milestone | Status | Evidence | Risks | Deferred notes |
 |------------------|----------------------|-----------|--------|----------|-------|----------------|
-| PUCT/MCTS | `internal/gofer` (mcts) | M5 | done | `gofer_test.go` TestPUCTFormula, TestDeterministicPlayout | Low playouts in GTP | c=1.1 |
-| Playout cap randomization | `internal/gofer` RunSelfplay | M10 | done | `gofer.go` CapRandomizeP=0.25 | Config complexity | [PAPER] ponytail |
+| PUCT/MCTS | `cmd/gofer` (mcts) | M5 | done | `gofer_test.go` TestPUCTFormula, TestDeterministicPlayout | Low playouts in GTP | c=1.1 |
+| Playout cap randomization | `cmd/gofer` RunSelfplay | M10 | done | `gofer.go` CapRandomizeP=0.25 | Config complexity | [PAPER] ponytail |
 | Forced playouts | MCTS root | M10 | deferred | — | Must not poison play π | [PAPER] k=2 not implemented |
 | Policy target pruning | search + Sample export | M10 | deferred | — | Needs visit metadata export | [PAPER] |
 | Global pooling | external trainer | M11 | deferred | — | Training-only external | [PAPER] not runtime |
@@ -37,7 +37,7 @@ Maps paper/KataGo research concepts → Gofer implementation. Status updated at 
 | Zobrist hashing | Board | M1 | done | BenchmarkHashUpdate | — | [GOFER] |
 | Transposition table | tt.go | M6 | done | TestTTHitRateAfterSearch | replace-always ponytail | [GOFER] |
 | Heuristic evaluator | evaluator.go | M7 | done | Heuristic leaf eval | — | [GOFER] |
-| GTP protocol | gtp.go | M8 | done | TestGTPBoardsize, cmd/engine -gtp | Subset | [GOFER] |
+| GTP protocol | gtp.go | M8 | done | TestGTPBoardsize, `cmd/gofer -gtp` | Subset | [GOFER] |
 | SGF replay | sgf.go | M2 | done | TestReplayCorpus, BenchmarkSGFReplay | 6 golden SGFs | [GOFER] |
 | Pass-alive optimization | tromp Score | M2 | started | ponytail in Score | Benson's algorithm | [PAPER] M3 |
 | Policy surprise weighting | — | v2+ | deferred [POST-PAPER] | — | — | KataGoMethods.md |

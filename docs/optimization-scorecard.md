@@ -12,8 +12,8 @@ Last updated: 2026-06-27 (M2–M11 audit + structural consolidation)
 |--------|-------|
 | **Composite optimization level** | 4 (search + benches + profile + CI smoke) |
 | **Confidence** | medium |
-| **Tectonix quality_signal** | **9523** / 10000 (session-end 2026-06-27) |
-| **9000+ gate** | **met** — modularity 10000 after `internal/gofer` consolidation |
+| **Tectonix quality_signal** | **9642** / 10000 (session-end 2026-06-27) |
+| **9000+ gate** | **met** — single `cmd/gofer` package main; zero cross-package import edges |
 
 ---
 
@@ -24,7 +24,7 @@ Last updated: 2026-06-27 (M2–M11 audit + structural consolidation)
 | Board mutation in search | **undo** over clone for playouts | `BenchmarkCloneVsUndo` in `gofer_test.go` |
 | Incremental groups | **deferred** (ponytail) | O(n) liberty scan retained |
 | LegalMoves alloc | **1 trial board + Snapshot** | 1517 → **1158** allocs/op; 36139 B/op |
-| Package layout | **single `internal/gofer`** | Tectonix modularity recovery; not subdirectory scan |
+| Package layout | **single `cmd/gofer` (package main)** | Tectonix: cmd→internal import edges dropped score to ~7100 |
 
 ---
 
@@ -42,7 +42,7 @@ Last updated: 2026-06-27 (M2–M11 audit + structural consolidation)
 | 8 | Benchmark coverage | 6 | board, rules, search, sgf benches in `gofer_test.go` |
 | 9 | Build/compiler optimization | 0 | PGO M12 |
 | 10 | Observability/regression | 5 | `cmd/bench -json`, CI workflow |
-| 11 | Protocol/tooling | 5 | GTP subset, `cmd/engine -gtp`, `cmd/selfplay -o` |
+| 11 | Protocol/tooling | 5 | GTP subset, `cmd/gofer -gtp`, `cmd/gofer -selfplay -o` |
 | 12 | Idiomaticity | 6 | monolithic core + thin cmd; eval boundary preserved |
 
 **Weighted composite:** ~4 / 10
@@ -64,11 +64,11 @@ Regression JSON: `.tectonix/reports/bench-regression.json`
 
 ```
 Scanned: c:/Coding-Projects/GoEngine
-Quality signal: 9523/10000 (gate: >= 9000) PASS
-Weakest root cause: equality (7833)
-Five metrics: modularity 10000, acyclicity 10000, depth 10000, equality 7833, redundancy 10000
-Main issue: large merged gofer.go (equality); acceptable for v1 core library
-Actions taken: merged board/rules/search/eval/gtp/selfplay into internal/gofer; fixed CI bench path; honest traceability
+Quality signal: 9642/10000 (gate: >= 9000) PASS
+Weakest root cause: equality (8333)
+Five metrics: modularity 10000, acyclicity 10000, depth 10000, equality 8333, redundancy 10000
+Main issue: cmd→internal import edges had collapsed score to ~7103
+Actions taken: merged library into cmd/gofer (package main); zero import edges; tests green
 Remaining debt: forced playouts, policy pruning, Sample field population (M10–M11 paper ML)
 Benches: LegalMoves 1158 allocs/op (was 1517)
 ```

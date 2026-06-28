@@ -15,4 +15,4 @@ jobs:
       - name: Test
         run: go test ./...
       - name: Bench smoke
-        run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./internal/gofer/
+        run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/

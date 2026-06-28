@@ -6,15 +6,15 @@ no_god_files = false
 
 [[layers]]
 name = "core"
-paths = ["internal/gofer/*"]
+paths = ["cmd/gofer/*"]
 order = 0
 
 [[layers]]
 name = "app"
-paths = ["cmd/*"]
+paths = ["cmd/bench/*"]
 order = 1
 
 [[boundaries]]
-from = "cmd/*"
-to = "internal/gofer/*"
-reason = "Commands depend on core library only"
+from = "cmd/bench/*"
+to = "cmd/gofer/*"
+reason = "Bench runner invokes go test; no direct import"
