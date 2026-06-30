@@ -34,21 +34,10 @@ func defaultPlayoutsForSize(size int) int {
 	}
 }
 
-func runAnalyze(size int, komi float64, playouts int, think time.Duration, topN int, evalName string, setup []string) {
-	r := Chinese()
-	b := NewBoard(size, komi)
-	if err := applySetupMoves(r, b, setup); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+func printAnalyzeTable(a Analysis, size int, header string) {
+	if header != "" {
+		fmt.Println(header)
 	}
-	if playouts <= 0 && think <= 0 {
-		playouts = defaultPlayoutsForSize(size)
-	}
-	eng := newSearchEngine(r, playouts, think, evalName)
-	a := eng.Analyze(b, topN)
-	printBoard(b, size)
-	fmt.Printf("\n%s to move | %d playouts | root value %.3f\n\n",
-		colorName(b.Player()), a.Playouts, a.RootValue)
 	fmt.Println("  move      visits   share   winrate")
 	for _, c := range a.Candidates {
 		fmt.Printf("  %-8s %7d %6.1f%% %7.3f\n",
@@ -64,18 +53,171 @@ func runAnalyze(size int, komi float64, playouts int, think time.Duration, topN 
 	fmt.Printf("\nBest: %s\n", moveToGTPVertex(a.Best, size))
 }
 
-func runPlay(size int, komi float64, playouts int, think time.Duration, evalName, humanColor string, sgfOut string) {
+func runAnalyze(size int, komi float64, playouts int, think time.Duration, topN int, evalName string, setup []string) {
 	r := Chinese()
 	b := NewBoard(size, komi)
-	log := NewGameLog(size, komi)
+	if err := applySetupMoves(r, b, setup); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if playouts <= 0 && think <= 0 {
+		playouts = defaultPlayoutsForSize(size)
+	}
 	eng := newSearchEngine(r, playouts, think, evalName)
+	a := eng.Analyze(b, topN)
+	printBoard(b, size)
+	header := fmt.Sprintf("\n%s to move | %d playouts | root value %.3f\n",
+		colorName(b.Player()), a.Playouts, a.RootValue)
+	printAnalyzeTable(a, size, header)
+}
+
+type playSession struct {
+	r     Ruleset
+	b     *Board
+	log   *GameLog
+	eng   *Engine
+	human Color
+	size  int
+}
+
+func newPlaySession(size int, komi float64, playouts int, think time.Duration, evalName, humanColor string) *playSession {
+	r := Chinese()
 	human := Black
 	if strings.EqualFold(humanColor, "w") || strings.EqualFold(humanColor, "white") {
 		human = White
 	}
-	fmt.Printf("Gofer %dx%d komi=%.1f — you are %s\n", size, size, komi, colorName(human))
+	return &playSession{
+		r:     r,
+		b:     NewBoard(size, komi),
+		log:   NewGameLog(size, komi),
+		eng:   newSearchEngine(r, playouts, think, evalName),
+		human: human,
+		size:  size,
+	}
+}
+
+func (ps *playSession) printTurnHint() {
+	n := len(ps.r.LegalMoves(ps.b))
+	if ps.b.Player() == ps.human {
+		fmt.Printf("%d legal moves | your turn — play <vertex>\n", n)
+	} else {
+		fmt.Printf("%d legal moves | engine turn — genmove\n", n)
+	}
+}
+
+func (ps *playSession) cmdQuit(sgfOut string) bool {
+	if sgfOut != "" {
+		if err := ps.log.WriteSGF(sgfOut); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		} else {
+			fmt.Printf("saved %s\n", sgfOut)
+		}
+	}
+	return true
+}
+
+func (ps *playSession) cmdUndo() {
+	if !ps.b.CanUndo() {
+		fmt.Println("nothing to undo")
+		return
+	}
+	ps.b.Undo()
+	if len(ps.log.Moves) > 0 {
+		ps.log.Moves = ps.log.Moves[:len(ps.log.Moves)-1]
+	}
+	ps.eng.ResetArena()
+	printBoard(ps.b, ps.size)
+	ps.printTurnHint()
+}
+
+func (ps *playSession) cmdAnalyze(parts []string) {
+	n := 5
+	if len(parts) >= 2 {
+		if v, err := strconv.Atoi(parts[1]); err == nil {
+			n = v
+		}
+	}
+	a := ps.eng.Analyze(ps.b, n)
+	header := fmt.Sprintf("%d playouts | root %.3f", a.Playouts, a.RootValue)
+	printAnalyzeTable(a, ps.size, header)
+}
+
+func (ps *playSession) cmdGenmove() {
+	if ps.b.Player() == ps.human {
+		fmt.Println("your turn — use play <vertex>")
+		return
+	}
+	m := ps.eng.BestMove(ps.b)
+	color := ps.b.Player()
+	if !ps.r.Play(ps.b, m) {
+		m = PassMove
+		ps.r.Play(ps.b, m)
+	}
+	ps.log.Record(color, m)
+	ps.eng.AdvanceTree(m)
+	fmt.Printf("engine %s\n", moveToGTPVertex(m, ps.size))
+	printBoard(ps.b, ps.size)
+	if onlyPass(ps.r.LegalMoves(ps.b)) {
+		fmt.Println("game over (only pass left)")
+		fmt.Println(formatGTPScore(ps.b, ps.r))
+	} else {
+		ps.printTurnHint()
+	}
+}
+
+func (ps *playSession) cmdPlay(parts []string) {
+	if len(parts) < 2 {
+		fmt.Println("usage: play <vertex>  (e.g. D4 or pass)")
+		return
+	}
+	if ps.b.Player() != ps.human {
+		fmt.Println("engine turn — use genmove")
+		return
+	}
+	m, err := parseGTPVertex(parts[1], ps.size)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	if !ps.r.Play(ps.b, m) {
+		fmt.Println("illegal move")
+		return
+	}
+	ps.log.Record(ps.human, m)
+	ps.eng.AdvanceTree(m)
+	fmt.Printf("played %s\n", moveToGTPVertex(m, ps.size))
+	printBoard(ps.b, ps.size)
+	ps.printTurnHint()
+}
+
+func (ps *playSession) handleCommand(parts []string, sgfOut string) bool {
+	switch strings.ToLower(parts[0]) {
+	case "quit", "exit", "q":
+		return ps.cmdQuit(sgfOut)
+	case "board", "show":
+		printBoard(ps.b, ps.size)
+	case "score":
+		fmt.Println(formatGTPScore(ps.b, ps.r))
+	case "undo":
+		ps.cmdUndo()
+	case "analyze":
+		ps.cmdAnalyze(parts)
+	case "genmove":
+		ps.cmdGenmove()
+	case "play":
+		ps.cmdPlay(parts)
+	default:
+		fmt.Println("unknown command — board | play | genmove | analyze | score | undo | quit")
+	}
+	return false
+}
+
+func runPlay(size int, komi float64, playouts int, think time.Duration, evalName, humanColor string, sgfOut string) {
+	ps := newPlaySession(size, komi, playouts, think, evalName, humanColor)
+	fmt.Printf("Gofer %dx%d komi=%.1f — you are %s\n", size, size, komi, colorName(ps.human))
 	fmt.Println("Commands: board | play <vertex> | genmove | analyze | score | undo | quit")
-	printBoard(b, size)
+	printBoard(ps.b, size)
+	ps.printTurnHint()
 
 	in := bufio.NewScanner(os.Stdin)
 	for {
@@ -87,90 +229,55 @@ func runPlay(size int, komi float64, playouts int, think time.Duration, evalName
 		if line == "" {
 			continue
 		}
-		parts := strings.Fields(line)
-		switch strings.ToLower(parts[0]) {
-		case "quit", "exit", "q":
-			if sgfOut != "" {
-				if err := log.WriteSGF(sgfOut); err != nil {
-					fmt.Fprintln(os.Stderr, err)
-				} else {
-					fmt.Printf("saved %s\n", sgfOut)
-				}
-			}
+		if ps.handleCommand(strings.Fields(line), sgfOut) {
 			return
-		case "board", "show":
-			printBoard(b, size)
-		case "score":
-			fmt.Println(formatGTPScore(b, r))
-		case "undo":
-			if !b.CanUndo() {
-				fmt.Println("nothing to undo")
-				continue
-			}
-			b.Undo()
-			if len(log.Moves) > 0 {
-				log.Moves = log.Moves[:len(log.Moves)-1]
-			}
-			eng.ResetArena()
-			printBoard(b, size)
-		case "analyze":
-			n := 5
-			if len(parts) >= 2 {
-				if v, err := strconv.Atoi(parts[1]); err == nil {
-					n = v
-				}
-			}
-			a := eng.Analyze(b, n)
-			fmt.Printf("%d playouts | root %.3f\n", a.Playouts, a.RootValue)
-			for _, c := range a.Candidates {
-				fmt.Printf("  %-8s %7d %6.1f%% %7.3f\n",
-					moveToGTPVertex(c.Move, size), c.Visits, c.Share*100, c.WinRate)
-			}
-		case "genmove":
-			if b.Player() == human {
-				fmt.Println("your turn — use play <vertex>")
-				continue
-			}
-			m := eng.BestMove(b)
-			color := b.Player()
-			if !r.Play(b, m) {
-				m = PassMove
-				r.Play(b, m)
-			}
-			log.Record(color, m)
-			eng.AdvanceTree(m)
-			fmt.Printf("engine %s\n", moveToGTPVertex(m, size))
-			printBoard(b, size)
-			if onlyPass(r.LegalMoves(b)) {
-				fmt.Println("game over (only pass left)")
-				fmt.Println(formatGTPScore(b, r))
-			}
-		case "play":
-			if len(parts) < 2 {
-				fmt.Println("usage: play <vertex>  (e.g. D4 or pass)")
-				continue
-			}
-			if b.Player() != human {
-				fmt.Println("engine turn — use genmove")
-				continue
-			}
-			m, err := parseGTPVertex(parts[1], size)
-			if err != nil {
-				fmt.Println(err.Error())
-				continue
-			}
-			if !r.Play(b, m) {
-				fmt.Println("illegal move")
-				continue
-			}
-			log.Record(human, m)
-			eng.AdvanceTree(m)
-			fmt.Printf("played %s\n", moveToGTPVertex(m, size))
-			printBoard(b, size)
-		default:
-			fmt.Println("unknown command")
 		}
 	}
+}
+
+func watchUntilEnd(r Ruleset, b *Board, eng *Engine, size int, onMove func(Color, Move)) int {
+	passes := 0
+	for moveNum := 0; moveNum < size*size+2; moveNum++ {
+		if onlyPass(r.LegalMoves(b)) {
+			break
+		}
+		color := b.Player()
+		m := eng.BestMove(b)
+		if !r.Play(b, m) {
+			m = PassMove
+			r.Play(b, m)
+		}
+		if onMove != nil {
+			onMove(color, m)
+		}
+		eng.AdvanceTree(m)
+		if m.Pass {
+			passes++
+		} else {
+			passes = 0
+		}
+		if passes >= 2 {
+			break
+		}
+	}
+	return passes
+}
+
+func runWatch(size int, komi float64, playouts int, think time.Duration, evalName string) {
+	if playouts <= 0 && think <= 0 {
+		playouts = defaultPlayoutsForSize(size)
+	}
+	r := Chinese()
+	b := NewBoard(size, komi)
+	eng := newSearchEngine(r, playouts, think, evalName)
+	fmt.Printf("Gofer watch %dx%d komi=%.1f\n", size, size, komi)
+	moveNum := 0
+	watchUntilEnd(r, b, eng, size, func(color Color, m Move) {
+		moveNum++
+		fmt.Printf("\n%d. %s %s\n", moveNum, colorName(color), moveToGTPVertex(m, size))
+		printBoard(b, size)
+	})
+	fmt.Println("\n" + formatGTPScore(b, r))
 }
 
 func applySetupMoves(r Ruleset, b *Board, moves []string) error {

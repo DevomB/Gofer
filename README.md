@@ -1,12 +1,15 @@
-# Gofer
+# Gofer v1.0.0
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
 
 ## Quick start
 
 ```bash
 make build          # -> bin/gofer
 make test
+make bench-check    # same regression gate as CI
 ```
 
 ### Play in the terminal
@@ -33,6 +36,12 @@ Engine command:
 bin/gofer -gtp -size 9 -think-time 5s -eval heuristic
 ```
 
+Save game on quit:
+
+```text
+bin/gofer -gtp -size 9 -o game.sgf
+```
+
 Or fixed playouts:
 
 ```text
@@ -40,6 +49,12 @@ bin/gofer -gtp -gtp-playouts 800 -eval heuristic
 ```
 
 Sabaki: **Engine → Manage engines → Add** → path above.
+
+### Watch engine vs engine
+
+```bash
+bin/gofer -watch -size 9 -playouts 50
+```
 
 ### Self-play
 
@@ -69,6 +84,16 @@ bin/gofer -sgf cmd/gofer/testdata/simple.sgf
 - **`heuristic`** (default) — stones, liberties, territory estimate, move priors for PUCT
 - **`uniform`** — random-ish MCTS baseline
 
+## Profile-guided build (optional)
+
+```bash
+make pgo-profile    # generates default.pgo (gitignored)
+make pgo-build      # bin/gofer with -pgo=
+make bench-check    # compare before/after
+```
+
+ponytail: `pgo-profile` uses `BenchmarkLegalMoves` microbench. Ceiling: may mis-optimize search paths. Upgrade: profile from `-selfplay` macro workload.
+
 ## Project layout
 
 | Path | Role |
@@ -87,7 +112,7 @@ bin/gofer -sgf cmd/gofer/testdata/simple.sgf
 
 - Chinese + Tromp-Taylor rules, SGF import/export
 - PUCT MCTS, transposition table, parallel playouts
-- GTP subset, terminal play/analyze, self-play samples
+- GTP subset, terminal play/analyze/watch, self-play samples
 
 ## Not in v1 (explicit non-goals)
 

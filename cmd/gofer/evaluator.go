@@ -3,7 +3,6 @@ package main
 import (
 	"math"
 	"math/rand"
-	"sync/atomic"
 )
 
 const (
@@ -107,23 +106,27 @@ func heuristicPolicy(b *Board) []float32 {
 			if b.StoneAt(pt) != Empty {
 				continue
 			}
-			score := float32(0.05)
-			for _, nb := range b.Neighbors(pt.Idx(size)) {
-				switch b.AtIndex(nb) {
-				case player:
-					score += 1
-				case opp:
-					score -= 0.4
-				}
-			}
-			if score < 0.01 {
-				score = 0.01
-			}
-			p[pt.Idx(size)] = score
+			p[pt.Idx(size)] = policyPriorAt(b, pt, player, opp)
 		}
 	}
 	p[size*size] = 0.02
 	return p
+}
+
+func policyPriorAt(b *Board, pt Point, player, opp Color) float32 {
+	score := float32(0.05)
+	for _, nb := range b.Neighbors(pt.Idx(b.Size())) {
+		switch b.AtIndex(nb) {
+		case player:
+			score += 1
+		case opp:
+			score -= 0.4
+		}
+	}
+	if score < 0.01 {
+		return 0.01
+	}
+	return score
 }
 
 func clamp(v, lo, hi float64) float64 {
@@ -207,73 +210,4 @@ func blendDirichlet(priors []float64, rng *rand.Rand) []float64 {
 		out[i] = (1-dirichletBlend)*priors[i] + dirichletBlend*n
 	}
 	return out
-}
-
-func (e *Engine) leafValue(b *Board) float64 {
-	hash := b.Hash()
-	e.mu.Lock()
-	if v, ok := e.TT.Get(hash); ok && v.Depth != 0 {
-		e.mu.Unlock()
-		return v.Value
-	}
-	e.mu.Unlock()
-
-	res := e.Eval.Evaluate(b)
-	if res.Value != 0 {
-		e.mu.Lock()
-		e.TT.Store(hash, Entry{Depth: 1, Value: res.Value})
-		e.mu.Unlock()
-		return res.Value
-	}
-	v := e.randomPlayout(b)
-	e.mu.Lock()
-	e.TT.Store(hash, Entry{Depth: 1, Value: v})
-	e.mu.Unlock()
-	return v
-}
-
-func (e *Engine) randomPlayout(b *Board) float64 {
-	rng := e.playoutRand()
-	br := b.Clone()
-	player := br.Player()
-	passes := 0
-	for move := 0; move < maxRolloutMoves && passes < 2; move++ {
-		moves := e.Rules.LegalMoves(br)
-		if len(moves) == 0 {
-			break
-		}
-		m := moves[rng.Intn(len(moves))]
-		e.Rules.Play(br, m)
-		if m.Pass {
-			passes++
-		} else {
-			passes = 0
-		}
-	}
-	bl, wl := e.Rules.Score(br)
-	diff := bl - wl
-	if player == White {
-		diff = wl - bl
-	}
-	if diff > 0 {
-		return 1
-	}
-	if diff < 0 {
-		return -1
-	}
-	return 0
-}
-
-func (e *Engine) playoutRand() *rand.Rand {
-	seq := atomic.AddUint64(&e.rngSeq, 1)
-	return rand.New(rand.NewSource(e.cfg.Seed + int64(seq)))
-}
-
-func (e *Engine) isTerminal(b *Board) bool {
-	for _, m := range e.Rules.LegalMoves(b) {
-		if !m.Pass {
-			return false
-		}
-	}
-	return true
 }

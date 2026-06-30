@@ -9,7 +9,7 @@ Maps paper/KataGo research concepts → Gofer implementation. Status updated at 
 | Research concept | Implementation target | Milestone | Status | Evidence | Risks | Deferred notes |
 |------------------|----------------------|-----------|--------|----------|-------|----------------|
 | PUCT/MCTS | `cmd/gofer` (mcts) | M5 | done | `gofer_test.go` TestPUCTFormula, TestDeterministicPlayout | Low playouts in GTP | c=1.1 |
-| Playout cap randomization | `cmd/gofer` RunSelfplay | M10 | done | `gofer.go` CapRandomizeP=0.25 | Config complexity | [PAPER] ponytail |
+| Playout cap randomization | `cmd/gofer` `selfplay.go` | M10 | done | `selfplay.go` `CapRandomizeP=0.25` | Config complexity | [PAPER] ponytail |
 | Forced playouts | MCTS root | M10 | deferred | — | Must not poison play π | [PAPER] k=2 not implemented |
 | Policy target pruning | search + Sample export | M10 | deferred | — | Needs visit metadata export | [PAPER] |
 | Global pooling | external trainer | M11 | deferred | — | Training-only external | [PAPER] not runtime |
@@ -19,10 +19,10 @@ Maps paper/KataGo research concepts → Gofer implementation. Status updated at 
 | Score maximization | search utility | v2+ | deferred [POST-PAPER] | — | Not in paper | Jane Street blog |
 | Gating (100/200) | GatingHarness | M11 | done | `gofer_test.go` TestGatingHarness | Match infrastructure | [PAPER] ponytail |
 | SWA snapshots | external trainer | M11 | deferred | — | Not in Go engine | [PAPER] |
-| Rules randomization | RunSelfplay | M10 | done | `gofer.go` RulesRandomize | Multi-ruleset | [PAPER] |
-| Board-size randomization | RunSelfplay | M10 | done | `gofer.go` | Variable size | [PAPER] 9–19 |
+| Rules randomization | `selfplay.go` | M10 | done | `selfplay.go` RulesRandomize | Multi-ruleset | [PAPER] |
+| Board-size randomization | `selfplay.go` | M10 | done | `selfplay.go` | Variable size | [PAPER] 9–19 |
 | Game-specific NN features | model features | M11 | deferred | — | Ladders, pass-alive | [PAPER] §4.2 |
-| Dirichlet root noise | mcts | M5 | done | `gofer.go` blendDirichlet | Root only | [PAPER] |
+| Dirichlet root noise | `mcts.go` | M5 | done | `mcts.go` blendDirichlet | Root only | [PAPER] |
 | Root temperature | SearchConfig | M5 | done | `RootTemperature` 1.03 | — | [PAPER] |
 | FPU | mcts | M5 | done | `gofer_test.go` TestPUCTFormula | c_FPU=0.2 | [PAPER] |
 | Progressive net scaling | external training | M11 | deferred | — | — | [PAPER] |

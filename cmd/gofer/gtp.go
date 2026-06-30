@@ -25,6 +25,7 @@ type Session struct {
 	Board     *Board
 	Rules     Ruleset
 	Search    *Engine
+	log       *GameLog
 	Size      int
 	Komi      float64
 	playouts  int
@@ -54,11 +55,16 @@ func NewSession(cfg SessionConfig) *Session {
 		Board:     b,
 		Rules:     r,
 		Search:    NewEngine(r, ev, scfg),
+		log:       NewGameLog(size, komi),
 		Size:      size,
 		Komi:      komi,
 		playouts:  playouts,
 		thinkTime: cfg.ThinkTime,
 	}
+}
+
+func (s *Session) resetGameLog() {
+	s.log = NewGameLog(s.Size, s.Komi)
 }
 
 // Handle processes one GTP command line and returns the response body (without =/? prefix).
@@ -75,7 +81,7 @@ func (s *Session) Handle(line string) string {
 	case "name":
 		return "Gofer"
 	case "version":
-		return "0.1"
+		return "1.0"
 	case "known_command":
 		return s.handleKnownCommand(parts)
 	case "list_commands":
@@ -130,12 +136,14 @@ func (s *Session) handleBoardsize(parts []string) string {
 	s.Board = NewBoard(n, s.Komi)
 	s.playouts = defaultPlayoutsForSize(n)
 	s.Search.ResetArena()
+	s.resetGameLog()
 	return ""
 }
 
 func (s *Session) handleClearBoard() string {
 	s.Board = NewBoard(s.Size, s.Komi)
 	s.Search.ResetArena()
+	s.resetGameLog()
 	return ""
 }
 
@@ -150,6 +158,7 @@ func (s *Session) handleKomi(parts []string) string {
 	s.Komi = k
 	s.Board = NewBoard(s.Size, k)
 	s.Search.ResetArena()
+	s.resetGameLog()
 	return ""
 }
 
@@ -171,6 +180,7 @@ func (s *Session) handlePlay(parts []string) string {
 	if !s.Rules.Play(s.Board, m) {
 		return "illegal move"
 	}
+	s.log.Record(color, m)
 	s.Search.AdvanceTree(m)
 	return ""
 }
@@ -194,10 +204,14 @@ func (s *Session) handleGenmove(parts []string) string {
 	s.nextThink = 0
 	m := s.Search.BestMove(s.Board)
 	if !s.Rules.Play(s.Board, m) {
-		s.Search.AdvanceTree(m)
+		m = PassMove
+		s.Rules.Play(s.Board, m)
+	}
+	s.log.Record(color, m)
+	s.Search.AdvanceTree(m)
+	if m.Pass {
 		return "pass"
 	}
-	s.Search.AdvanceTree(m)
 	return moveToGTPVertex(m, s.Size)
 }
 

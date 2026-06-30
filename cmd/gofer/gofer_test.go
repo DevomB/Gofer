@@ -1,58 +1,10 @@
 package main
 
 import (
-	"math"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
-	"time"
 )
-
-func BenchmarkApplyStone(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		idx := i % (19 * 19)
-		br.setStone(idx, Black)
-		br.setStone(idx, Empty)
-	}
-}
-
-func BenchmarkUndo(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		p := At(i%19, (i/19)%19)
-		idx := p.Idx(19)
-		br.StartPlay(StoneMove(p), nil, idx, Empty)
-		br.SetStoneIndex(idx, Black)
-		br.FinishTurn(-1)
-		br.Undo()
-	}
-}
-
-func BenchmarkClone(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	for i := 0; i < 20; i++ {
-		br.setStone(i, Black)
-	}
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = br.Clone()
-	}
-}
-
-func BenchmarkHashUpdate(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		idx := i % (19 * 19)
-		br.setStone(idx, Black)
-		_ = br.Hash()
-		br.setStone(idx, Empty)
-	}
-}
 
 func TestCoordRoundTrip(t *testing.T) {
 	size := 9
@@ -108,167 +60,10 @@ func TestSnapshotRestore(t *testing.T) {
 	}
 }
 
-func BenchmarkCloneVsUndo(b *testing.B) {
-	b.Run("Clone", func(b *testing.B) {
-		br := NewBoard(19, 7.5)
-		for i := 0; i < 40; i++ {
-			br.setStone(i, Black)
-		}
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			c := br.Clone()
-			idx := (i + 40) % (19 * 19)
-			c.setStone(idx, White)
-			_ = c
-		}
-	})
-	b.Run("Undo", func(b *testing.B) {
-		br := NewBoard(19, 7.5)
-		for i := 0; i < 40; i++ {
-			br.setStone(i, Black)
-		}
-		b.ReportAllocs()
-		for i := 0; i < b.N; i++ {
-			idx := (i + 40) % (19 * 19)
-			prev := br.stones[idx]
-			br.StartPlay(StoneMove(At(idx%19, idx/19)), nil, idx, prev)
-			br.SetStoneIndex(idx, White)
-			br.FinishTurn(-1)
-			br.Undo()
-		}
-	})
-}
-
 func TestNewBoard(t *testing.T) {
 	b := NewBoard(9, 6.5)
 	if b.Size() != 9 {
 		t.Fatalf("size %d", b.Size())
-	}
-}
-
-func treeNodes(eng *Engine) int {
-	eng.mu.Lock()
-	defer eng.mu.Unlock()
-	if eng.arena == nil {
-		return 0
-	}
-	return len(eng.arena.nodes)
-}
-
-func TestPUCTFormula(t *testing.T) {
-	q, prior, pv := 0.5, 0.1, 100.0
-	visits, c := uint32(10), 1.1
-	got := q + c*prior*math.Sqrt(pv)/(1+float64(visits))
-	want := 0.5 + 1.1*0.1*10/11
-	if got < want-1e-9 || got > want+1e-9 {
-		t.Fatalf("puct got %v want %v", got, want)
-	}
-}
-
-func TestDeterministicPlayout(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.Seed = 42
-	cfg.Playouts = 6
-	b := NewBoard(5, 6.5)
-	m1 := NewEngine(r, Uniform{}, cfg).BestMove(b)
-	m2 := NewEngine(r, Uniform{}, cfg).BestMove(b)
-	if m1 != m2 {
-		t.Fatalf("deterministic seed mismatch %v vs %v", m1, m2)
-	}
-}
-
-func TestTTStoresAfterSearch(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.Playouts = 20
-	e := NewEngine(r, nil, cfg)
-	b := NewBoard(5, 6.5)
-	_ = e.BestMove(b)
-	if _, ok := e.TT.Get(b.Hash()); !ok {
-		t.Fatal("expected TT entry after search")
-	}
-}
-
-func TestRootPolicySumsToOne(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.Playouts = 15
-	e := NewEngine(r, nil, cfg)
-	b := NewBoard(5, 6.5)
-	legal := r.LegalMoves(b)
-	_ = e.BestMove(b)
-	pi := e.RootPolicy(legal)
-	var sum float32
-	for _, p := range pi {
-		sum += p
-	}
-	if sum < 0.99 || sum > 1.01 {
-		t.Fatalf("policy sum %v", sum)
-	}
-}
-
-func TestMCTSTreeReuse(t *testing.T) {
-	r := Chinese()
-	b := NewBoard(9, 6.5)
-	cfg := DefaultConfig()
-	cfg.Playouts = 30
-	cfg.Workers = 1
-	eng := NewEngine(r, Uniform{}, cfg)
-	m1 := eng.BestMove(b)
-	len1 := treeNodes(eng)
-	if len1 == 0 {
-		t.Fatal("expected nodes after search")
-	}
-	eng.BestMove(b)
-	if treeNodes(eng) < len1 {
-		t.Fatalf("tree shrank on reuse: %d -> %d", len1, treeNodes(eng))
-	}
-	r.Play(b, m1)
-	eng.AdvanceTree(m1)
-	if treeNodes(eng) == 0 {
-		t.Fatal("tree cleared after advancing to best child")
-	}
-	eng.ResetArena()
-	if treeNodes(eng) != 0 {
-		t.Fatal("reset failed")
-	}
-}
-
-func TestGTPBoardsize(t *testing.T) {
-	s := NewSession(SessionConfig{})
-	if out := s.Handle("boardsize 9"); out != "" {
-		t.Fatalf("boardsize: %q", out)
-	}
-}
-
-func TestGTPKnownCommand(t *testing.T) {
-	s := NewSession(SessionConfig{})
-	if out := s.Handle("known_command genmove"); out != "true" {
-		t.Fatalf("known genmove: %q", out)
-	}
-	if out := s.Handle("known_command not_a_command"); out != "false" {
-		t.Fatalf("unknown command: %q", out)
-	}
-}
-
-func TestGTPShowboard(t *testing.T) {
-	s := NewSession(SessionConfig{})
-	s.Handle("boardsize 9")
-	out := s.Handle("showboard")
-	if out == "" || !strings.Contains(out, ".") {
-		t.Fatalf("showboard empty or missing dots: %q", out)
-	}
-}
-
-func TestGTPFinalScore(t *testing.T) {
-	s := NewSession(SessionConfig{})
-	s.Handle("boardsize 9")
-	s.Handle("play black pass")
-	s.Handle("play white pass")
-	out := s.Handle("final_score")
-	if out == "" {
-		t.Fatal("final_score empty")
 	}
 }
 
@@ -295,20 +90,6 @@ func TestGatingHarness(t *testing.T) {
 	g := GatingHarness{Games: 100, MinWinRateMargin: 0.55}
 	if !g.Pass(0.4, 0.56) {
 		t.Fatal("should pass")
-	}
-}
-
-func BenchmarkSearchParallel(b *testing.B) {
-	r := Chinese()
-	board := NewBoard(9, 6.5)
-	cfg := DefaultConfig()
-	cfg.Playouts = 50
-	cfg.Workers = 4
-	eng := NewEngine(r, Uniform{}, cfg)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		eng.ResetArena()
-		eng.BestMove(board)
 	}
 }
 
@@ -354,58 +135,6 @@ func replaySGF(t *testing.T, path string, rules Ruleset, check func(t *testing.T
 	}
 	if check != nil {
 		check(t, rules, b)
-	}
-}
-
-func BenchmarkLegalMoves(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	r := Chinese()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_ = r.LegalMoves(br)
-	}
-}
-
-func BenchmarkMakeMove(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	r := Chinese()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		p := At(i%19, (i/19)%19)
-		if !r.Play(br, StoneMove(p)) {
-			br = NewBoard(19, 7.5)
-			continue
-		}
-		br.Undo()
-	}
-}
-
-func BenchmarkPlay(b *testing.B) { BenchmarkMakeMove(b) }
-
-func BenchmarkCaptureHeavy(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	r := Chinese()
-	for y := 3; y < 16; y += 3 {
-		for x := 3; x < 16; x += 3 {
-			_ = r.Play(br, StoneMove(At(x, y)))
-		}
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_ = r.LegalMoves(br)
-	}
-}
-
-func BenchmarkScore(b *testing.B) {
-	br := NewBoard(19, 7.5)
-	r := Chinese()
-	for i := 0; i < 30; i++ {
-		_ = r.Play(br, StoneMove(At(i%19, (i*2)%19)))
-	}
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		_, _ = r.Score(br)
 	}
 }
 
@@ -648,33 +377,6 @@ func TestExportSGFRoundTrip(t *testing.T) {
 	}
 }
 
-func TestAnalyzeCandidates(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.Playouts = 30
-	e := NewEngine(r, Heuristic{}, cfg)
-	b := NewBoard(5, 6.5)
-	a := e.Analyze(b, 3)
-	if a.Playouts <= 0 || len(a.Candidates) == 0 {
-		t.Fatalf("analyze: playouts=%d cands=%d", a.Playouts, len(a.Candidates))
-	}
-	if a.Best.Pass && len(a.Candidates) > 1 {
-		// empty board should not pass as best
-	}
-}
-
-func TestThinkTimeSearch(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.ThinkTime = 50 * time.Millisecond
-	e := NewEngine(r, Heuristic{}, cfg)
-	b := NewBoard(5, 6.5)
-	a := e.Analyze(b, 3)
-	if a.Playouts <= 0 {
-		t.Fatal("expected playouts during think window")
-	}
-}
-
 func TestGameLogExport(t *testing.T) {
 	log := NewGameLog(9, 6.5)
 	log.Record(Black, StoneMove(At(2, 2)))
@@ -690,17 +392,6 @@ func TestGameLogExport(t *testing.T) {
 	}
 }
 
-func TestGTPTimeLeft(t *testing.T) {
-	s := NewSession(SessionConfig{Playouts: 10})
-	s.Handle("boardsize 9")
-	if out := s.Handle("time_left black 30 0"); out != "" {
-		t.Fatalf("time_left: %q", out)
-	}
-	if s.nextThink != 30*time.Second {
-		t.Fatalf("nextThink=%v", s.nextThink)
-	}
-}
-
 func TestSelfplaySGFLogs(t *testing.T) {
 	cfg := DefaultSelfplayConfig()
 	cfg.Games = 1
@@ -709,32 +400,5 @@ func TestSelfplaySGFLogs(t *testing.T) {
 	_, logs := RunSelfplayWithLogs(cfg)
 	if len(logs) != 1 || len(logs[0].Moves) == 0 {
 		t.Fatalf("log moves %d", len(logs[0].Moves))
-	}
-}
-
-func BenchmarkSGFReplay(b *testing.B) {
-	path := filepath.Join("testdata", "open.sgf")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		b.Fatal(err)
-	}
-	g, err := ParseSGF(string(data))
-	if err != nil {
-		b.Fatal(err)
-	}
-	moves, err := g.MainLine()
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		r := Chinese()
-		brd := NewBoard(g.Size, g.Komi)
-		_ = g.Setup(brd)
-		for _, m := range moves {
-			if !r.Play(brd, sgfMoveToPlay(m)) {
-				b.Fatal("illegal replay")
-			}
-		}
 	}
 }

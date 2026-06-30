@@ -75,7 +75,7 @@ Non-trivial logic ships with the smallest test or bench that fails if logic brea
 ## Benchmarking Rules
 
 - Every optimization claim needs `go test -bench=. -benchmem` before/after.
-- Stable fixtures in `internal/testdata` or const positions in `_test.go`.
+- Stable fixtures in `cmd/gofer/testdata` or const positions in `_test.go`.
 - Report `ns/op`, `B/op`, `allocs/op`.
 - Distinguish throughput (positions/sec) vs latency (ms/move).
 - Synthetic microbenches + representative macro (19×19 capture fight).
@@ -86,7 +86,7 @@ Non-trivial logic ships with the smallest test or bench that fails if logic brea
 ## Profiling Rules
 
 ```bash
-go test -bench=BenchmarkLegalMoves -cpuprofile=cpu.prof ./internal/rules/chinese/
+go test -bench=BenchmarkLegalMoves -cpuprofile=cpu.prof ./cmd/gofer/
 go tool pprof -top cpu.prof
 ```
 
@@ -113,9 +113,9 @@ go tool pprof -top cpu.prof
 Go supports feeding representative CPU profiles to the compiler (`default.pgo`). Documented gains on representative programs are roughly **2%–14%** — not a substitute for algorithm choice.
 
 Workflow:
-1. Generate profile from representative workload (`cmd/bench` or engine self-play at M10+).
-2. Copy to `default.pgo` at module root.
-3. `go build -pgo=default.pgo ./cmd/engine`
+1. Generate profile from representative workload (`make pgo-profile` or `cmd/bench`).
+2. Copy to `default.pgo` at module root (or use `make pgo-profile` which writes it directly).
+3. `go build -pgo=default.pgo -o bin/gofer ./cmd/gofer`
 4. Re-bench; record delta in scorecard.
 5. Refresh PGO when search/eval code changes materially.
 
@@ -157,7 +157,7 @@ test:  go test ./...
 bench: go test -bench=. -benchmem ./...
 race:  go test -race ./...
 lint:  go vet ./...
-profile: go test -bench=BenchmarkLegalMoves -cpuprofile=cpu.prof ./internal/rules/chinese/
+profile: go test -bench=BenchmarkLegalMoves -cpuprofile=cpu.prof ./cmd/gofer/
 ```
 
 Extend as packages land; no fake targets.

@@ -15,13 +15,18 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - M1 Chinese-rules board engine with undo, tests, benchmarks
 - Tectonix quality_signal ≥ 9000 at repo root before sign-off
 
+> **Architecture note (2026-06):** v1 ships as a monolithic `cmd/gofer` `package main` binary. Milestones M1–M10 are implemented there (not `cmd/engine` / `internal/*`). A package split remains a post-v1 option if modularity pressure warrants it.
+
 ### Explicit non-goals (v1 tranche)
-- Neural network training or GPU inference
-- GTP server (M8)
-- MCTS (M5)
-- Superko (unless trivial add in M1)
-- Full SGF export
-- Score maximization, JSON analysis API (post-paper, v2+)
+- Neural network training or GPU inference in-process
+- KataGo-level strength without trained NN
+- Full JSON analysis API (post-paper, v2+)
+
+**v1.0 shipped (2026-06):** GTP, MCTS, SGF export, terminal play/analyze/watch, self-play samples.
+
+### Architecture note (2026-06)
+
+Engine code is consolidated in `cmd/gofer` (`package main`) with zero cross-package import edges to other project packages. An earlier `internal/*` split was reverted after Tectonix modularity regressions. Only `cmd/bench` is separate (exec-based, no import of gofer).
 
 ---
 
@@ -47,7 +52,7 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - **Tests:** smoke test in `board` package
 - **Benchmarks:** skeleton `BenchmarkBoardAt` in `board`
 - **Bottlenecks:** N/A
-- **DoD:** `go.mod`, Makefile, `.tectonix/rules.toml`, `cmd/engine`, `internal/board` coords
+- **DoD:** `go.mod`, Makefile, `.tectonix/rules.toml`, `cmd/gofer` skeleton
 
 ### M1: Rules-correct board engine (Chinese)
 - **Objective:** Place/capture/ko/score/undo on 19×19
@@ -55,14 +60,14 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - **Tests:** table-driven legality, capture, ko, scoring; 3+ golden positions
 - **Benchmarks:** MakeMove, Undo, LegalMoves, HashUpdate
 - **Bottlenecks:** naive liberty scan
-- **DoD:** `internal/rules/chinese` complete for standard play
+- **DoD:** `cmd/gofer` Chinese rules complete for standard play
 
 ### M2: Tromp-Taylor + superko + SGF replay
 - **Objective:** Second ruleset; SGF import validates engine moves
 - **Acceptance:** SGF corpus replays without mismatch
-- **Tests:** SGF replay tests in `internal/sgf`
+- **Tests:** SGF replay tests in `cmd/gofer`
 - **Benchmarks:** SGF replay throughput
-- **DoD:** `rules/tromp` package; positional ko option
+- **DoD:** `cmd/gofer` tromp rules; positional ko option
 
 ### M3: Fast state mutation
 - **Objective:** Incremental groups OR proven undo faster than copy
@@ -74,7 +79,7 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - **Objective:** Selection/expansion/backup without NN
 - **Tests:** fixed-seed tree shape tests
 - **Benchmarks:** single playout iteration
-- **DoD:** `internal/search`, `internal/tree` arenas
+- **DoD:** `cmd/gofer` search + tree arena
 
 ### M5: Basic MCTS/PUCT
 - **Objective:** PUCT with heuristic eval; root Dirichlet noise optional
@@ -120,24 +125,8 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 
 ```
 gofer/
-├── cmd/engine/          # GTP (M8)
-├── cmd/analyze/         # analysis CLI (M8+)
-├── cmd/selfplay/        # M10
-├── cmd/bench/           # M9
-├── internal/
-│   ├── board/           # state, coords, hash, undo
-│   ├── rules/           # Ruleset interface
-│   │   └── chinese/     # v1 primary
-│   ├── search/          # M4+
-│   ├── tree/            # node arena
-│   ├── eval/            # M7+
-│   ├── model/           # M11
-│   ├── gtp/             # M8
-│   ├── sgf/             # M2+
-│   ├── analysis/        # post-paper M8+
-│   ├── selfplay/        # M10
-│   └── training/        # sample schema M10+
-├── internal/testdata/   # golden SGF, positions
+├── cmd/gofer/           # monolithic engine binary (rules, MCTS, GTP, CLI)
+├── cmd/bench/           # M9 benchmark regression runner
 ├── docs/
 ├── .tectonix/rules.toml
 ├── Makefile
@@ -145,38 +134,52 @@ gofer/
 └── README.md
 ```
 
+> v1 intentionally keeps all engine code in `cmd/gofer` as `package main`. The `internal/*` layout below was the original target; defer split until post-v1 if needed.
+
+```
+gofer/  (post-v1 option)
+├── cmd/gofer/
+├── internal/
+│   ├── board/
+│   ├── rules/
+│   ├── search/
+│   └── ...
+```
+
 ---
 
 ## 5. Package Contracts
 
-### `internal/board`
+> Implemented in `cmd/gofer` as plain types and files (not separate packages). Contracts below describe logical boundaries.
+
+### `board` (`cmd/gofer/board.go`, `move.go`, `point.go`, `zobrist.go`)
 - **Responsibilities:** Coordinates, `Move`, `Board` grid, `Side`, Zobrist, undo stack
 - **Must NOT:** rule legality, scoring logic
 - **Public API:** `New(size)`, `At(c)`, `Play(m)` via rules only — board exposes mutation primitives
 - **Hot path:** `SetStone`, `RemoveStone`, `Hash`, undo push/pop
 - **Tests:** coord round-trip, hash determinism
 
-### `internal/rules`
+### `rules` (`cmd/gofer/chinese_rules.go`, `tromp_rules.go`, `superko.go`)
 - **Responsibilities:** `Ruleset` — `LegalMoves`, `Play`, `Score`, `Result`
 - **Must NOT:** MCTS, GTP parsing
 - **API:** `type Ruleset interface { ... }` at package root; implementations in subpackages
 - **Hot path:** `LegalMoves` — ponytail allowed with benchmark
 - **Tests:** per-ruleset golden files
 
-### `internal/search`
+### `search` (`cmd/gofer/mcts.go`, `arena.go`, `tt.go`)
 - **Responsibilities:** MCTS driver, PUCT, root noise, pruning hooks
 - **Must NOT:** import `training`, `model` weights
 - **API:** `Search(board, eval, cfg) Move`
 - **Hot path:** `Select`, `Expand`, `Backup` — no interface dispatch in inner loop
 - **Tests:** seeded RNG tree tests
 
-### `internal/eval`
+### `eval` (`cmd/gofer/evaluator.go`, `inference.go`)
 - **Responsibilities:** `Evaluator` interface, heuristic, mock
 - **Must NOT:** board mutation
 - **API:** `Evaluate(pos) (policy, value, err)`
 - **Hot path:** batch API separate from single-pos interface
 
-### `internal/gtp`
+### `gtp` (`cmd/gofer/gtp.go`)
 - **Responsibilities:** stdin/stdout protocol
 - **Must NOT:** search internals
 
@@ -239,14 +242,13 @@ type Evaluator interface {
 
 ## 9. Protocols And Tooling
 
-| Protocol | Priority | Package |
-|----------|----------|---------|
-| GTP 2.x | M8 | `internal/gtp` |
-| JSON analysis | M8+ post-paper | `internal/analysis` |
-| SGF import | M2 | `internal/sgf` |
-| SGF export | M2+ | `internal/sgf` |
+| Protocol | Priority | Location |
+|----------|----------|----------|
+| GTP 2.x | M8 | `cmd/gofer/gtp.go` |
+| JSON analysis | M8+ post-paper | deferred |
+| SGF import/export | M2 | `cmd/gofer/sgf.go`, `sgf_parse.go` |
 | `cmd/bench` | M9 | `cmd/bench` |
-| `cmd/selfplay` | M10 | `cmd/selfplay` |
+| self-play CLI | M10 | `cmd/gofer -selfplay` |
 
 Makefile targets: `test`, `bench`, `race`, `lint`, `profile`, `pgo-build`, `selfplay`, `analyze`
 
@@ -266,21 +268,21 @@ Makefile targets: `test`, `bench`, `race`, `lint`, `profile`, `pgo-build`, `self
 ## 11. Performance Strategy
 
 ### Microbenchmarks
-`go test -bench=. -benchmem ./internal/board/...` etc.
+`go test -bench=. -benchmem ./cmd/gofer/...`
 
 ### Macrobenchmarks
 Full game playout, GTP session replay (M9)
 
 ### pprof
 ```bash
-go test -cpuprofile=cpu.prof -bench=BenchmarkPlay -benchtime=3s ./internal/rules/chinese/
+go test -cpuprofile=cpu.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
 go tool pprof -top cpu.prof
 ```
 
 ### PGO
 ```bash
-go test -cpuprofile=default.pgo -bench=BenchmarkFullGame ./...
-go build -pgo=default.pgo -o bin/engine ./cmd/engine
+make pgo-profile   # writes default.pgo
+make pgo-build     # go build -pgo=default.pgo -o bin/gofer ./cmd/gofer
 ```
 Refresh when hot paths change. Microbench-only profiles can mislead — use representative mix.
 

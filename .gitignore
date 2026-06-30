@@ -1,2 +1,4 @@
 default.pgo
 bin/
+*.exe
+.tectonix/session-baseline.json

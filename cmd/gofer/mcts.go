@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -414,4 +415,73 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 		e.arena.Get(best).Visits += virtualLoss
 	}
 	return best
+}
+
+func (e *Engine) leafValue(b *Board) float64 {
+	hash := b.Hash()
+	e.mu.Lock()
+	if v, ok := e.TT.Get(hash); ok && v.Depth != 0 {
+		e.mu.Unlock()
+		return v.Value
+	}
+	e.mu.Unlock()
+
+	res := e.Eval.Evaluate(b)
+	if res.Value != 0 {
+		e.mu.Lock()
+		e.TT.Store(hash, Entry{Depth: 1, Value: res.Value})
+		e.mu.Unlock()
+		return res.Value
+	}
+	v := e.randomPlayout(b)
+	e.mu.Lock()
+	e.TT.Store(hash, Entry{Depth: 1, Value: v})
+	e.mu.Unlock()
+	return v
+}
+
+func (e *Engine) randomPlayout(b *Board) float64 {
+	rng := e.playoutRand()
+	br := b.Clone()
+	player := br.Player()
+	passes := 0
+	for move := 0; move < maxRolloutMoves && passes < 2; move++ {
+		moves := e.Rules.LegalMoves(br)
+		if len(moves) == 0 {
+			break
+		}
+		m := moves[rng.Intn(len(moves))]
+		e.Rules.Play(br, m)
+		if m.Pass {
+			passes++
+		} else {
+			passes = 0
+		}
+	}
+	bl, wl := e.Rules.Score(br)
+	diff := bl - wl
+	if player == White {
+		diff = wl - bl
+	}
+	if diff > 0 {
+		return 1
+	}
+	if diff < 0 {
+		return -1
+	}
+	return 0
+}
+
+func (e *Engine) playoutRand() *rand.Rand {
+	seq := atomic.AddUint64(&e.rngSeq, 1)
+	return rand.New(rand.NewSource(e.cfg.Seed + int64(seq)))
+}
+
+func (e *Engine) isTerminal(b *Board) bool {
+	for _, m := range e.Rules.LegalMoves(b) {
+		if !m.Pass {
+			return false
+		}
+	}
+	return true
 }
