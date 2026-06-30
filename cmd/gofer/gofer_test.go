@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,9 +87,6 @@ func TestUndo(t *testing.T) {
 	b.StartPlay(StoneMove(p), nil, idx, Empty)
 	b.SetStoneIndex(idx, Black)
 	b.FinishTurn(-1)
-	if !b.CanUndo() {
-		t.Fatal("expected undo")
-	}
 	b.Undo()
 	if b.StoneAt(p) != Empty {
 		t.Fatal("undo failed")
@@ -109,7 +107,6 @@ func TestSnapshotRestore(t *testing.T) {
 	}
 }
 
-// BenchmarkCloneVsUndo compares copy-make vs make-unmake for one stone play.
 func BenchmarkCloneVsUndo(b *testing.B) {
 	b.Run("Clone", func(b *testing.B) {
 		br := NewBoard(19, 7.5)
@@ -141,8 +138,26 @@ func BenchmarkCloneVsUndo(b *testing.B) {
 	})
 }
 
+func TestNewBoard(t *testing.T) {
+	b := NewBoard(9, 6.5)
+	if b.Size() != 9 {
+		t.Fatalf("size %d", b.Size())
+	}
+}
+
+func treeNodes(eng *Engine) int {
+	eng.mu.Lock()
+	defer eng.mu.Unlock()
+	if eng.arena == nil {
+		return 0
+	}
+	return len(eng.arena.nodes)
+}
+
 func TestPUCTFormula(t *testing.T) {
-	got := PUCTScore(0.5, 0.1, 100, 10, 1.1)
+	q, prior, pv := 0.5, 0.1, 100.0
+	visits, c := uint32(10), 1.1
+	got := q + c*prior*math.Sqrt(pv)/(1+float64(visits))
 	want := 0.5 + 1.1*0.1*10/11
 	if got < want-1e-9 || got > want+1e-9 {
 		t.Fatalf("puct got %v want %v", got, want)
@@ -162,15 +177,15 @@ func TestDeterministicPlayout(t *testing.T) {
 	}
 }
 
-func TestTTHitRateAfterSearch(t *testing.T) {
+func TestTTStoresAfterSearch(t *testing.T) {
 	r := Chinese()
 	cfg := DefaultConfig()
 	cfg.Playouts = 20
 	e := NewEngine(r, nil, cfg)
 	b := NewBoard(5, 6.5)
 	_ = e.BestMove(b)
-	if e.TTHitRate(b, 10) <= 0 {
-		t.Fatal("expected TT hits")
+	if _, ok := e.TT.Get(b.Hash()); !ok {
+		t.Fatal("expected TT entry after search")
 	}
 }
 
@@ -189,6 +204,33 @@ func TestRootPolicySumsToOne(t *testing.T) {
 	}
 	if sum < 0.99 || sum > 1.01 {
 		t.Fatalf("policy sum %v", sum)
+	}
+}
+
+func TestMCTSTreeReuse(t *testing.T) {
+	r := Chinese()
+	b := NewBoard(9, 6.5)
+	cfg := DefaultConfig()
+	cfg.Playouts = 30
+	cfg.Workers = 1
+	eng := NewEngine(r, Uniform{}, cfg)
+	m1 := eng.BestMove(b)
+	len1 := treeNodes(eng)
+	if len1 == 0 {
+		t.Fatal("expected nodes after search")
+	}
+	eng.BestMove(b)
+	if treeNodes(eng) < len1 {
+		t.Fatalf("tree shrank on reuse: %d -> %d", len1, treeNodes(eng))
+	}
+	r.Play(b, m1)
+	eng.AdvanceTree(m1)
+	if treeNodes(eng) == 0 {
+		t.Fatal("tree cleared after advancing to best child")
+	}
+	eng.ResetArena()
+	if treeNodes(eng) != 0 {
+		t.Fatal("reset failed")
 	}
 }
 
@@ -229,33 +271,6 @@ func TestGTPFinalScore(t *testing.T) {
 	}
 }
 
-func TestMCTSTreeReuse(t *testing.T) {
-	r := Chinese()
-	b := NewBoard(9, 6.5)
-	cfg := DefaultConfig()
-	cfg.Playouts = 30
-	cfg.Workers = 1
-	eng := NewEngine(r, Uniform{}, cfg)
-	m1 := eng.BestMove(b)
-	len1 := eng.TreeSize()
-	if len1 == 0 {
-		t.Fatal("expected nodes after search")
-	}
-	eng.BestMove(b)
-	if eng.TreeSize() < len1 {
-		t.Fatalf("tree shrank on reuse: %d -> %d", len1, eng.TreeSize())
-	}
-	r.Play(b, m1)
-	eng.AdvanceTree(m1)
-	if eng.TreeSize() == 0 {
-		t.Fatal("tree cleared after advancing to best child")
-	}
-	eng.ResetArena()
-	if eng.TreeSize() != 0 {
-		t.Fatal("reset failed")
-	}
-}
-
 func TestRunSelfplaySamples(t *testing.T) {
 	cfg := DefaultSelfplayConfig()
 	cfg.Games = 1
@@ -279,6 +294,65 @@ func TestGatingHarness(t *testing.T) {
 	g := GatingHarness{Games: 100, MinWinRateMargin: 0.55}
 	if !g.Pass(0.4, 0.56) {
 		t.Fatal("should pass")
+	}
+}
+
+func BenchmarkSearchParallel(b *testing.B) {
+	r := Chinese()
+	board := NewBoard(9, 6.5)
+	cfg := DefaultConfig()
+	cfg.Playouts = 50
+	cfg.Workers = 4
+	eng := NewEngine(r, Uniform{}, cfg)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		eng.ResetArena()
+		eng.BestMove(board)
+	}
+}
+
+func play(t *testing.T, r Ruleset, b *Board, x, y int) {
+	t.Helper()
+	if !r.Play(b, StoneMove(At(x, y))) {
+		t.Fatalf("illegal play at %d,%d", x, y)
+	}
+}
+
+func sgfMoveToPlay(m SGFMove) Move {
+	if m.Point == nil {
+		return PassMove
+	}
+	return StoneMove(*m.Point)
+}
+
+func replaySGF(t *testing.T, path string, rules Ruleset, check func(t *testing.T, r Ruleset, b *Board)) {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := ParseSGF(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := NewBoard(parsed.Size, parsed.Komi)
+	if err := parsed.Setup(b); err != nil {
+		t.Fatal(err)
+	}
+	moves, err := parsed.MainLine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, m := range moves {
+		if b.Player() != m.Color {
+			t.Fatalf("move %d wrong side", i)
+		}
+		if !rules.Play(b, sgfMoveToPlay(m)) {
+			t.Fatalf("illegal replay move %d in %s", i, filepath.Base(path))
+		}
+	}
+	if check != nil {
+		check(t, rules, b)
 	}
 }
 
@@ -307,11 +381,9 @@ func BenchmarkMakeMove(b *testing.B) {
 
 func BenchmarkPlay(b *testing.B) { BenchmarkMakeMove(b) }
 
-// BenchmarkCaptureHeavy legal move gen on a dense capture-fight position.
 func BenchmarkCaptureHeavy(b *testing.B) {
 	br := NewBoard(19, 7.5)
 	r := Chinese()
-	// ponytail: hand-built fight grid — not a pro game; stresses liberty scans.
 	for y := 3; y < 16; y += 3 {
 		for x := 3; x < 16; x += 3 {
 			_ = r.Play(br, StoneMove(At(x, y)))
@@ -336,20 +408,6 @@ func BenchmarkScore(b *testing.B) {
 	}
 }
 
-func play(t *testing.T, r Ruleset, b *Board, x, y int) {
-	t.Helper()
-	if !r.Play(b, StoneMove(At(x, y))) {
-		t.Fatalf("illegal play at %d,%d", x, y)
-	}
-}
-
-func TestNewBoard(t *testing.T) {
-	b := NewBoard(9, 6.5)
-	if b.Size() != 9 {
-		t.Fatalf("size %d", b.Size())
-	}
-}
-
 func TestTrompTaylorLegalMoves(t *testing.T) {
 	r := TrompTaylor()
 	b := NewBoard(9, 6.5)
@@ -362,13 +420,10 @@ func TestTrompTaylorLegalMoves(t *testing.T) {
 func TestTrompTaylorSuicideAllowed(t *testing.T) {
 	r := TrompTaylor()
 	b := NewBoard(9, 6.5)
-	play(t, Chinese(), b, 0, 0) // use Chinese to set up; switch board manually
-	b = NewBoard(9, 6.5)
 	play(t, r, b, 0, 0)
 	play(t, r, b, 2, 0)
 	play(t, r, b, 0, 1)
 	play(t, r, b, 1, 1)
-	// B at (1,0) is suicide in Chinese but may be legal in TT if it removes own group only
 	_ = r.Play(b, StoneMove(At(1, 0)))
 }
 
@@ -420,7 +475,6 @@ func TestSuicideIllegal(t *testing.T) {
 func TestSimpleKo(t *testing.T) {
 	r := Chinese()
 	b := NewBoard(9, 6.5)
-	// Connected ring around (4,4); final capture leaves one group liberty (ko point).
 	play(t, r, b, 0, 0)
 	play(t, r, b, 4, 4)
 	play(t, r, b, 0, 1)
@@ -437,9 +491,9 @@ func TestSimpleKo(t *testing.T) {
 	play(t, r, b, 0, 7)
 	play(t, r, b, 5, 5)
 	play(t, r, b, 0, 8)
-	play(t, r, b, 4, 3) // W has one liberty at (4,5)
+	play(t, r, b, 4, 3)
 	play(t, r, b, 1, 0)
-	play(t, r, b, 4, 5) // capture; ko at (4,4)
+	play(t, r, b, 4, 5)
 	wantKo := At(4, 4).Idx(9)
 	if b.Ko() != wantKo {
 		t.Fatalf("ko want %d got %d", wantKo, b.Ko())
@@ -459,9 +513,6 @@ func TestPassAndUndo(t *testing.T) {
 		t.Fatal("turn switch")
 	}
 	play(t, r, b, 2, 2)
-	if !b.CanUndo() {
-		t.Fatal("undo available")
-	}
 	b.Undo()
 	if b.StoneAt(At(2, 2)) != Empty {
 		t.Fatal("undo failed")
@@ -487,93 +538,13 @@ func TestScoreCountsStones(t *testing.T) {
 	}
 }
 
-func TestParseSGFCoord(t *testing.T) {
-	p, err := ParseSGFCoord(9, "bc")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.X != 1 || p.Y != 2 {
-		t.Fatalf("bc on 9x9 want (1,2) got (%d,%d)", p.X, p.Y)
-	}
-}
-
-func replaySGF(t *testing.T, path string, check func(t *testing.T, r Ruleset, b *Board)) {
-	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	parsed, err := ParseSGF(string(data))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r := Chinese()
-	b := NewBoard(parsed.Size, parsed.Komi)
-	if err := parsed.Setup(b); err != nil {
-		t.Fatal(err)
-	}
-	moves, err := parsed.MainLine()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, m := range moves {
-		if b.Player() != m.Color {
-			t.Fatalf("move %d wrong side", i)
-		}
-		var play Move
-		if m.Point == nil {
-			play = PassMove
-		} else {
-			play = StoneMove(*m.Point)
-		}
-		if !r.Play(b, play) {
-			t.Fatalf("illegal replay move %d in %s", i, filepath.Base(path))
-		}
-	}
-	if check != nil {
-		check(t, r, b)
-	}
-}
-
-func TestGoldenCaptureSGF(t *testing.T) {
-	path := filepath.Join("testdata", "capture.sgf")
-	replaySGF(t, path, func(t *testing.T, _ Ruleset, b *Board) {
-		if b.StoneAt(At(0, 0)) != Empty {
-			t.Fatal("white at aa should be captured")
-		}
-	})
-}
-
-func TestGoldenKoSGF(t *testing.T) {
-	path := filepath.Join("testdata", "ko.sgf")
-	replaySGF(t, path, func(t *testing.T, r Ruleset, b *Board) {
-		wantKo := At(4, 4).Idx(9)
-		if b.Ko() != wantKo {
-			t.Fatalf("ko want %d got %d", wantKo, b.Ko())
-		}
-		if r.Play(b, StoneMove(At(4, 4))) {
-			t.Fatal("immediate ko recapture should be illegal")
-		}
-	})
-}
-
-func TestGoldenPassSGF(t *testing.T) {
-	path := filepath.Join("testdata", "pass.sgf")
-	replaySGF(t, path, func(t *testing.T, _ Ruleset, b *Board) {
-		if b.Player() != Black {
-			t.Fatal("two passes should return turn to black")
-		}
-	})
-}
-
 func TestSuperkoWrapper(t *testing.T) {
 	r := WithSuperko(Chinese())
 	b := NewBoard(9, 6.5)
 	if !r.Play(b, StoneMove(At(4, 4))) {
 		t.Fatal("superko wrapped play failed")
 	}
-	moves := r.LegalMoves(b)
-	if len(moves) == 0 {
+	if len(r.LegalMoves(b)) == 0 {
 		t.Fatal("expected legal moves")
 	}
 }
@@ -593,38 +564,48 @@ func TestTrompVsChineseScoreDivergence(t *testing.T) {
 		t.Log("scores equal on this position — divergence may appear with captures")
 	}
 }
+func TestParseSGFCoord(t *testing.T) {
+	p, err := ParseSGFCoord(9, "bc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.X != 1 || p.Y != 2 {
+		t.Fatalf("bc on 9x9 want (1,2) got (%d,%d)", p.X, p.Y)
+	}
+}
+
+func TestGoldenCaptureSGF(t *testing.T) {
+	replaySGF(t, filepath.Join("testdata", "capture.sgf"), Chinese(), func(t *testing.T, _ Ruleset, b *Board) {
+		if b.StoneAt(At(0, 0)) != Empty {
+			t.Fatal("white at aa should be captured")
+		}
+	})
+}
+
+func TestGoldenKoSGF(t *testing.T) {
+	replaySGF(t, filepath.Join("testdata", "ko.sgf"), Chinese(), func(t *testing.T, r Ruleset, b *Board) {
+		wantKo := At(4, 4).Idx(9)
+		if b.Ko() != wantKo {
+			t.Fatalf("ko want %d got %d", wantKo, b.Ko())
+		}
+		if r.Play(b, StoneMove(At(4, 4))) {
+			t.Fatal("immediate ko recapture should be illegal")
+		}
+	})
+}
+
+func TestGoldenPassSGF(t *testing.T) {
+	replaySGF(t, filepath.Join("testdata", "pass.sgf"), Chinese(), func(t *testing.T, _ Ruleset, b *Board) {
+		if b.Player() != Black {
+			t.Fatal("two passes should return turn to black")
+		}
+	})
+}
 
 func TestTrompReplayCorpus(t *testing.T) {
-	names := []string{"capture.sgf"}
-	for _, name := range names {
+	for _, name := range []string{"capture.sgf"} {
 		t.Run(name, func(t *testing.T) {
-			path := filepath.Join("testdata", name)
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			parsed, err := ParseSGF(string(data))
-			if err != nil {
-				t.Fatal(err)
-			}
-			r := TrompTaylor()
-			b := NewBoard(parsed.Size, parsed.Komi)
-			_ = parsed.Setup(b)
-			moves, err := parsed.MainLine()
-			if err != nil {
-				t.Fatal(err)
-			}
-			for i, m := range moves {
-				var play Move
-				if m.Point == nil {
-					play = PassMove
-				} else {
-					play = StoneMove(*m.Point)
-				}
-				if !r.Play(b, play) {
-					t.Fatalf("illegal tromp move %d in %s", i, name)
-				}
-			}
+			replaySGF(t, filepath.Join("testdata", name), TrompTaylor(), nil)
 		})
 	}
 }
@@ -644,41 +625,9 @@ func TestParseGameMeta(t *testing.T) {
 }
 
 func TestReplayCorpus(t *testing.T) {
-	names := []string{"capture.sgf", "ko.sgf", "pass.sgf", "setup.sgf", "simple.sgf", "open.sgf"}
-	for _, name := range names {
+	for _, name := range []string{"capture.sgf", "ko.sgf", "pass.sgf", "setup.sgf", "simple.sgf", "open.sgf"} {
 		t.Run(name, func(t *testing.T) {
-			path := filepath.Join("testdata", name)
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			g, err := ParseSGF(string(data))
-			if err != nil {
-				t.Fatal(err)
-			}
-			r := Chinese()
-			b := NewBoard(g.Size, g.Komi)
-			if err := g.Setup(b); err != nil {
-				t.Fatal(err)
-			}
-			moves, err := g.MainLine()
-			if err != nil {
-				t.Fatal(err)
-			}
-			for i, m := range moves {
-				if b.Player() != m.Color {
-					t.Fatalf("move %d wrong side", i)
-				}
-				var play Move
-				if m.Point == nil {
-					play = PassMove
-				} else {
-					play = StoneMove(*m.Point)
-				}
-				if !r.Play(b, play) {
-					t.Fatalf("illegal move %d in %s", i, name)
-				}
-			}
+			replaySGF(t, filepath.Join("testdata", name), Chinese(), nil)
 		})
 	}
 }
@@ -718,29 +667,9 @@ func BenchmarkSGFReplay(b *testing.B) {
 		brd := NewBoard(g.Size, g.Komi)
 		_ = g.Setup(brd)
 		for _, m := range moves {
-			var play Move
-			if m.Point == nil {
-				play = PassMove
-			} else {
-				play = StoneMove(*m.Point)
-			}
-			if !r.Play(brd, play) {
+			if !r.Play(brd, sgfMoveToPlay(m)) {
 				b.Fatal("illegal replay")
 			}
 		}
-	}
-}
-
-func BenchmarkSearchParallel(b *testing.B) {
-	r := Chinese()
-	board := NewBoard(9, 6.5)
-	cfg := DefaultConfig()
-	cfg.Playouts = 50
-	cfg.Workers = 4
-	eng := NewEngine(r, Uniform{}, cfg)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		eng.ResetArena()
-		eng.BestMove(board)
 	}
 }

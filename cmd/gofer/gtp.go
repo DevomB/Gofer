@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 )
@@ -82,9 +81,9 @@ func (s *Session) Handle(line string) string {
 	case "genmove":
 		return s.handleGenmove(parts)
 	case "showboard":
-		return s.formatShowboard()
+		return formatGTPBoard(s.Board, s.Size)
 	case "final_score":
-		return s.formatFinalScore()
+		return formatGTPScore(s.Board, s.Rules)
 	case "time_settings", "time_left":
 		return ""
 	case "quit":
@@ -145,14 +144,14 @@ func (s *Session) handlePlay(parts []string) string {
 	if len(parts) < 3 {
 		return "syntax error"
 	}
-	color, err := parseColor(parts[1])
+	color, err := parseGTPColor(parts[1])
 	if err != nil {
 		return err.Error()
 	}
 	if s.Board.Player() != color {
 		return "wrong color to move"
 	}
-	m, err := parseVertex(parts[2], s.Size)
+	m, err := parseGTPVertex(parts[2], s.Size)
 	if err != nil {
 		return err.Error()
 	}
@@ -167,7 +166,7 @@ func (s *Session) handleGenmove(parts []string) string {
 	if len(parts) < 2 {
 		return "syntax error"
 	}
-	color, err := parseColor(parts[1])
+	color, err := parseGTPColor(parts[1])
 	if err != nil {
 		return err.Error()
 	}
@@ -180,99 +179,5 @@ func (s *Session) handleGenmove(parts []string) string {
 		return "pass"
 	}
 	s.Search.AdvanceTree(m)
-	return moveToVertex(m, s.Size)
-}
-
-func (s *Session) formatShowboard() string {
-	size := s.Size
-	var sb strings.Builder
-	sb.WriteString("  ")
-	for x := 0; x < size; x++ {
-		col := rune('A' + x)
-		if col >= 'I' {
-			col++
-		}
-		sb.WriteRune(col)
-		sb.WriteByte(' ')
-	}
-	sb.WriteByte('\n')
-	for y := 0; y < size; y++ {
-		row := size - y
-		if row < 10 {
-			sb.WriteByte(' ')
-		}
-		sb.WriteString(strconv.Itoa(row))
-		sb.WriteByte(' ')
-		for x := 0; x < size; x++ {
-			switch s.Board.StoneAt(At(x, y)) {
-			case Black:
-				sb.WriteByte('X')
-			case White:
-				sb.WriteByte('O')
-			default:
-				sb.WriteByte('.')
-			}
-			sb.WriteByte(' ')
-		}
-		sb.WriteByte('\n')
-	}
-	return strings.TrimRight(sb.String(), "\n")
-}
-
-func (s *Session) formatFinalScore() string {
-	bl, wl := s.Rules.Score(s.Board)
-	diff := bl - wl
-	if diff > 0 {
-		return fmt.Sprintf("B+%.1f", diff)
-	}
-	if diff < 0 {
-		return fmt.Sprintf("W+%.1f", -diff)
-	}
-	return "0"
-}
-
-func parseColor(s string) (Color, error) {
-	switch strings.ToUpper(s) {
-	case "B", "BLACK":
-		return Black, nil
-	case "W", "WHITE":
-		return White, nil
-	default:
-		return Empty, fmt.Errorf("invalid color")
-	}
-}
-
-func parseVertex(v string, size int) (Move, error) {
-	if strings.ToLower(v) == "pass" {
-		return PassMove, nil
-	}
-	v = strings.ToUpper(strings.TrimSpace(v))
-	if len(v) < 2 {
-		return Move{}, fmt.Errorf("invalid vertex")
-	}
-	x := int(v[0] - 'A')
-	if v[0] >= 'I' {
-		x--
-	}
-	row, err := strconv.Atoi(v[1:])
-	if err != nil || row < 1 || row > size {
-		return Move{}, fmt.Errorf("invalid vertex")
-	}
-	y := size - row
-	if x < 0 || y < 0 || x >= size || y >= size {
-		return Move{}, fmt.Errorf("invalid vertex")
-	}
-	return StoneMove(At(x, y)), nil
-}
-
-func moveToVertex(m Move, size int) string {
-	if m.Pass {
-		return "pass"
-	}
-	col := 'A' + m.Point.X
-	if col >= 'I' {
-		col++
-	}
-	row := size - m.Point.Y
-	return fmt.Sprintf("%c%d", col, row)
+	return moveToGTPVertex(m, s.Size)
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 )
@@ -167,4 +168,42 @@ func ExportSGF(g *SGFGame, moves []SGFMove) string {
 	}
 	b.WriteString(")")
 	return b.String()
+}
+
+// ReplaySGFFile replays path under Chinese rules and returns move count and score.
+func ReplaySGFFile(path string) (moveCount int, black, white float64, err error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	g, err := ParseSGF(string(data))
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	r := Chinese()
+	b := NewBoard(g.Size, g.Komi)
+	if err := g.Setup(b); err != nil {
+		return 0, 0, 0, err
+	}
+	moves, err := g.MainLine()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	for i, m := range moves {
+		if b.Player() != m.Color {
+			return i, 0, 0, fmt.Errorf("move %d wrong side", i)
+		}
+		var play Move
+		if m.Point == nil {
+			play = PassMove
+		} else {
+			play = StoneMove(*m.Point)
+		}
+		if !r.Play(b, play) {
+			return i, 0, 0, fmt.Errorf("illegal move %d", i)
+		}
+	}
+	bl, wl := r.Score(b)
+	_ = ExportSGF(g, moves)
+	return len(moves), bl, wl, nil
 }

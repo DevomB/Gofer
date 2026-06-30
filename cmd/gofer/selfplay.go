@@ -39,16 +39,32 @@ func RunSelfplay(cfg SelfplayConfig) []Sample {
 }
 
 func playSelfplayGame(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) []Sample {
+	rs, size := selfplayRuleset(cfg, rng)
+	b := NewBoard(size, cfg.Komi)
+	eng := NewEngine(rs, nil, selfplaySearchCfg(cfg, gameIdx, rng))
+	game, _ := collectSelfplaySamples(cfg, rs, b, eng, size)
+	bl, wl := rs.Score(b)
+	labelGameSamples(game, bl, wl)
+	return game
+}
+
+func selfplayRuleset(cfg SelfplayConfig, rng *rand.Rand) (Ruleset, int) {
 	rs := Chinese()
-	if cfg.RulesRandomize && rng.Float64() < 0.5 {
-		rs = TrompTaylor()
-	}
 	size := cfg.BoardSize
 	if cfg.RulesRandomize {
+		if rng.Float64() < 0.5 {
+			rs = TrompTaylor()
+		}
+		if rng.Float64() < 0.25 {
+			rs = WithSuperko(rs)
+		}
 		sizes := []int{9, 13, 19}
 		size = sizes[rng.Intn(len(sizes))]
 	}
-	b := NewBoard(size, cfg.Komi)
+	return rs, size
+}
+
+func selfplaySearchCfg(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) SearchConfig {
 	playouts := cfg.Playouts
 	if rng.Float64() < cfg.CapRandomizeP {
 		playouts = cfg.Playouts * 2
@@ -56,8 +72,10 @@ func playSelfplayGame(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) []Sample 
 	scfg := DefaultConfig()
 	scfg.Playouts = playouts
 	scfg.Seed = cfg.Seed + int64(gameIdx)
-	eng := NewEngine(rs, nil, scfg)
+	return scfg
+}
 
+func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engine, size int) ([]Sample, int) {
 	var game []Sample
 	passes := 0
 	for moveNum := 0; moveNum < size*size+2; moveNum++ {
@@ -84,9 +102,7 @@ func playSelfplayGame(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) []Sample 
 			break
 		}
 	}
-	bl, wl := rs.Score(b)
-	labelGameSamples(game, bl, wl)
-	return game
+	return game, passes
 }
 
 func labelGameSamples(game []Sample, bl, wl float64) {

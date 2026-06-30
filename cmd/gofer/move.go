@@ -13,3 +13,13 @@ var PassMove = Move{Pass: true}
 func StoneMove(p Point) Move {
 	return Move{Point: p}
 }
+
+func movesEqual(a, b Move) bool {
+	if a.Pass != b.Pass {
+		return false
+	}
+	if a.Pass {
+		return true
+	}
+	return a.Point == b.Point
+}

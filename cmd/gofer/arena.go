@@ -1,5 +1,7 @@
 package main
 
+import "math"
+
 // Node is an index-based MCTS tree node.
 type Node struct {
 	Parent   int
@@ -52,4 +54,33 @@ func (n *Node) Mean() float64 {
 		return 0
 	}
 	return n.ValueSum / float64(n.Visits)
+}
+
+func puctScore(c *Node, parentVisits float64, isRoot bool, cfg SearchConfig) float64 {
+	q := c.Mean()
+	if c.Visits == 0 {
+		q = -cfg.FPU
+	}
+	u := cfg.CPUCT * c.Prior * math.Sqrt(parentVisits) / (1 + float64(c.Visits))
+	if isRoot && cfg.RootTemperature != 1 && c.Visits > 0 {
+		q /= cfg.RootTemperature
+	}
+	return q + u
+}
+
+func (a *Arena) bestRootMove(root int) Move {
+	n := a.Get(root)
+	if len(n.Children) == 0 {
+		return PassMove
+	}
+	best := n.Children[0]
+	maxV := uint32(0)
+	for _, cidx := range n.Children {
+		c := a.Get(cidx)
+		if c.Visits > maxV {
+			maxV = c.Visits
+			best = cidx
+		}
+	}
+	return a.Get(best).Move
 }

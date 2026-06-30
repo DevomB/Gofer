@@ -1,5 +1,10 @@
 package main
 
+import (
+	"fmt"
+	"strings"
+)
+
 // Color is stone color or empty.
 type Color uint8
 
@@ -20,5 +25,16 @@ func (c Color) Opposite() Color {
 		return Black
 	default:
 		return Empty
+	}
+}
+
+func parseGTPColor(s string) (Color, error) {
+	switch strings.ToUpper(s) {
+	case "B", "BLACK":
+		return Black, nil
+	case "W", "WHITE":
+		return White, nil
+	default:
+		return Empty, fmt.Errorf("invalid color")
 	}
 }

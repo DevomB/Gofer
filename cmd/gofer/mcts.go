@@ -5,16 +5,12 @@ import (
 	"math/rand"
 	"runtime"
 	"sync"
-	"sync/atomic"
 )
 
 const (
 	defaultCPUCT    = 1.1
 	defaultFPU      = 0.2
-	dirichletAlpha  = 0.03
-	dirichletBlend  = 0.25
 	rootTemperature = 1.03
-	maxRolloutMoves = 150
 	virtualLoss     = 3
 )
 
@@ -107,7 +103,7 @@ func (e *Engine) BestMove(b *Board) Move {
 	e.runPlayouts(b, e.cfg.Playouts)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	return e.selectBestRootLocked(e.root)
+	return e.arena.bestRootMove(e.root)
 }
 
 func (e *Engine) runPlayouts(b *Board, playouts int) {
@@ -199,8 +195,8 @@ func (e *Engine) runPlayout(b *Board, root int) {
 	e.mu.Lock()
 	n := e.arena.Get(node)
 	if !n.Expanded {
-		if v, ok := e.ttGetLocked(br.Hash()); ok {
-			e.backupLocked(path, v)
+		if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 {
+			e.backupLocked(path, v.Value)
 			e.mu.Unlock()
 			return
 		}
@@ -260,7 +256,7 @@ func (e *Engine) expandLocked(node int, b *Board) {
 		e.arena.AddChild(node, m, priors[i])
 	}
 	n.Expanded = true
-	e.ttStoreLocked(b.Hash(), Entry{Depth: 1, Value: res.Value})
+	e.TT.Store(b.Hash(), Entry{Depth: 1, Value: res.Value})
 }
 
 func (e *Engine) selectChildLocked(node int, isRoot bool) int {
@@ -273,7 +269,7 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	bestScore := math.Inf(-1)
 	for _, cidx := range n.Children {
 		c := e.arena.Get(cidx)
-		score := e.puctScore(c, parentVisits, isRoot)
+		score := puctScore(c, parentVisits, isRoot, e.cfg)
 		if score > bestScore {
 			bestScore = score
 			best = cidx
@@ -283,217 +279,4 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 		e.arena.Get(best).Visits += virtualLoss
 	}
 	return best
-}
-
-func (e *Engine) puctScore(c *Node, parentVisits float64, isRoot bool) float64 {
-	q := c.Mean()
-	if c.Visits == 0 {
-		q = -e.cfg.FPU
-	}
-	u := e.cfg.CPUCT * c.Prior * math.Sqrt(parentVisits) / (1 + float64(c.Visits))
-	if isRoot && e.cfg.RootTemperature != 1 && c.Visits > 0 {
-		q /= e.cfg.RootTemperature
-	}
-	return q + u
-}
-
-func (e *Engine) ttGetLocked(hash uint64) (float64, bool) {
-	entry, ok := e.TT.Get(hash)
-	if !ok || entry.Depth == 0 {
-		return 0, false
-	}
-	return entry.Value, true
-}
-
-func (e *Engine) ttStoreLocked(hash uint64, entry Entry) {
-	e.TT.Store(hash, entry)
-}
-
-func (e *Engine) leafValue(b *Board) float64 {
-	hash := b.Hash()
-	e.mu.Lock()
-	if v, ok := e.ttGetLocked(hash); ok {
-		e.mu.Unlock()
-		return v
-	}
-	e.mu.Unlock()
-
-	res := e.Eval.Evaluate(b)
-	if res.Value != 0 {
-		e.mu.Lock()
-		e.ttStoreLocked(hash, Entry{Depth: 1, Value: res.Value})
-		e.mu.Unlock()
-		return res.Value
-	}
-	v := e.randomPlayout(b)
-	e.mu.Lock()
-	e.ttStoreLocked(hash, Entry{Depth: 1, Value: v})
-	e.mu.Unlock()
-	return v
-}
-
-func (e *Engine) randomPlayout(b *Board) float64 {
-	rng := e.playoutRand()
-	br := b.Clone()
-	player := br.Player()
-	passes := 0
-	for move := 0; move < maxRolloutMoves && passes < 2; move++ {
-		moves := e.Rules.LegalMoves(br)
-		if len(moves) == 0 {
-			break
-		}
-		m := moves[rng.Intn(len(moves))]
-		e.Rules.Play(br, m)
-		if m.Pass {
-			passes++
-		} else {
-			passes = 0
-		}
-	}
-	bl, wl := e.Rules.Score(br)
-	diff := bl - wl
-	if player == White {
-		diff = wl - bl
-	}
-	if diff > 0 {
-		return 1
-	}
-	if diff < 0 {
-		return -1
-	}
-	return 0
-}
-
-func (e *Engine) playoutRand() *rand.Rand {
-	seq := atomic.AddUint64(&e.rngSeq, 1)
-	return rand.New(rand.NewSource(e.cfg.Seed + int64(seq)))
-}
-
-func (e *Engine) isTerminal(b *Board) bool {
-	for _, m := range e.Rules.LegalMoves(b) {
-		if !m.Pass {
-			return false
-		}
-	}
-	return true
-}
-
-func (e *Engine) selectBestRootLocked(root int) Move {
-	n := e.arena.Get(root)
-	if len(n.Children) == 0 {
-		return PassMove
-	}
-	best := n.Children[0]
-	maxV := uint32(0)
-	for _, cidx := range n.Children {
-		c := e.arena.Get(cidx)
-		if c.Visits > maxV {
-			maxV = c.Visits
-			best = cidx
-		}
-	}
-	return e.arena.Get(best).Move
-}
-
-func uniformPriors(n int) []float64 {
-	if n == 0 {
-		return nil
-	}
-	p := 1.0 / float64(n)
-	out := make([]float64, n)
-	for i := range out {
-		out[i] = p
-	}
-	return out
-}
-
-func uniformPolicy32(n int) []float32 {
-	out := make([]float32, n)
-	if n == 0 {
-		return out
-	}
-	for i := range out {
-		out[i] = 1 / float32(n)
-	}
-	return out
-}
-
-func policyPriors(b *Board, moves []Move, policy []float32) []float64 {
-	size := b.Size()
-	sum := float64(0)
-	raw := make([]float64, len(moves))
-	for i, m := range moves {
-		idx := size * size
-		if !m.Pass {
-			idx = m.Point.Idx(size)
-		}
-		if idx >= 0 && idx < len(policy) {
-			raw[i] = float64(policy[idx])
-		} else {
-			raw[i] = 1
-		}
-		sum += raw[i]
-	}
-	if sum == 0 {
-		return uniformPriors(len(moves))
-	}
-	for i := range raw {
-		raw[i] /= sum
-	}
-	return raw
-}
-
-func blendDirichlet(priors []float64, rng *rand.Rand) []float64 {
-	out := make([]float64, len(priors))
-	sum := 0.0
-	noise := make([]float64, len(priors))
-	for i := range noise {
-		noise[i] = math.Pow(rng.Float64(), 1/dirichletAlpha)
-		sum += noise[i]
-	}
-	for i := range out {
-		n := noise[i] / sum
-		out[i] = (1-dirichletBlend)*priors[i] + dirichletBlend*n
-	}
-	return out
-}
-
-func movesEqual(a, b Move) bool {
-	if a.Pass != b.Pass {
-		return false
-	}
-	if a.Pass {
-		return true
-	}
-	return a.Point == b.Point
-}
-
-// PUCTScore exposes the PUCT formula for unit tests.
-func PUCTScore(q, prior, parentVisits float64, visits uint32, cPUCT float64) float64 {
-	u := cPUCT * prior * math.Sqrt(parentVisits) / (1 + float64(visits))
-	return q + u
-}
-
-// TTHitRate returns the fraction of transposition-table lookups that hit.
-func (e *Engine) TTHitRate(b *Board, probes int) float64 {
-	if probes <= 0 {
-		return 0
-	}
-	hits := 0
-	for i := 0; i < probes; i++ {
-		if _, ok := e.TT.Get(b.Hash()); ok {
-			hits++
-		}
-	}
-	return float64(hits) / float64(probes)
-}
-
-// TreeSize returns the number of nodes in the search tree.
-func (e *Engine) TreeSize() int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.arena == nil {
-		return 0
-	}
-	return len(e.arena.nodes)
 }

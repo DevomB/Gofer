@@ -19,8 +19,13 @@ func main() {
 	gtpPlayouts := flag.Int("gtp-playouts", 200, "MCTS playouts per move (with -gtp)")
 	evalMode := flag.String("eval", "heuristic", "evaluator: uniform or heuristic (with -gtp)")
 	out := flag.String("o", "", "write self-play JSON to path (stdout if empty)")
+	sgfPath := flag.String("sgf", "", "replay SGF file and print score")
 	flag.Parse()
 
+	if *sgfPath != "" {
+		runSGFReplay(*sgfPath)
+		return
+	}
 	if *gtpMode {
 		runGTP(*gtpPlayouts, *evalMode)
 		return
@@ -35,6 +40,15 @@ func main() {
 	moves := r.LegalMoves(b)
 	fmt.Printf("gofer chinese: %dx%d komi=%.1f, %d legal moves\n",
 		*size, *size, *komi, len(moves))
+}
+
+func runSGFReplay(path string) {
+	n, bl, wl, err := ReplaySGFFile(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("replayed %d moves: black=%.1f white=%.1f\n", n, bl, wl)
 }
 
 func runGTP(playouts int, evalMode string) {

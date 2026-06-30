@@ -1,6 +1,12 @@
 package main
 
-// Board holds Go grid state. Mutate only through Ruleset.Play.
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
+
+// Board holds Go grid state.
 type Board struct {
 	size   int
 	komi   float64
@@ -104,8 +110,6 @@ func (b *Board) FinishTurn(newKo int) {
 	}
 }
 
-func (b *Board) CanUndo() bool { return len(b.undo) > 0 }
-
 func (b *Board) Undo() bool {
 	if len(b.undo) == 0 {
 		return false
@@ -192,4 +196,51 @@ func (b *Board) Restore(s Snapshot) {
 	b.komi = s.Komi
 	b.ko = s.Ko
 	b.hash = s.Hash
+}
+
+func formatGTPBoard(b *Board, size int) string {
+	var sb strings.Builder
+	sb.WriteString("  ")
+	for x := 0; x < size; x++ {
+		col := rune('A' + x)
+		if col >= 'I' {
+			col++
+		}
+		sb.WriteRune(col)
+		sb.WriteByte(' ')
+	}
+	sb.WriteByte('\n')
+	for y := 0; y < size; y++ {
+		row := size - y
+		if row < 10 {
+			sb.WriteByte(' ')
+		}
+		sb.WriteString(strconv.Itoa(row))
+		sb.WriteByte(' ')
+		for x := 0; x < size; x++ {
+			switch b.StoneAt(At(x, y)) {
+			case Black:
+				sb.WriteByte('X')
+			case White:
+				sb.WriteByte('O')
+			default:
+				sb.WriteByte('.')
+			}
+			sb.WriteByte(' ')
+		}
+		sb.WriteByte('\n')
+	}
+	return strings.TrimRight(sb.String(), "\n")
+}
+
+func formatGTPScore(b *Board, r Ruleset) string {
+	bl, wl := r.Score(b)
+	diff := bl - wl
+	if diff > 0 {
+		return fmt.Sprintf("B+%.1f", diff)
+	}
+	if diff < 0 {
+		return fmt.Sprintf("W+%.1f", -diff)
+	}
+	return "0"
 }
