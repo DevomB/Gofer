@@ -27,3 +27,9 @@ pgo-build:
 
 build:
 	go build -o bin/gofer ./cmd/gofer
+
+play:
+	go run ./cmd/gofer -play -size 9
+
+analyze:
+	go run ./cmd/gofer -analyze -size 9 -playouts 200

@@ -4,7 +4,9 @@ import (
 	"math"
 	"math/rand"
 	"runtime"
+	"sort"
 	"sync"
+	"time"
 )
 
 const (
@@ -23,6 +25,7 @@ type SearchConfig struct {
 	RootNoise       bool
 	RootTemperature float64
 	Workers         int // 0 = GOMAXPROCS
+	ThinkTime       time.Duration // if >0, search until deadline instead of fixed playouts
 }
 
 // DefaultConfig returns search defaults aligned with Wu 2020.
@@ -94,16 +97,148 @@ func (e *Engine) AdvanceTree(m Move) {
 	e.root = 0
 }
 
+// MoveCandidate is a root move with search statistics.
+type MoveCandidate struct {
+	Move    Move
+	Visits  uint32
+	WinRate float64
+	Share   float64
+}
+
+// Analysis holds search results for a position.
+type Analysis struct {
+	Playouts  int
+	RootValue float64
+	Best      Move
+	Candidates []MoveCandidate
+	PV        []Move
+}
+
+// SetLimits configures playout count or think-time (think-time takes precedence when >0).
+func (e *Engine) SetLimits(playouts int, think time.Duration) {
+	if think > 0 {
+		e.cfg.ThinkTime = think
+		return
+	}
+	e.cfg.ThinkTime = 0
+	if playouts > 0 {
+		e.cfg.Playouts = playouts
+	}
+}
+
 // BestMove runs MCTS and returns the most visited root child move.
 func (e *Engine) BestMove(b *Board) Move {
+	e.runSearch(b)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.arena.bestRootMove(e.root)
+}
+
+// Analyze runs search and returns ranked candidates plus a principal variation.
+func (e *Engine) Analyze(b *Board, topN int) Analysis {
+	playouts := e.runSearch(b)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.analyzeLocked(topN, playouts)
+}
+
+func (e *Engine) runSearch(b *Board) int {
 	if e.arena == nil {
 		e.arena = NewArena()
 		e.root = e.arena.Root()
 	}
+	if e.cfg.ThinkTime > 0 {
+		deadline := time.Now().Add(e.cfg.ThinkTime)
+		n := 0
+		for time.Now().Before(deadline) {
+			e.runPlayout(b, e.root)
+			n++
+		}
+		return n
+	}
 	e.runPlayouts(b, e.cfg.Playouts)
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.arena.bestRootMove(e.root)
+	return e.cfg.Playouts
+}
+
+func (e *Engine) analyzeLocked(topN, playouts int) Analysis {
+	out := Analysis{Playouts: playouts}
+	if e.arena == nil || len(e.arena.nodes) == 0 {
+		out.Best = PassMove
+		return out
+	}
+	root := e.arena.Get(e.root)
+	out.RootValue = root.Mean()
+	out.Candidates = rootCandidates(e.arena, e.root, topN)
+	if len(out.Candidates) > 0 {
+		out.Best = out.Candidates[0].Move
+	} else {
+		out.Best = PassMove
+	}
+	out.PV = e.pvLocked(8)
+	return out
+}
+
+func rootCandidates(a *Arena, root, topN int) []MoveCandidate {
+	n := a.Get(root)
+	if len(n.Children) == 0 {
+		return nil
+	}
+	var total uint32
+	cands := make([]MoveCandidate, 0, len(n.Children))
+	for _, cidx := range n.Children {
+		c := a.Get(cidx)
+		total += c.Visits
+		cands = append(cands, MoveCandidate{
+			Move:    c.Move,
+			Visits:  c.Visits,
+			WinRate: c.Mean(),
+		})
+	}
+	sort.Slice(cands, func(i, j int) bool {
+		if cands[i].Visits != cands[j].Visits {
+			return cands[i].Visits > cands[j].Visits
+		}
+		return cands[i].WinRate > cands[j].WinRate
+	})
+	if total > 0 {
+		inv := 1 / float64(total)
+		for i := range cands {
+			cands[i].Share = float64(cands[i].Visits) * inv
+		}
+	}
+	if topN <= 0 {
+		topN = 5
+	}
+	if len(cands) > topN {
+		cands = cands[:topN]
+	}
+	return cands
+}
+
+func (e *Engine) pvLocked(maxLen int) []Move {
+	if e.arena == nil {
+		return nil
+	}
+	pv := make([]Move, 0, maxLen)
+	node := e.root
+	for len(pv) < maxLen {
+		n := e.arena.Get(node)
+		if len(n.Children) == 0 {
+			break
+		}
+		best := n.Children[0]
+		maxV := e.arena.Get(best).Visits
+		for _, cidx := range n.Children[1:] {
+			c := e.arena.Get(cidx)
+			if c.Visits > maxV {
+				maxV = c.Visits
+				best = cidx
+			}
+		}
+		pv = append(pv, e.arena.Get(best).Move)
+		node = best
+	}
+	return pv
 }
 
 func (e *Engine) runPlayouts(b *Board, playouts int) {

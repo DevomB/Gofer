@@ -30,22 +30,32 @@ func DefaultSelfplayConfig() SelfplayConfig {
 
 // RunSelfplay plays games and returns training samples with visit-weighted policy.
 func RunSelfplay(cfg SelfplayConfig) []Sample {
-	rng := rand.New(rand.NewSource(cfg.Seed))
-	var samples []Sample
-	for g := 0; g < cfg.Games; g++ {
-		samples = append(samples, playSelfplayGame(cfg, g, rng)...)
-	}
+	samples, _ := RunSelfplayWithLogs(cfg)
 	return samples
 }
 
-func playSelfplayGame(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) []Sample {
+// RunSelfplayWithLogs returns samples and SGF-ready game logs.
+func RunSelfplayWithLogs(cfg SelfplayConfig) ([]Sample, []*GameLog) {
+	rng := rand.New(rand.NewSource(cfg.Seed))
+	var samples []Sample
+	var logs []*GameLog
+	for g := 0; g < cfg.Games; g++ {
+		gameSamples, log := playSelfplayGameWithLog(cfg, g, rng)
+		samples = append(samples, gameSamples...)
+		logs = append(logs, log)
+	}
+	return samples, logs
+}
+
+func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) ([]Sample, *GameLog) {
 	rs, size := selfplayRuleset(cfg, rng)
 	b := NewBoard(size, cfg.Komi)
+	log := NewGameLog(size, cfg.Komi)
 	eng := NewEngine(rs, nil, selfplaySearchCfg(cfg, gameIdx, rng))
-	game, _ := collectSelfplaySamples(cfg, rs, b, eng, size)
+	game, _ := collectSelfplaySamples(cfg, rs, b, eng, size, log)
 	bl, wl := rs.Score(b)
 	labelGameSamples(game, bl, wl)
-	return game
+	return game, log
 }
 
 func selfplayRuleset(cfg SelfplayConfig, rng *rand.Rand) (Ruleset, int) {
@@ -75,7 +85,7 @@ func selfplaySearchCfg(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) SearchCo
 	return scfg
 }
 
-func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engine, size int) ([]Sample, int) {
+func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engine, size int, log *GameLog) ([]Sample, int) {
 	var game []Sample
 	passes := 0
 	for moveNum := 0; moveNum < size*size+2; moveNum++ {
@@ -83,15 +93,17 @@ func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engin
 		if onlyPass(moves) {
 			break
 		}
+		color := b.Player()
 		m := eng.BestMove(b)
 		game = append(game, Sample{
 			BoardHash: b.Hash(),
 			MoveNum:   moveNum,
 			Policy:    eng.RootPolicy(moves),
-			ToPlay:    b.Player(),
+			ToPlay:    color,
 			Komi:      cfg.Komi,
 		})
 		rs.Play(b, m)
+		log.Record(color, m)
 		eng.AdvanceTree(m)
 		if m.Pass {
 			passes++

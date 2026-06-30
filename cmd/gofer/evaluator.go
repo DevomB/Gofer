@@ -35,25 +35,105 @@ func (Uniform) Evaluate(b *Board) Result {
 	return Result{Value: 0, Policy: p}
 }
 
-// Heuristic uses stone-count difference as a value proxy.
+// Heuristic combines material, liberties, territory, and move priors.
 type Heuristic struct{}
 
 func (Heuristic) Evaluate(b *Board) Result {
-	bl, wl := 0, 0
-	n := b.Size() * b.Size()
+	size := b.Size()
+	n := size * size
+	blS, wlS := 0, 0
 	for i := 0; i < n; i++ {
 		switch b.AtIndex(i) {
 		case Black:
-			bl++
+			blS++
 		case White:
-			wl++
+			wlS++
 		}
 	}
-	v := float64(bl-wl) / float64(n)
+	blL, wlL := groupLibertyTotals(b, Black), groupLibertyTotals(b, White)
+	blT, wlT := estimateTerritory(b)
+	score := float64(blS-wlS) + 0.15*float64(blL-wlL) + float64(blT-wlT)
+	v := score / float64(max(n, 1))
 	if b.Player() == White {
 		v = -v
 	}
-	return Result{Value: v, Policy: nil}
+	v = clamp(v, -1, 1)
+	return Result{Value: v, Policy: heuristicPolicy(b)}
+}
+
+func groupLibertyTotals(b *Board, color Color) int {
+	n := b.Size() * b.Size()
+	seen := make([]bool, n)
+	total := 0
+	for i := 0; i < n; i++ {
+		if seen[i] || b.AtIndex(i) != color {
+			continue
+		}
+		for _, idx := range collectGroup(b, i, color) {
+			seen[idx] = true
+		}
+		total += libertyCount(b, i, color)
+	}
+	return total
+}
+
+func estimateTerritory(b *Board) (black, white int) {
+	n := b.Size() * b.Size()
+	seen := make([]bool, n)
+	for i := 0; i < n; i++ {
+		if b.AtIndex(i) != Empty || seen[i] {
+			continue
+		}
+		t, tb, tw := floodEmpty(b, i, seen)
+		if tb && !tw {
+			black += t
+		}
+		if tw && !tb {
+			white += t
+		}
+	}
+	return black, white
+}
+
+func heuristicPolicy(b *Board) []float32 {
+	size := b.Size()
+	n := size*size + 1
+	p := make([]float32, n)
+	player := b.Player()
+	opp := player.Opposite()
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
+			pt := At(x, y)
+			if b.StoneAt(pt) != Empty {
+				continue
+			}
+			score := float32(0.05)
+			for _, nb := range b.Neighbors(pt.Idx(size)) {
+				switch b.AtIndex(nb) {
+				case player:
+					score += 1
+				case opp:
+					score -= 0.4
+				}
+			}
+			if score < 0.01 {
+				score = 0.01
+			}
+			p[pt.Idx(size)] = score
+		}
+	}
+	p[size*size] = 0.02
+	return p
+}
+
+func clamp(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // Mock returns fixed value/policy for tests.

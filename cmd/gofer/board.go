@@ -110,6 +110,8 @@ func (b *Board) FinishTurn(newKo int) {
 	}
 }
 
+func (b *Board) CanUndo() bool { return len(b.undo) > 0 }
+
 func (b *Board) Undo() bool {
 	if len(b.undo) == 0 {
 		return false

@@ -3,6 +3,7 @@ package main
 import (
 	"strconv"
 	"strings"
+	"time"
 )
 
 var gtpCommands = []string{
@@ -13,41 +14,50 @@ var gtpCommands = []string{
 
 // SessionConfig holds GTP session parameters.
 type SessionConfig struct {
-	Playouts int
-	Eval     string // "uniform" or "heuristic"
+	Playouts  int
+	ThinkTime time.Duration
+	Eval      string // "uniform" or "heuristic"
+	BoardSize int
 }
 
 // Session holds GTP engine state.
 type Session struct {
-	Board  *Board
-	Rules  Ruleset
-	Search *Engine
-	Size   int
-	Komi   float64
+	Board     *Board
+	Rules     Ruleset
+	Search    *Engine
+	Size      int
+	Komi      float64
+	playouts  int
+	thinkTime time.Duration
+	nextThink time.Duration
 }
 
 // NewSession creates a GTP session with the given config.
 func NewSession(cfg SessionConfig) *Session {
-	size, komi := 19, 7.5
+	size := cfg.BoardSize
+	if size < 2 {
+		size = 19
+	}
+	komi := 7.5
 	b := NewBoard(size, komi)
 	r := Chinese()
 	playouts := cfg.Playouts
 	if playouts <= 0 {
-		playouts = 200
+		playouts = defaultPlayoutsForSize(size)
 	}
-	ev := Evaluator(Heuristic{})
-	if cfg.Eval == "uniform" {
-		ev = Uniform{}
-	}
+	ev := parseEvaluator(cfg.Eval)
 	scfg := DefaultConfig()
 	scfg.Playouts = playouts
+	scfg.ThinkTime = cfg.ThinkTime
 	scfg.Seed = 1
 	return &Session{
-		Board:  b,
-		Rules:  r,
-		Search: NewEngine(r, ev, scfg),
-		Size:   size,
-		Komi:   komi,
+		Board:     b,
+		Rules:     r,
+		Search:    NewEngine(r, ev, scfg),
+		Size:      size,
+		Komi:      komi,
+		playouts:  playouts,
+		thinkTime: cfg.ThinkTime,
 	}
 }
 
@@ -84,8 +94,10 @@ func (s *Session) Handle(line string) string {
 		return formatGTPBoard(s.Board, s.Size)
 	case "final_score":
 		return formatGTPScore(s.Board, s.Rules)
-	case "time_settings", "time_left":
+	case "time_settings":
 		return ""
+	case "time_left":
+		return s.handleTimeLeft(parts)
 	case "quit":
 		return ""
 	default:
@@ -116,6 +128,7 @@ func (s *Session) handleBoardsize(parts []string) string {
 	}
 	s.Size = n
 	s.Board = NewBoard(n, s.Komi)
+	s.playouts = defaultPlayoutsForSize(n)
 	s.Search.ResetArena()
 	return ""
 }
@@ -173,6 +186,12 @@ func (s *Session) handleGenmove(parts []string) string {
 	if s.Board.Player() != color {
 		return "wrong color to move"
 	}
+	think := s.nextThink
+	if think <= 0 {
+		think = s.thinkTime
+	}
+	s.Search.SetLimits(s.playouts, think)
+	s.nextThink = 0
 	m := s.Search.BestMove(s.Board)
 	if !s.Rules.Play(s.Board, m) {
 		s.Search.AdvanceTree(m)
@@ -180,4 +199,14 @@ func (s *Session) handleGenmove(parts []string) string {
 	}
 	s.Search.AdvanceTree(m)
 	return moveToGTPVertex(m, s.Size)
+}
+
+func (s *Session) handleTimeLeft(parts []string) string {
+	// ponytail: use full remaining time as next genmove budget (no byo-yomi split).
+	if len(parts) >= 3 {
+		if sec, err := strconv.Atoi(parts[2]); err == nil && sec > 0 {
+			s.nextThink = time.Duration(sec) * time.Second
+		}
+	}
+	return ""
 }

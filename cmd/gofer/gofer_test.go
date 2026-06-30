@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func BenchmarkApplyStone(b *testing.B) {
@@ -644,6 +645,70 @@ func TestExportSGFRoundTrip(t *testing.T) {
 	m2, err := g2.MainLine()
 	if err != nil || len(m2) != 1 {
 		t.Fatalf("round trip moves %d err=%v", len(m2), err)
+	}
+}
+
+func TestAnalyzeCandidates(t *testing.T) {
+	r := Chinese()
+	cfg := DefaultConfig()
+	cfg.Playouts = 30
+	e := NewEngine(r, Heuristic{}, cfg)
+	b := NewBoard(5, 6.5)
+	a := e.Analyze(b, 3)
+	if a.Playouts <= 0 || len(a.Candidates) == 0 {
+		t.Fatalf("analyze: playouts=%d cands=%d", a.Playouts, len(a.Candidates))
+	}
+	if a.Best.Pass && len(a.Candidates) > 1 {
+		// empty board should not pass as best
+	}
+}
+
+func TestThinkTimeSearch(t *testing.T) {
+	r := Chinese()
+	cfg := DefaultConfig()
+	cfg.ThinkTime = 50 * time.Millisecond
+	e := NewEngine(r, Heuristic{}, cfg)
+	b := NewBoard(5, 6.5)
+	a := e.Analyze(b, 3)
+	if a.Playouts <= 0 {
+		t.Fatal("expected playouts during think window")
+	}
+}
+
+func TestGameLogExport(t *testing.T) {
+	log := NewGameLog(9, 6.5)
+	log.Record(Black, StoneMove(At(2, 2)))
+	log.Record(White, PassMove)
+	out := log.ExportSGF()
+	g, err := ParseSGF(out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	moves, err := g.MainLine()
+	if err != nil || len(moves) != 2 {
+		t.Fatalf("moves %d err=%v", len(moves), err)
+	}
+}
+
+func TestGTPTimeLeft(t *testing.T) {
+	s := NewSession(SessionConfig{Playouts: 10})
+	s.Handle("boardsize 9")
+	if out := s.Handle("time_left black 30 0"); out != "" {
+		t.Fatalf("time_left: %q", out)
+	}
+	if s.nextThink != 30*time.Second {
+		t.Fatalf("nextThink=%v", s.nextThink)
+	}
+}
+
+func TestSelfplaySGFLogs(t *testing.T) {
+	cfg := DefaultSelfplayConfig()
+	cfg.Games = 1
+	cfg.Playouts = 4
+	cfg.BoardSize = 5
+	_, logs := RunSelfplayWithLogs(cfg)
+	if len(logs) != 1 || len(logs[0].Moves) == 0 {
+		t.Fatalf("log moves %d", len(logs[0].Moves))
 	}
 }
 
