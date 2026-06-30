@@ -153,6 +153,24 @@ func (b *Board) Rehash() {
 	b.hash = h
 }
 
+// forEachNeighbor visits in-bounds adjacent indices without allocating.
+func (b *Board) forEachNeighbor(idx int, fn func(int)) {
+	size := b.size
+	x, y := idx%size, idx/size
+	if x > 0 {
+		fn(idx - 1)
+	}
+	if x+1 < size {
+		fn(idx + 1)
+	}
+	if y > 0 {
+		fn(idx - size)
+	}
+	if y+1 < size {
+		fn(idx + size)
+	}
+}
+
 // Neighbors returns in-bounds adjacent linear indices.
 func (b *Board) Neighbors(idx int) []int {
 	size := b.size
@@ -198,6 +216,35 @@ func (b *Board) Restore(s Snapshot) {
 	b.komi = s.Komi
 	b.ko = s.Ko
 	b.hash = s.Hash
+}
+
+// cloneTrial returns a board copy without undo history (legality trials only).
+func (b *Board) cloneTrial() *Board {
+	c := *b
+	c.stones = append([]Stone(nil), b.stones...)
+	c.undo = nil
+	return &c
+}
+
+// trialSnap captures state for repeated trial restores without re-cloning.
+type trialSnap struct {
+	stones []Stone
+	player Color
+	ko     int
+}
+
+func (b *Board) captureTrialSnap() trialSnap {
+	return trialSnap{
+		stones: append([]Stone(nil), b.stones...),
+		player: b.player,
+		ko:     b.ko,
+	}
+}
+
+func (b *Board) restoreTrialSnap(s trialSnap) {
+	copy(b.stones, s.stones)
+	b.player = s.player
+	b.ko = s.ko
 }
 
 func formatGTPBoard(b *Board, size int) string {

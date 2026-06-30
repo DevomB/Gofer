@@ -1,4 +1,4 @@
-# Gofer v1.0.0
+# Gofer v2.0.0
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
 
@@ -48,12 +48,32 @@ Or fixed playouts:
 bin/gofer -gtp -gtp-playouts 800 -eval heuristic
 ```
 
-Sabaki: **Engine → Manage engines → Add** → path above.
+Sabaki demo (9×9, think-time, SGF on quit):
+
+1. Build: `make build`
+2. Sabaki → **Engines → Manage engines → Add**
+3. Command: `bin/gofer -gtp -size 9 -think-time 5s -eval heuristic -o demo.sgf`
+4. New game 9×9, play; on quit the engine writes `demo.sgf`
+
+Plot arena gating curve: `./scripts/plot-gating.sh .tectonix/reports/arena-9x9-baseline.json`
+
+Nightly 200-game arena workflow: [`.github/workflows/arena-nightly.yml`](.github/workflows/arena-nightly.yml) (also `make reproduce-9x9-baseline`).
 
 ### Watch engine vs engine
 
 ```bash
 bin/gofer -watch -size 9 -playouts 50
+```
+
+### Arena (gating)
+
+Documented strength check: baseline heuristic (600 playouts + forced root) vs challenger (200 playouts).
+
+```bash
+bin/gofer -arena -games 200 -size 9 -playouts 400 \
+  -black-playouts 600 -white-playouts 200 \
+  -black-eval heuristic -white-eval heuristic -seed 42 \
+  -json .tectonix/reports/arena-report.json
 ```
 
 ### Self-play
@@ -83,6 +103,7 @@ bin/gofer -sgf cmd/gofer/testdata/simple.sgf
 
 - **`heuristic`** (default) — stones, liberties, territory estimate, move priors for PUCT
 - **`uniform`** — random-ish MCTS baseline
+- **`batched`** / **`mock-batch`** — batched mock inference queue
 
 ## Profile-guided build (optional)
 
@@ -92,7 +113,7 @@ make pgo-build      # bin/gofer with -pgo=
 make bench-check    # compare before/after
 ```
 
-ponytail: `pgo-profile` uses `BenchmarkLegalMoves` microbench. Ceiling: may mis-optimize search paths. Upgrade: profile from `-selfplay` macro workload.
+`make pgo-profile` profiles `BenchmarkLegalMoves` only; self-play would be a better macro workload if PGO gains matter.
 
 ## Project layout
 
@@ -108,13 +129,14 @@ ponytail: `pgo-profile` uses `BenchmarkLegalMoves` microbench. Ceiling: may mis-
 - [`docs/research-traceability.md`](docs/research-traceability.md) — paper ↔ code
 - [`docs/optimization-scorecard.md`](docs/optimization-scorecard.md) — benches & quality gate
 
-## v1 scope (done)
+## Included
 
 - Chinese + Tromp-Taylor rules, SGF import/export
 - PUCT MCTS, transposition table, parallel playouts
 - GTP subset, terminal play/analyze/watch, self-play samples
+- Arena gating, Wilson CI, training sample export (v2)
 
-## Not in v1 (explicit non-goals)
+## Not yet
 
 - Neural network training or ONNX inference in-process
 - KataGo-level strength or full analysis API

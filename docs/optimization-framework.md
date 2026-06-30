@@ -23,7 +23,7 @@ How Gofer quantifies optimization maturity on a **0–10 composite scale**, cros
 | 4 | 6000–7500 | Clean packages, tests, no cycles |
 | 6 | 7500–8500 | Benches + profiles + rules pass |
 | 8 | 8500–9500 | Hot paths tuned with evidence |
-| **Tranche sign-off** | **≥9000** | Required before milestone "done" |
+| **Release gate** | **≥9000** | Target before tagging a milestone release |
 
 **Anti-gaming (mandatory):** Scan repo root only. No subdirectory scans, file deletion tricks, or disabling plugins to inflate score. Improvements must address `health.root_causes`.
 
@@ -58,7 +58,7 @@ How Gofer quantifies optimization maturity on a **0–10 composite scale**, cros
 ### 5. Allocation discipline
 | 0 | Heap alloc in inner loop |
 | 5 | `benchmem` tracked |
-| 10 | Zero allocs/op on select path or documented ponytails |
+| 10 | Zero allocs/op on select path or documented shortcuts |
 
 ### 6. Concurrency effectiveness
 | 0 | Decorative goroutines |
@@ -93,7 +93,7 @@ How Gofer quantifies optimization maturity on a **0–10 composite scale**, cros
 ### 12. Idiomatic Go under performance pressure
 | 0 | Java-in-Go |
 | 5 | Clear packages; interfaces at edges |
-| 10 | Hot paths concrete; ponytails documented |
+| 10 | Hot paths concrete; shortcuts documented |
 
 ---
 
@@ -156,4 +156,4 @@ composite = (
 2. `health` → fix weakest root cause before micro-optimizing
 3. `test-gaps` before editing riskiest files
 4. `session-end` after work — report quality_signal delta
-5. **9000+ gate** at tranche sign-off via real fixes, not gaming
+5. **`quality_signal` ≥ 9000** before release tags — real fixes, not gaming

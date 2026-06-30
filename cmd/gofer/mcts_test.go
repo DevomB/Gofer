@@ -118,3 +118,57 @@ func TestThinkTimeSearch(t *testing.T) {
 		t.Fatal("expected playouts during think window")
 	}
 }
+
+func TestForcedRootPlayouts(t *testing.T) {
+	r := Chinese()
+	cfg := DefaultConfig()
+	cfg.Playouts = 20
+	cfg.ForcedRootPlayouts = 2
+	cfg.Workers = 1
+	e := NewEngine(r, Uniform{}, cfg)
+	b := NewBoard(5, 6.5)
+	legal := r.LegalMoves(b)
+	_ = e.BestMove(b)
+	e.mu.Lock()
+	root := e.arena.Get(e.root)
+	for _, cidx := range root.Children {
+		c := e.arena.Get(cidx)
+		if c.Visits < uint32(cfg.ForcedRootPlayouts) {
+			t.Fatalf("child %+v visits %d < forced %d", c.Move, c.Visits, cfg.ForcedRootPlayouts)
+		}
+	}
+	e.mu.Unlock()
+	_ = legal
+}
+
+func TestRootPolicyPruned(t *testing.T) {
+	r := Chinese()
+	cfg := DefaultConfig()
+	cfg.Playouts = 25
+	cfg.ForcedRootPlayouts = 2
+	e := NewEngine(r, Uniform{}, cfg)
+	b := NewBoard(5, 6.5)
+	legal := r.LegalMoves(b)
+	_ = e.BestMove(b)
+	pi := e.RootPolicyPruned(legal)
+	var sum float32
+	for _, p := range pi {
+		sum += p
+	}
+	if sum < 0.99 || sum > 1.01 {
+		t.Fatalf("pruned policy sum %v", sum)
+	}
+}
+
+func TestOwnershipLabel(t *testing.T) {
+	b := NewBoard(5, 6.5)
+	r := Chinese()
+	_ = r.Play(b, StoneMove(At(2, 2)))
+	own := OwnershipLabel(b)
+	if len(own) != 25 {
+		t.Fatalf("len %d", len(own))
+	}
+	if own[2*5+2] != 1 {
+		t.Fatalf("stone ownership %v", own[2*5+2])
+	}
+}

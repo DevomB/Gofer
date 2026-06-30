@@ -12,7 +12,7 @@ Epics for `cmd/gofer` search (`mcts.go`, `arena.go`, `tt.go`), MCTS/PUCT, paper 
 | SE-1.2 | Child slice pre-cap | SE-1.1 | Expand adds one child | — | child count |
 | SE-1.3 | Pointer vs index benchmark | SE-1.1 | Decision log entry | compare benches | — |
 
-**Risk:** Arena growth strategy — ponytail with doubling slice.
+**Risk:** Arena growth — doubling slice reallocation.
 
 ---
 

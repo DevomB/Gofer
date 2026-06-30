@@ -22,12 +22,12 @@ How to write idiomatic, performance-aware Go in Gofer.
 5. Can it be one line?
 6. Only then: minimum new code.
 
-### Ponytail comments
+### Shortcut comments
 
-Any intentional shortcut with a known ceiling:
+Document intentional shortcuts with a known ceiling:
 
 ```go
-// ponytail: naive liberty flood-fill per capture check.
+// Naive liberty flood-fill per capture check.
 // Ceiling: O(n) per candidate move on dense boards.
 // Upgrade: incremental group liberties (backlog-core-engine).
 ```
@@ -129,7 +129,7 @@ Workflow:
 - Hot-path changes: bench numbers required.
 - Reject "looks faster" without data.
 - Tradeoff note required when code becomes less obvious.
-- Ponytail required for known-ceiling shortcuts.
+- Document known ceilings for intentional shortcuts.
 - Tectonix: no acyclicity/modularity regression without justification.
 - No new dependencies without reason in decision log.
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -72,6 +73,7 @@ func TestRunSelfplaySamples(t *testing.T) {
 	cfg.Games = 1
 	cfg.Playouts = 5
 	cfg.BoardSize = 5
+	cfg.FullOnlyExport = false
 	samples := RunSelfplay(cfg)
 	if len(samples) == 0 {
 		t.Fatal("expected samples")
@@ -82,6 +84,65 @@ func TestRunSelfplaySamples(t *testing.T) {
 		}
 		if s.Value != 1 && s.Value != -1 && s.Value != 0 {
 			t.Fatalf("value out of range: %v", s.Value)
+		}
+		if len(s.Ownership) == 0 {
+			t.Fatal("expected ownership labels")
+		}
+	}
+}
+
+func TestOwnershipEndgameSGF(t *testing.T) {
+	path := filepath.Join("testdata", "simple.sgf")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	g, err := ParseSGF(string(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := Chinese()
+	b := NewBoard(g.Size, g.Komi)
+	if err := g.Setup(b); err != nil {
+		t.Fatal(err)
+	}
+	moves, err := g.MainLine()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range moves {
+		if !r.Play(b, sgfMoveToPlay(m)) {
+			t.Fatal("illegal replay")
+		}
+	}
+	own := OwnershipLabel(b)
+	if len(own) != g.Size*g.Size {
+		t.Fatalf("ownership len %d", len(own))
+	}
+	nonZero := 0
+	for _, v := range own {
+		if v != 0 {
+			nonZero++
+		}
+	}
+	if nonZero == 0 {
+		t.Fatal("expected some ownership signal after replay")
+	}
+}
+
+func TestMatchResultJSONFields(t *testing.T) {
+	result := RunMatch(MatchConfig{Games: 1, Size: 5, Playouts: 4, BlackEval: "uniform", WhiteEval: "uniform", Seed: 1})
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"game_count", "games", "config_hash", "baseline_wilson_ci_low", "wins_baseline"} {
+		if _, ok := m[key]; !ok {
+			t.Fatalf("missing json field %q", key)
 		}
 	}
 }

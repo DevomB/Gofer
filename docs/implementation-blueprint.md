@@ -9,20 +9,22 @@ Module: `github.com/DevomB/gofer` | Rules v1: **Chinese** | Paper reference: arX
 ### Long-term vision
 A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally neural-guided, benchmark-driven, with self-play/training hooks — inspired by Stockfish-style engineering discipline and KataGo-style ML architecture (without copying KataGo code).
 
-### Near-term deliverables (this tranche)
+### Near-term deliverables
 - 10 planning docs complete
 - M0 repository foundation
 - M1 Chinese-rules board engine with undo, tests, benchmarks
-- Tectonix quality_signal ≥ 9000 at repo root before sign-off
+- Tectonix `quality_signal` ≥ 9000 at repo root before release
 
 > **Architecture note (2026-06):** v1 ships as monolithic `cmd/gofer` (`package main`) with zero cross-package import edges. Milestones M1–M10 live there (not `cmd/engine` / `internal/*`). An earlier `internal/*` split was reverted after Tectonix modularity regressions; only `cmd/bench` is separate (exec-based, no import of gofer).
 
-### Explicit non-goals (v1 tranche)
+### Explicit non-goals (v1)
 - Neural network training or GPU inference in-process
 - KataGo-level strength without trained NN
 - Full JSON analysis API (post-paper, v2+)
 
-**v1.0 shipped (2026-06):** GTP, MCTS, SGF export, terminal play/analyze/watch, self-play samples.
+**v1.0 (2026-06):** GTP, MCTS, SGF export, terminal play/analyze/watch, self-play samples.
+
+**v2.0 (2026-06):** Optimized `LegalMoves` (7 allocs/op), arena CLI with Wilson CI + config hash, sample schema v1 (JSONL), SE-4 search mechanisms (mixed caps, forced root, policy pruning), batched mock inference (`features.go`, `BatchedEvaluator`), ownership labels for training export. ADRs in `docs/decisions/`. Scorecard composite **7/10**. ONNX inference deferred to v2.5.
 
 ---
 
@@ -67,7 +69,7 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 
 ### M3: Fast state mutation
 - **Objective:** Incremental groups OR proven undo faster than copy
-- **Acceptance:** bench shows ≥2× MakeMove vs M1 naive OR documented ponytail with plan
+- **Acceptance:** bench shows ≥2× MakeMove vs M1 naive OR documented shortcut with bench evidence
 - **Benchmarks:** clone vs undo comparison
 - **DoD:** decision log entry for board repr
 
@@ -159,7 +161,7 @@ gofer/  (post-v1 option)
 - **Responsibilities:** `Ruleset` — `LegalMoves`, `Play`, `Score`, `Result`
 - **Must NOT:** MCTS, GTP parsing
 - **API:** `type Ruleset interface { ... }` at package root; implementations in subpackages
-- **Hot path:** `LegalMoves` — ponytail allowed with benchmark
+- **Hot path:** `LegalMoves` — known shortcuts ok if benchmarked
 - **Tests:** per-ruleset golden files
 
 ### `search` (`cmd/gofer/mcts.go`, `arena.go`, `tt.go`)

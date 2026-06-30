@@ -18,3 +18,5 @@ jobs:
         run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
       - name: Bench regression
         run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
+      - name: Arena smoke
+        run: go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval uniform -seed 0

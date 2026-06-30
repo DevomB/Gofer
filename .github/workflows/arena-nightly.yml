@@ -1,0 +1,25 @@
+name: Arena nightly
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  arena-200:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: 200-game strength gate
+        run: |
+          go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 \
+            -black-playouts 600 -white-playouts 200 \
+            -black-eval heuristic -white-eval heuristic -seed 42 \
+            -json arena-nightly.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arena-nightly-json
+          path: arena-nightly.json

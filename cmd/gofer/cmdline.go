@@ -11,15 +11,19 @@ import (
 )
 
 type cliFlags struct {
-	gtp, play, analyze, selfplay, watch bool
-	games                               int
-	size                                int
-	komi                                float64
-	playouts, gtpPlayouts               int
-	think                               time.Duration
-	topN                                int
-	eval, humanColor, out, sgfDir       string
-	sgfPath, setup                        string
+	gtp, play, analyze, selfplay, watch, arena bool
+	games                                      int
+	size                                       int
+	komi                                       float64
+	playouts, gtpPlayouts                      int
+	think                                      time.Duration
+	topN                                       int
+	eval, humanColor, out, sgfDir              string
+	blackEval, whiteEval, arenaJSON            string
+	blackPlayouts, whitePlayouts               int
+	selfplayFullOnly                           bool
+	seed                                       int64
+	sgfPath, setup                             string
 }
 
 func parseCLIFlags() cliFlags {
@@ -29,7 +33,8 @@ func parseCLIFlags() cliFlags {
 	flag.BoolVar(&f.analyze, "analyze", false, "analyze current position")
 	flag.BoolVar(&f.selfplay, "selfplay", false, "run self-play and emit training samples")
 	flag.BoolVar(&f.watch, "watch", false, "engine vs engine demo (mutually exclusive with other modes)")
-	flag.IntVar(&f.games, "games", 1, "number of games (with -selfplay)")
+	flag.BoolVar(&f.arena, "arena", false, "run arena match (baseline vs challenger)")
+	flag.IntVar(&f.games, "games", 1, "number of games (with -selfplay or -arena)")
 	flag.IntVar(&f.size, "size", 9, "board size")
 	flag.Float64Var(&f.komi, "komi", 6.5, "komi")
 	flag.IntVar(&f.playouts, "playouts", 0, "MCTS playouts per move (0 = size default)")
@@ -42,19 +47,26 @@ func parseCLIFlags() cliFlags {
 	flag.StringVar(&f.sgfDir, "sgf-dir", "", "write self-play games as SGF files to directory")
 	flag.StringVar(&f.sgfPath, "sgf", "", "replay SGF file and print score")
 	flag.StringVar(&f.setup, "moves", "", "comma-separated setup moves for -analyze (e.g. D4,Q16)")
+	flag.StringVar(&f.blackEval, "black-eval", "heuristic", "baseline evaluator for -arena")
+	flag.StringVar(&f.whiteEval, "white-eval", "uniform", "challenger evaluator for -arena")
+	flag.StringVar(&f.arenaJSON, "json", "", "write arena match JSON report to path")
+	flag.IntVar(&f.blackPlayouts, "black-playouts", 0, "baseline playouts for -arena (0 = -playouts)")
+	flag.IntVar(&f.whitePlayouts, "white-playouts", 0, "challenger playouts for -arena (0 = -playouts)")
+	flag.BoolVar(&f.selfplayFullOnly, "full-only", true, "export only full-search self-play positions")
+	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.Parse()
 	return f
 }
 
 func runMode(f cliFlags) bool {
 	n := 0
-	for _, on := range []bool{f.gtp, f.play, f.analyze, f.selfplay, f.watch} {
+	for _, on := range []bool{f.gtp, f.play, f.analyze, f.selfplay, f.watch, f.arena} {
 		if on {
 			n++
 		}
 	}
 	if n > 1 {
-		fmt.Fprintln(os.Stderr, "only one mode flag allowed (-gtp, -play, -analyze, -selfplay, -watch)")
+		fmt.Fprintln(os.Stderr, "only one mode flag allowed (-gtp, -play, -analyze, -selfplay, -watch, -arena)")
 		os.Exit(1)
 	}
 	switch {
@@ -73,13 +85,15 @@ func runMode(f cliFlags) bool {
 		}
 		runAnalyze(f.size, f.komi, p, f.think, f.topN, f.eval, parseSetupMoves(f.setup))
 	case f.selfplay:
-		runSelfplayCLI(f.games, f.size, f.komi, f.playouts, f.out, f.sgfDir)
+		runSelfplayCLI(f.games, f.size, f.komi, f.playouts, f.out, f.sgfDir, f.selfplayFullOnly, f.seed)
 	case f.watch:
 		p := f.playouts
 		if p <= 0 && f.think <= 0 {
 			p = defaultPlayoutsForSize(f.size)
 		}
 		runWatch(f.size, f.komi, p, f.think, f.eval)
+	case f.arena:
+		runArenaCLI(f)
 	default:
 		return false
 	}
@@ -109,7 +123,41 @@ func printUsage(size int, komi float64) {
 	fmt.Println("  gofer -gtp                GTP engine (Sabaki/Lizzie)")
 	fmt.Println("  gofer -watch              engine vs engine demo")
 	fmt.Println("  gofer -selfplay           generate training games")
+	fmt.Println("  gofer -arena              baseline vs challenger match")
 	fmt.Println("  gofer -sgf game.sgf       replay SGF")
+}
+
+func runArenaCLI(f cliFlags) {
+	cfg := MatchConfig{
+		Games:         f.games,
+		Size:          f.size,
+		Komi:          f.komi,
+		Playouts:      f.playouts,
+		BlackPlayouts: f.blackPlayouts,
+		WhitePlayouts: f.whitePlayouts,
+		ThinkTime:     f.think,
+		BlackEval:     f.blackEval,
+		WhiteEval:     f.whiteEval,
+		Seed:          f.seed,
+	}
+	result := RunMatch(cfg)
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if f.arenaJSON != "" {
+		if err := os.WriteFile(f.arenaJSON, data, 0644); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+	fmt.Printf("arena %d games: baseline(%s)=%d challenger(%s)=%d draws=%d win_rate_challenger=%.3f CI=[%.3f,%.3f] promoted=%v hash=%s\n",
+		result.Games, result.BaselineEval, result.WinsBaseline, result.ChallengerEval, result.WinsChallenger,
+		result.Draws, result.WinRateChallenger, result.WilsonCILow, result.WilsonCIHigh, result.Promoted, result.ConfigHash)
+	if f.arenaJSON == "" {
+		fmt.Println(string(data))
+	}
 }
 
 func runSGFReplay(path string) {
@@ -154,7 +202,7 @@ func runGTP(playouts, defaultSize int, think time.Duration, evalMode, sgfOut str
 	}
 }
 
-func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir string) {
+func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir string, fullOnly bool, seed int64) {
 	if playouts <= 0 {
 		playouts = defaultPlayoutsForSize(size)
 	}
@@ -163,11 +211,13 @@ func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir
 	cfg.BoardSize = size
 	cfg.Komi = komi
 	cfg.Playouts = playouts
+	cfg.FullOnlyExport = fullOnly
+	cfg.Seed = seed
 	samples, logs := RunSelfplayWithLogs(cfg)
 	if outPath != "" {
 		writeSelfplayJSON(outPath, samples)
 	} else if sgfDir == "" {
-		data, _ := json.MarshalIndent(samples, "", "  ")
+		data, _ := MarshalSampleExport(samples)
 		fmt.Println(string(data))
 	}
 	if sgfDir != "" {
@@ -176,7 +226,14 @@ func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir
 }
 
 func writeSelfplayJSON(path string, samples []Sample) {
-	data, err := json.MarshalIndent(samples, "", "  ")
+	if isJSONLPath(path) {
+		if err := WriteSampleJSONL(path, samples); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	data, err := MarshalSampleExport(samples)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

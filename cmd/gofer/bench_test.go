@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func BenchmarkApplyStone(b *testing.B) {
@@ -82,18 +83,25 @@ func BenchmarkCloneVsUndo(b *testing.B) {
 	})
 }
 
-func BenchmarkSearchParallel(b *testing.B) {
+func benchmarkSearchWithWorkers(b *testing.B, workers, playouts int) {
 	r := Chinese()
 	board := NewBoard(9, 6.5)
 	cfg := DefaultConfig()
-	cfg.Playouts = 50
-	cfg.Workers = 4
+	cfg.Playouts = playouts
+	cfg.Workers = workers
 	eng := NewEngine(r, Uniform{}, cfg)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		eng.ResetArena()
 		eng.BestMove(board)
 	}
+}
+
+func BenchmarkSearchWorkers1(b *testing.B) { benchmarkSearchWithWorkers(b, 1, 200) }
+func BenchmarkSearchWorkers8(b *testing.B) { benchmarkSearchWithWorkers(b, 8, 200) }
+
+func BenchmarkSearchParallel(b *testing.B) {
+	benchmarkSearchWithWorkers(b, 4, 50)
 }
 
 func BenchmarkBestMove(b *testing.B) { BenchmarkSearchParallel(b) }
@@ -147,6 +155,28 @@ func BenchmarkScore(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_, _ = r.Score(br)
+	}
+}
+
+func BenchmarkEvalBatch(b *testing.B) {
+	boards := make([]*Board, 32)
+	for i := range boards {
+		boards[i] = NewBoard(9, 6.5)
+	}
+	inf := Inference{Latency: 0}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = inf.EvalBatch(boards)
+	}
+}
+
+func BenchmarkBatchedEvaluator(b *testing.B) {
+	ev := NewBatchedEvaluator(Inference{}, Heuristic{}, 8, 2*time.Millisecond)
+	defer ev.Close()
+	board := NewBoard(9, 6.5)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ev.Evaluate(board)
 	}
 }
 

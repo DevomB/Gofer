@@ -354,4 +354,4 @@ Rationale: correctness before search; search before ML; measurement throughout.
 | **TT** | Transposition table — cache subtrees by hash |
 | **Virtual loss** | Temporary visit inflation for parallel search |
 | **PGO** | Profile-Guided Optimization — compiler uses CPU profile |
-| **Ponytail** | Comment marking intentional shortcut + upgrade path |
+| **Known shortcut** | Comment documenting intentional simplification + upgrade path |

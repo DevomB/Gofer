@@ -13,7 +13,7 @@ type Node struct {
 	Expanded bool
 }
 
-// Arena stores nodes in a contiguous slice (ponytail: doubling growth).
+// Arena stores nodes in a contiguous slice; doubles capacity when full.
 type Arena struct {
 	nodes []Node
 }

@@ -216,7 +216,7 @@ func (s *Session) handleGenmove(parts []string) string {
 }
 
 func (s *Session) handleTimeLeft(parts []string) string {
-	// ponytail: use full remaining time as next genmove budget (no byo-yomi split).
+	// Remaining clock becomes next genmove budget; no byo-yomi split.
 	if len(parts) >= 3 {
 		if sec, err := strconv.Atoi(parts[2]); err == nil && sec > 0 {
 			s.nextThink = time.Duration(sec) * time.Second

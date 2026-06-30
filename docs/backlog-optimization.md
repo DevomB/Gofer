@@ -79,7 +79,7 @@ Epics for benchmarks, profiles, PGO, Tectonix-driven structural fixes, regressio
 |----|------|------------|
 | OP-7.1 | `tectonix session-start/end` per milestone | Reports saved |
 | OP-7.2 | Fix weakest root cause each session | health delta |
-| OP-7.3 | `quality_signal >= 9000` at sign-off | No gaming |
+| OP-7.3 | `quality_signal >= 9000` at release | No gaming |
 | OP-7.4 | `tectonix check-rules` clean | Layer violations = 0 |
 | OP-7.5 | Address `riskiest_untested` before hot edits | test-gaps |
 

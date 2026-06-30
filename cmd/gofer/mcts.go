@@ -11,10 +11,12 @@ import (
 )
 
 const (
-	defaultCPUCT    = 1.1
-	defaultFPU      = 0.2
-	rootTemperature = 1.03
-	virtualLoss     = 3
+	defaultCPUCT           = 1.1
+	defaultFPU             = 0.2
+	rootTemperature        = 1.03
+	virtualLoss            = 3
+	defaultForcedRoot      = 2
+	minPolicyVisits        = 2
 )
 
 // SearchConfig holds MCTS parameters.
@@ -23,10 +25,11 @@ type SearchConfig struct {
 	FPU             float64
 	Playouts        int
 	Seed            int64
-	RootNoise       bool
-	RootTemperature float64
-	Workers         int // 0 = GOMAXPROCS
-	ThinkTime       time.Duration // if >0, search until deadline instead of fixed playouts
+	RootNoise         bool
+	RootTemperature   float64
+	Workers           int // 0 = GOMAXPROCS
+	ThinkTime         time.Duration // if >0, search until deadline instead of fixed playouts
+	ForcedRootPlayouts int // paper k=2 at root; 0 disables
 }
 
 // DefaultConfig returns search defaults aligned with Wu 2020.
@@ -127,6 +130,18 @@ func (e *Engine) SetLimits(playouts int, think time.Duration) {
 	}
 }
 
+// ConfigureSelfplayMove sets per-move search options for mixed playout caps (paper SE-4.1).
+func (e *Engine) ConfigureSelfplayMove(playouts int, fullSearch bool) {
+	e.cfg.Playouts = playouts
+	e.cfg.ThinkTime = 0
+	e.cfg.RootNoise = true
+	if fullSearch {
+		e.cfg.ForcedRootPlayouts = defaultForcedRoot
+	} else {
+		e.cfg.ForcedRootPlayouts = 0
+	}
+}
+
 // BestMove runs MCTS and returns the most visited root child move.
 func (e *Engine) BestMove(b *Board) Move {
 	e.runSearch(b)
@@ -147,6 +162,10 @@ func (e *Engine) runSearch(b *Board) int {
 	if e.arena == nil {
 		e.arena = NewArena()
 		e.root = e.arena.Root()
+	}
+	e.ensureRootExpanded(b)
+	if e.cfg.ForcedRootPlayouts > 0 {
+		e.runForcedRootPlayouts(b)
 	}
 	if e.cfg.ThinkTime > 0 {
 		deadline := time.Now().Add(e.cfg.ThinkTime)
@@ -305,6 +324,119 @@ func (e *Engine) RootPolicy(legal []Move) []float32 {
 		}
 	}
 	return pi
+}
+
+// RootPolicyPruned returns visit-weighted policy with low-visit moves zeroed (paper SE-4.3).
+func (e *Engine) RootPolicyPruned(legal []Move) []float32 {
+	pi := e.RootPolicy(legal)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.arena == nil {
+		return pi
+	}
+	root := e.arena.Get(e.root)
+	hasStrong := false
+	for _, cidx := range root.Children {
+		if e.arena.Get(cidx).Visits >= minPolicyVisits {
+			hasStrong = true
+			break
+		}
+	}
+	if !hasStrong {
+		return pi
+	}
+	sum := float32(0)
+	for i, m := range legal {
+		v := e.rootChildVisitsLocked(root, m)
+		if v < minPolicyVisits {
+			pi[i] = 0
+		}
+		sum += pi[i]
+	}
+	if sum == 0 {
+		return uniformPolicy32(len(legal))
+	}
+	inv := 1 / sum
+	for i := range pi {
+		pi[i] *= inv
+	}
+	return pi
+}
+
+func (e *Engine) rootChildVisitsLocked(root *Node, m Move) uint32 {
+	for _, cidx := range root.Children {
+		c := e.arena.Get(cidx)
+		if movesEqual(c.Move, m) {
+			return c.Visits
+		}
+	}
+	return 0
+}
+
+func (e *Engine) ensureRootExpanded(b *Board) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	root := e.arena.Get(e.root)
+	if !root.Expanded {
+		e.expandLocked(e.root, b)
+	}
+}
+
+func (e *Engine) runForcedRootPlayouts(b *Board) {
+	k := e.cfg.ForcedRootPlayouts
+	if k <= 0 {
+		k = defaultForcedRoot
+	}
+	e.mu.Lock()
+	root := e.arena.Get(e.root)
+	children := append([]int(nil), root.Children...)
+	e.mu.Unlock()
+	for _, cidx := range children {
+		e.mu.Lock()
+		c := e.arena.Get(cidx)
+		target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
+		need := target - int(c.Visits)
+		e.mu.Unlock()
+		for need > 0 {
+			e.runPlayoutForced(b, cidx)
+			need--
+		}
+	}
+}
+
+func (e *Engine) runPlayoutForced(b *Board, firstChild int) {
+	br := b.Clone()
+	e.mu.Lock()
+	move := e.arena.Get(firstChild).Move
+	e.mu.Unlock()
+	path := []int{e.root, firstChild}
+	e.applyMove(br, move)
+	node := firstChild
+
+	for {
+		e.mu.Lock()
+		n := e.arena.Get(node)
+		if !n.Expanded || len(n.Children) == 0 {
+			e.mu.Unlock()
+			break
+		}
+		child := e.selectChildLocked(node, false)
+		move = e.arena.Get(child).Move
+		e.mu.Unlock()
+		path = append(path, child)
+		e.applyMove(br, move)
+		node = child
+	}
+
+	e.mu.Lock()
+	n := e.arena.Get(node)
+	if !n.Expanded {
+		e.expandLocked(node, br)
+	}
+	e.mu.Unlock()
+
+	value := e.leafValue(br)
+	e.backup(path, value)
 }
 
 func (e *Engine) runPlayout(b *Board, root int) {

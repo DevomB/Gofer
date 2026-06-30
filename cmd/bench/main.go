@@ -29,7 +29,7 @@ const (
 	defaultRegressionThreshold = 1.10 // 10% slower allowed vs baseline
 	microBenchThreshold        = 1.25 // looser for sub-microsecond benches (Windows noise)
 	microBenchNs               = 1000
-	benchSampleRuns            = 3 // ponytail: max-of-N dampens run-to-run noise; upgrade: pinned CI runner
+	benchSampleRuns            = 3 // max-of-N dampens noise; pinned CI runner would be tighter
 )
 
 func regressionLimit(baselineNs float64) float64 {

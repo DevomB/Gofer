@@ -33,7 +33,7 @@ func (t *Table) Get(hash uint64) (Entry, bool) {
 }
 
 // Store saves an entry (replace always).
-// ponytail: no depth-preferred replacement.
+// Replace-always eviction; no depth preference.
 func (t *Table) Store(hash uint64, e Entry) {
 	t.slots[hash&t.mask] = e
 }

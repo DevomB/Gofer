@@ -8,15 +8,16 @@ func (r *chineseRules) LegalMoves(b *Board) []Move {
 	size := b.Size()
 	n := size * size
 	ko := b.Ko()
-	snap := b.Snapshot()
-	trial := b.Clone()
+	var scratch legalityScratch
+	scratch.prepare(b)
 	moves := make([]Move, 0, n+1)
 	for idx := 0; idx < n; idx++ {
 		if idx == ko || b.AtIndex(idx) != Empty {
 			continue
 		}
-		trial.Restore(snap)
-		if r.wouldBeLegalTrial(trial, idx) {
+		scratch.trial.restoreTrialSnap(scratch.snap)
+		scratch.mark.ensure(n)
+		if r.wouldBeLegalTrialScratch(scratch.trial, idx, &scratch) {
 			moves = append(moves, StoneMove(PointFromIdx(size, idx)))
 		}
 	}
@@ -60,7 +61,7 @@ func (r *chineseRules) Play(b *Board, m Move) bool {
 }
 
 // Score returns area scores; komi added to white.
-// ponytail: seki neutral; no dead-stone removal pass.
+// Seki neutral; no dead-stone removal pass.
 // Ceiling: tournament Chinese may differ.
 // Upgrade: two-pass dead-stone scoring.
 func (r *chineseRules) Score(b *Board) (black, white float64) {
@@ -99,8 +100,20 @@ func (r *chineseRules) wouldBeLegal(b *Board, idx int) bool {
 }
 
 func (r *chineseRules) wouldBeLegalTrial(trial *Board, idx int) bool {
+	var scratch legalityScratch
+	n := trial.Size() * trial.Size()
+	scratch.trial = trial
+	if cap(scratch.groupBuf) < n {
+		scratch.groupBuf = make([]int, 0, n)
+		scratch.stackBuf = make([]int, 0, n)
+	}
+	scratch.mark.ensure(n)
+	return r.wouldBeLegalTrialScratch(trial, idx, &scratch)
+}
+
+func (r *chineseRules) wouldBeLegalTrialScratch(trial *Board, idx int, scratch *legalityScratch) bool {
 	player := trial.Player()
 	trial.SetStoneIndex(idx, player)
-	removeDeadGroups(trial, player.Opposite())
-	return libertyCount(trial, idx, player) > 0
+	removeDeadGroupsMark(trial, player.Opposite(), &scratch.mark, &scratch.groupBuf, &scratch.stackBuf)
+	return libertyCountMark(trial, idx, player, &scratch.mark, &scratch.groupBuf, &scratch.stackBuf) > 0
 }

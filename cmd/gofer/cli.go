@@ -10,16 +10,30 @@ import (
 )
 
 func parseEvaluator(name string) Evaluator {
-	if strings.EqualFold(name, "uniform") {
+	switch {
+	case strings.EqualFold(name, "uniform"):
 		return Uniform{}
+	case strings.EqualFold(name, "batched"), strings.EqualFold(name, "mock-batch"):
+		return NewBatchedEvaluator(
+			Inference{MockValue: 0, Latency: 500 * time.Microsecond},
+			Heuristic{},
+			8,
+			2*time.Millisecond,
+		)
+	default:
+		return Heuristic{}
 	}
-	return Heuristic{}
 }
 
 func newSearchEngine(r Ruleset, playouts int, think time.Duration, evalName string) *Engine {
+	return newSearchEngineSeed(r, playouts, think, evalName, DefaultConfig().Seed)
+}
+
+func newSearchEngineSeed(r Ruleset, playouts int, think time.Duration, evalName string, seed int64) *Engine {
 	cfg := DefaultConfig()
 	cfg.Playouts = playouts
 	cfg.ThinkTime = think
+	cfg.Seed = seed
 	return NewEngine(r, parseEvaluator(evalName), cfg)
 }
 
