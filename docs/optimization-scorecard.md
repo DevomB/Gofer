@@ -12,7 +12,8 @@ Last updated: 2026-06-30
 |--------|-------|
 | **Composite optimization level** | 5 |
 | **Tectonix quality_signal** | ≥9000 at sign-off (run `tectonix health .`) |
-| **9000+ gate** | required at sign-off |
+| **Equality root cause** | ~6300 typical for monolithic `cmd/gofer`; sign-off gate is **quality_signal**, not per-metric 9000 |
+| **9000+ gate** | required at sign-off (`quality_signal`) |
 
 ---
 

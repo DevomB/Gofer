@@ -1,87 +1,87 @@
 {
-  "timestamp": "2026-06-30T08:22:22Z",
+  "timestamp": "2026-06-30T08:45:26Z",
   "results": [
     {
       "name": "BenchmarkApplyStone",
-      "ns_per_op": 6.118,
+      "ns_per_op": 7.079,
       "bytes_per_op": 0,
       "allocs_per_op": 0
     },
     {
       "name": "BenchmarkUndo",
-      "ns_per_op": 40.96,
+      "ns_per_op": 46.72,
       "bytes_per_op": 0,
       "allocs_per_op": 0
     },
     {
       "name": "BenchmarkClone",
-      "ns_per_op": 418.7,
+      "ns_per_op": 450,
       "bytes_per_op": 384,
       "allocs_per_op": 1
     },
     {
       "name": "BenchmarkHashUpdate",
-      "ns_per_op": 10.65,
+      "ns_per_op": 10.86,
       "bytes_per_op": 0,
       "allocs_per_op": 0
     },
     {
       "name": "BenchmarkCloneVsUndo/Clone",
-      "ns_per_op": 449.1,
+      "ns_per_op": 502.1,
       "bytes_per_op": 384,
       "allocs_per_op": 1
     },
     {
       "name": "BenchmarkCloneVsUndo/Undo",
-      "ns_per_op": 44.72,
+      "ns_per_op": 49.61,
       "bytes_per_op": 0,
       "allocs_per_op": 0
     },
     {
       "name": "BenchmarkSearchParallel",
-      "ns_per_op": 39897,
+      "ns_per_op": 38051,
       "bytes_per_op": 16009,
       "allocs_per_op": 111
     },
     {
       "name": "BenchmarkBestMove",
-      "ns_per_op": 33099,
+      "ns_per_op": 44356,
       "bytes_per_op": 16009,
       "allocs_per_op": 111
     },
     {
       "name": "BenchmarkLegalMoves",
-      "ns_per_op": 380137,
+      "ns_per_op": 474655,
       "bytes_per_op": 36136,
       "allocs_per_op": 1158
     },
     {
       "name": "BenchmarkMakeMove",
-      "ns_per_op": 2669,
+      "ns_per_op": 3171,
       "bytes_per_op": 911,
       "allocs_per_op": 8
     },
     {
       "name": "BenchmarkPlay",
-      "ns_per_op": 3227,
+      "ns_per_op": 3261,
       "bytes_per_op": 911,
       "allocs_per_op": 8
     },
     {
       "name": "BenchmarkCaptureHeavy",
-      "ns_per_op": 2707069,
+      "ns_per_op": 3236546,
       "bytes_per_op": 357281,
       "allocs_per_op": 14524
     },
     {
       "name": "BenchmarkScore",
-      "ns_per_op": 93776,
-      "bytes_per_op": 23492,
+      "ns_per_op": 103806,
+      "bytes_per_op": 23493,
       "allocs_per_op": 1030
     },
     {
       "name": "BenchmarkSGFReplay",
-      "ns_per_op": 11545,
+      "ns_per_op": 11864,
       "bytes_per_op": 3328,
       "allocs_per_op": 45
     }

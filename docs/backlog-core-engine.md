@@ -43,10 +43,9 @@ Epics, tasks, dependencies, acceptance criteria, risks, hooks.
 
 ## Benchmark hooks
 
-- `internal/board/board_bench_test.go`
-- `internal/rules/chinese_bench_test.go` (`BenchmarkLegalMoves`, `BenchmarkPlay`, `BenchmarkCaptureHeavy`)
+- `cmd/gofer/bench_test.go` (`BenchmarkApplyStone`, `BenchmarkUndo`, `BenchmarkLegalMoves`, `BenchmarkBestMove`, …)
 
 ## Test hooks
 
-- `internal/rules/rules_test.go` golden SGF + unit tests
-- `internal/testdata/golden/*.json` or embedded SGF
+- `cmd/gofer/gofer_test.go`, `gtp_test.go`, `mcts_test.go` — golden SGF + unit tests
+- `cmd/gofer/testdata/*.sgf`

@@ -15,7 +15,7 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - M1 Chinese-rules board engine with undo, tests, benchmarks
 - Tectonix quality_signal ≥ 9000 at repo root before sign-off
 
-> **Architecture note (2026-06):** v1 ships as a monolithic `cmd/gofer` `package main` binary. Milestones M1–M10 are implemented there (not `cmd/engine` / `internal/*`). A package split remains a post-v1 option if modularity pressure warrants it.
+> **Architecture note (2026-06):** v1 ships as monolithic `cmd/gofer` (`package main`) with zero cross-package import edges. Milestones M1–M10 live there (not `cmd/engine` / `internal/*`). An earlier `internal/*` split was reverted after Tectonix modularity regressions; only `cmd/bench` is separate (exec-based, no import of gofer).
 
 ### Explicit non-goals (v1 tranche)
 - Neural network training or GPU inference in-process
@@ -23,10 +23,6 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 - Full JSON analysis API (post-paper, v2+)
 
 **v1.0 shipped (2026-06):** GTP, MCTS, SGF export, terminal play/analyze/watch, self-play samples.
-
-### Architecture note (2026-06)
-
-Engine code is consolidated in `cmd/gofer` (`package main`) with zero cross-package import edges to other project packages. An earlier `internal/*` split was reverted after Tectonix modularity regressions. Only `cmd/bench` is separate (exec-based, no import of gofer).
 
 ---
 

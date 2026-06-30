@@ -1,6 +1,6 @@
 # Backlog: Search
 
-Epics for `internal/search`, `internal/tree`, MCTS/PUCT, paper mechanisms (deferred to M5+).
+Epics for `cmd/gofer` search (`mcts.go`, `arena.go`, `tt.go`), MCTS/PUCT, paper mechanisms (deferred to M5+).
 
 ---
 

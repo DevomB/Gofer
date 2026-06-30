@@ -34,7 +34,7 @@ Labels used below: **[PAPER]** fact from the paper; **[POST-PAPER]** later KataG
 
 ### Game state representation
 - **[PAPER]** Board as spatial tensor input (b×b×18 binary features) plus 10 global scalars (komi, ko type, suicide, history, etc.)
-- **[GOFER]** Runtime board: dense `[]Stone` grid, group/liberty tracking, Zobrist hash, undo stack — not the NN feature tensor (that belongs in `internal/model` feature builder later)
+- **[GOFER]** Runtime board: dense `[]Stone` grid, group/liberty tracking, Zobrist hash, undo stack — not the NN feature tensor (deferred v2: `inference.go` / external feature builder)
 
 ### Search
 - **[PAPER]** MCTS with PUCT selection; single-node expansion per playout; backup of value estimates
@@ -83,7 +83,7 @@ Labels used below: **[PAPER]** fact from the paper; **[POST-PAPER]** later KataG
 - **[POST-PAPER]** Jane Street / later KataGo: secondary objective for handicap play — **not in this paper**; defer to search v2+
 
 ### Analysis engine support
-- **[POST-PAPER]** KataGo JSON analysis engine with batched position eval — **not in this paper**; defer to M8+ `internal/analysis`
+- **[POST-PAPER]** KataGo JSON analysis engine with batched position eval — **not in this paper**; deferred v2+ (no `cmd/gofer -analyze` JSON API yet)
 
 ---
 
@@ -240,24 +240,25 @@ Do not hallucinate answers; track in `research-traceability.md`.
 
 ## 9. Implementation Implications For A Go Codebase
 
-| Package | Responsibility |
-|---------|----------------|
-| `internal/board` | Grid, colors, moves, komi, hash, undo stack — **rules-agnostic** |
-| `internal/rules` | `Ruleset` interface; `chinese/` v1; `tromp/` later; legal moves, scoring |
-| `internal/search` | MCTS/PUCT, playout caps, root noise, pruning — **no NN types** |
-| `internal/tree` | Node arena, visit counts, child slices |
-| `internal/eval` | `Evaluator` interface; heuristic, mock, batched remote |
-| `internal/analysis` | Position analysis API (post-paper, M8+) |
-| `internal/gtp` | GTP 2.x command loop |
-| `internal/selfplay` | Game generation, cap randomization, sample export |
-| `internal/training` | Sample schema, gating — not in-engine training |
-| `internal/bench` / `cmd/bench` | Benchmark orchestration |
-| `internal/model` | Feature planes, inference adapters (M11) |
-| `internal/sgf` | Parse/replay |
-| `cmd/engine` | GTP entrypoint |
-| `cmd/selfplay`, `cmd/analyze` | Later CLIs |
+> **v1 layout (2026-06):** All engine code is in `cmd/gofer` (`package main`). Logical boundaries below map to files, not separate packages.
 
-**Dependency rule:** `board` → `rules` → `search` → `cmd`; `eval` injected into `search`; never import training from board.
+| Area | `cmd/gofer` files | Responsibility |
+|------|-------------------|----------------|
+| board | `board.go`, `move.go`, `point.go`, `zobrist.go`, `groups.go` | Grid, colors, moves, komi, hash, undo — **rules-agnostic** |
+| rules | `chinese_rules.go`, `tromp_rules.go`, `superko.go`, `rules.go` | `Ruleset` interface; legal moves, scoring |
+| search | `mcts.go`, `arena.go`, `tt.go` | MCTS/PUCT, playout caps, root noise — **no NN types** |
+| tree | `arena.go` | Node arena, visit counts, child slices |
+| eval | `evaluator.go` | `Evaluator` interface; heuristic, uniform, mock |
+| analysis | `cli.go` (`-analyze`) | Position analysis CLI (post-paper JSON API deferred) |
+| gtp | `gtp.go` | GTP 2.x command loop |
+| selfplay | `selfplay.go`, `sample.go` | Game generation, cap randomization, sample export |
+| training | `sample.go`, `inference.go` (mock) | Sample schema, gating — not in-engine training |
+| bench | `cmd/bench` | Benchmark regression runner (exec, no import of gofer) |
+| model | `inference.go` (mock) | Feature/inference adapters (M11, external) |
+| sgf | `sgf.go`, `sgf_parse.go`, `game.go` | Parse/replay/export |
+| CLI | `main.go`, `cmdline.go`, `cli.go` | `-play`, `-analyze`, `-watch`, `-selfplay`, `-gtp`, `-sgf` |
+
+**Dependency rule:** types compose in one `package main`; `eval` injected into `Engine`; never import training from hot board paths.
 
 ---
 

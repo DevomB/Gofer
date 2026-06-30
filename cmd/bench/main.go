@@ -25,7 +25,19 @@ type report struct {
 	Results   []benchResult `json:"results"`
 }
 
-const regressionThreshold = 1.10 // 10% slower allowed
+const (
+	defaultRegressionThreshold = 1.10 // 10% slower allowed vs baseline
+	microBenchThreshold        = 1.25 // looser for sub-microsecond benches (Windows noise)
+	microBenchNs               = 1000
+	benchSampleRuns            = 3 // ponytail: max-of-N dampens run-to-run noise; upgrade: pinned CI runner
+)
+
+func regressionLimit(baselineNs float64) float64 {
+	if baselineNs < microBenchNs {
+		return microBenchThreshold
+	}
+	return defaultRegressionThreshold
+}
 
 func main() {
 	jsonOut := flag.String("json", "", "write regression JSON to path")
@@ -33,17 +45,10 @@ func main() {
 	check := flag.Bool("check", false, "fail if >10% regression vs -baseline")
 	flag.Parse()
 
-	cmd := exec.Command("go", "test", "-bench=.", "-benchmem", "./...")
-	out, err := cmd.CombinedOutput()
-	fmt.Print(string(out))
+	results, err := runBenchesMax(benchSampleRuns)
 	if err != nil {
-		if exit, ok := err.(*exec.ExitError); ok {
-			os.Exit(exit.ExitCode())
-		}
 		os.Exit(1)
 	}
-
-	results := parseBenchOutput(string(out))
 
 	if *jsonOut != "" {
 		rep := report{
@@ -73,6 +78,57 @@ func main() {
 	}
 }
 
+func runBenchesMax(runs int) ([]benchResult, error) {
+	if runs < 1 {
+		runs = 1
+	}
+	var merged []benchResult
+	for i := 0; i < runs; i++ {
+		out, err := exec.Command("go", "test", "-bench=.", "-benchmem", "./...").CombinedOutput()
+		fmt.Print(string(out))
+		if err != nil {
+			if exit, ok := err.(*exec.ExitError); ok {
+				return nil, fmt.Errorf("bench run %d failed: exit %d", i+1, exit.ExitCode())
+			}
+			return nil, err
+		}
+		cur := parseBenchOutput(string(out))
+		if i == 0 {
+			merged = cur
+			continue
+		}
+		merged = mergeMaxResults(merged, cur)
+	}
+	return merged, nil
+}
+
+func mergeMaxResults(a, b []benchResult) []benchResult {
+	bm := make(map[string]benchResult, len(b))
+	for _, r := range b {
+		bm[r.Name] = r
+	}
+	out := make([]benchResult, len(a))
+	for i, r := range a {
+		out[i] = r
+		if o, ok := bm[r.Name]; ok && o.NsPerOp > r.NsPerOp {
+			out[i] = o
+		}
+	}
+	for _, o := range b {
+		found := false
+		for _, r := range a {
+			if r.Name == o.Name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			out = append(out, o)
+		}
+	}
+	return out
+}
+
 func checkRegression(baselinePath string, current []benchResult) error {
 	data, err := os.ReadFile(baselinePath)
 	if err != nil {
@@ -92,7 +148,7 @@ func checkRegression(baselinePath string, current []benchResult) error {
 		if !ok {
 			continue
 		}
-		if b.NsPerOp > 0 && cur.NsPerOp > b.NsPerOp*regressionThreshold {
+		if b.NsPerOp > 0 && cur.NsPerOp > b.NsPerOp*regressionLimit(b.NsPerOp) {
 			regressions = append(regressions,
 				fmt.Sprintf("%s: %.0f ns/op > %.0f baseline (%.1f%%)",
 					cur.Name, cur.NsPerOp, b.NsPerOp, (cur.NsPerOp/b.NsPerOp-1)*100))

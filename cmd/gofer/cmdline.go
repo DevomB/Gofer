@@ -138,6 +138,8 @@ func runGTP(playouts, defaultSize int, think time.Duration, evalMode, sgfOut str
 			if sgfOut != "" {
 				if err := s.log.WriteSGF(sgfOut); err != nil {
 					fmt.Fprintln(os.Stderr, err)
+				} else {
+					fmt.Fprintf(os.Stderr, "saved %s\n", sgfOut)
 				}
 			}
 			fmt.Print("= \n\n")
