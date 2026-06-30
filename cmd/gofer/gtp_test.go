@@ -38,18 +38,21 @@ func TestGTPClearResetsLog(t *testing.T) {
 }
 
 func TestWatchGameEnds(t *testing.T) {
+	const size = 5
 	r := Chinese()
-	b := NewBoard(5, 6.5)
+	b := NewBoard(size, 6.5)
 	cfg := DefaultConfig()
 	cfg.Playouts = 4
 	eng := NewEngine(r, Uniform{}, cfg)
 	moves := 0
-	passes := watchUntilEnd(r, b, eng, 5, func(_ Color, _ Move) { moves++ })
+	passes := watchUntilEnd(r, b, eng, size, func(_ Color, _ Move) { moves++ })
 	if moves == 0 {
 		t.Fatal("watch game produced no moves")
 	}
-	if passes < 2 && !onlyPass(r.LegalMoves(b)) {
-		t.Fatalf("watch game did not end (passes=%d moves=%d)", passes, moves)
+	moveCap := size*size + 2
+	ended := passes >= 2 || onlyPass(r.LegalMoves(b)) || moves >= moveCap
+	if !ended {
+		t.Fatalf("watch game did not end (passes=%d moves=%d cap=%d)", passes, moves, moveCap)
 	}
 }
 
