@@ -6,7 +6,7 @@ type Entry struct {
 	Value float64
 }
 
-// Table is a Zobrist-keyed transposition table (M6).
+// Table is a Zobrist-keyed transposition table.
 type Table struct {
 	slots []Entry
 	mask  uint64
@@ -32,9 +32,8 @@ func (t *Table) Get(hash uint64) (Entry, bool) {
 	return e, true
 }
 
-// Store saves an entry (replace always — ponytail).
-// Ceiling: no depth-preferred replacement.
-// Upgrade: two-tier TT (M6+).
+// Store saves an entry (replace always).
+// ponytail: no depth-preferred replacement.
 func (t *Table) Store(hash uint64, e Entry) {
 	t.slots[hash&t.mask] = e
 }

@@ -46,9 +46,6 @@ func (a *Arena) AddChild(parent int, m Move, prior float64) int {
 	return idx
 }
 
-// Len returns node count.
-func (a *Arena) Len() int { return len(a.nodes) }
-
 // Mean returns average value for node visits.
 func (n *Node) Mean() float64 {
 	if n.Visits == 0 {

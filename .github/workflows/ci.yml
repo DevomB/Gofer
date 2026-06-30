@@ -16,3 +16,5 @@ jobs:
         run: go test ./...
       - name: Bench smoke
         run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
+      - name: Bench regression
+        run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check

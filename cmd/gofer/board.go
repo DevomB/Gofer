@@ -1,6 +1,6 @@
 package main
 
-// Board holds Go grid state. Mutate only through rules packages.
+// Board holds Go grid state. Mutate only through Ruleset.Play.
 type Board struct {
 	size   int
 	komi   float64
@@ -21,7 +21,7 @@ type undoSnap struct {
 	prevStone Stone
 }
 
-// New creates an empty
+// NewBoard creates an empty board of the given size and komi.
 func NewBoard(size int, komi float64) *Board {
 	if size < 2 || size > 19 {
 		panic("board size out of range")

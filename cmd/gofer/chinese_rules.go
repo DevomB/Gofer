@@ -62,7 +62,7 @@ func (r *chineseRules) Play(b *Board, m Move) bool {
 // Score returns area scores; komi added to white.
 // ponytail: seki neutral; no dead-stone removal pass.
 // Ceiling: tournament Chinese may differ.
-// Upgrade: two-pass scoring (M2).
+// Upgrade: two-pass dead-stone scoring.
 func (r *chineseRules) Score(b *Board) (black, white float64) {
 	size := b.Size()
 	n := size * size

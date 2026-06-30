@@ -3,6 +3,9 @@ package main
 import (
 	"math"
 	"math/rand"
+	"runtime"
+	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -12,9 +15,10 @@ const (
 	dirichletBlend  = 0.25
 	rootTemperature = 1.03
 	maxRolloutMoves = 150
+	virtualLoss     = 3
 )
 
-// SearchConfig holds MCTS parameters (paper defaults).
+// SearchConfig holds MCTS parameters.
 type SearchConfig struct {
 	CPUCT           float64
 	FPU             float64
@@ -22,9 +26,10 @@ type SearchConfig struct {
 	Seed            int64
 	RootNoise       bool
 	RootTemperature float64
+	Workers         int // 0 = GOMAXPROCS
 }
 
-// DefaultConfig returns paper-aligned defaults.
+// DefaultConfig returns search defaults aligned with Wu 2020.
 func DefaultConfig() SearchConfig {
 	return SearchConfig{
 		CPUCT:           defaultCPUCT,
@@ -38,15 +43,18 @@ func DefaultConfig() SearchConfig {
 
 // Engine runs MCTS search.
 type Engine struct {
-	Rules Ruleset
-	Eval  Evaluator
-	TT    *Table
-	cfg   SearchConfig
-	rng   *rand.Rand
-	arena *Arena
+	Rules  Ruleset
+	Eval   Evaluator
+	TT     *Table
+	cfg    SearchConfig
+	rng    *rand.Rand
+	arena  *Arena
+	root   int
+	mu     sync.Mutex
+	rngSeq uint64
 }
 
-// New creates a search
+// NewEngine constructs an MCTS search engine.
 func NewEngine(r Ruleset, ev Evaluator, cfg SearchConfig) *Engine {
 	if cfg.CPUCT == 0 {
 		cfg = DefaultConfig()
@@ -63,28 +71,90 @@ func NewEngine(r Ruleset, ev Evaluator, cfg SearchConfig) *Engine {
 	}
 }
 
-// ResetArena clears the search tree (GTP tree reuse on same board).
+// ResetArena clears the search tree.
 func (e *Engine) ResetArena() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	e.arena = nil
+	e.root = 0
+}
+
+// AdvanceTree moves the search root to the child matching m, or resets on miss.
+func (e *Engine) AdvanceTree(m Move) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.arena == nil {
+		return
+	}
+	n := e.arena.Get(e.root)
+	for _, cidx := range n.Children {
+		c := e.arena.Get(cidx)
+		if movesEqual(c.Move, m) {
+			e.root = cidx
+			return
+		}
+	}
+	e.arena = nil
+	e.root = 0
 }
 
 // BestMove runs MCTS and returns the most visited root child move.
 func (e *Engine) BestMove(b *Board) Move {
-	e.arena = NewArena()
-	root := e.arena.Root()
-	for i := 0; i < e.cfg.Playouts; i++ {
-		e.runPlayout(b, root)
+	if e.arena == nil {
+		e.arena = NewArena()
+		e.root = e.arena.Root()
 	}
-	return e.selectBestRoot(root)
+	e.runPlayouts(b, e.cfg.Playouts)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.selectBestRootLocked(e.root)
 }
 
-// RootPolicy returns visit-weighted policy over legal moves (training π).
+func (e *Engine) runPlayouts(b *Board, playouts int) {
+	workers := e.cfg.Workers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
+	}
+	if workers < 1 {
+		workers = 1
+	}
+	if workers == 1 || playouts < workers {
+		for i := 0; i < playouts; i++ {
+			e.runPlayout(b, e.root)
+		}
+		return
+	}
+	perWorker := playouts / workers
+	extra := playouts % workers
+	var wg sync.WaitGroup
+	for w := 0; w < workers; w++ {
+		n := perWorker
+		if w < extra {
+			n++
+		}
+		if n == 0 {
+			continue
+		}
+		wg.Add(1)
+		go func(count int) {
+			defer wg.Done()
+			for i := 0; i < count; i++ {
+				e.runPlayout(b, e.root)
+			}
+		}(n)
+	}
+	wg.Wait()
+}
+
+// RootPolicy returns visit-weighted policy over legal moves.
 func (e *Engine) RootPolicy(legal []Move) []float32 {
 	pi := make([]float32, len(legal))
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	if e.arena == nil || len(e.arena.nodes) == 0 {
 		return uniformPolicy32(len(legal))
 	}
-	root := e.arena.Get(0)
+	root := e.arena.Get(e.root)
 	var total uint32
 	for _, cidx := range root.Children {
 		total += e.arena.Get(cidx).Visits
@@ -92,11 +162,12 @@ func (e *Engine) RootPolicy(legal []Move) []float32 {
 	if total == 0 {
 		return uniformPolicy32(len(legal))
 	}
-	for i, m := range legal {
-		for _, cidx := range root.Children {
-			c := e.arena.Get(cidx)
+	inv := 1 / float32(total)
+	for _, cidx := range root.Children {
+		c := e.arena.Get(cidx)
+		for i, m := range legal {
 			if movesEqual(c.Move, m) {
-				pi[i] = float32(c.Visits) / float32(total)
+				pi[i] = float32(c.Visits) * inv
 				break
 			}
 		}
@@ -106,40 +177,53 @@ func (e *Engine) RootPolicy(legal []Move) []float32 {
 
 func (e *Engine) runPlayout(b *Board, root int) {
 	br := b.Clone()
-	path := []int{root}
+	path := make([]int, 0, 24)
+	path = append(path, root)
 	node := root
 
 	for {
+		e.mu.Lock()
 		n := e.arena.Get(node)
-		if !n.Expanded {
+		if !n.Expanded || len(n.Children) == 0 {
+			e.mu.Unlock()
 			break
 		}
-		if len(n.Children) == 0 {
-			break
-		}
-		child := e.selectChild(node, node == root)
+		child := e.selectChildLocked(node, node == e.root)
+		move := e.arena.Get(child).Move
+		e.mu.Unlock()
 		path = append(path, child)
-		cn := e.arena.Get(child)
-		e.applyMove(br, cn.Move)
+		e.applyMove(br, move)
 		node = child
 	}
 
+	e.mu.Lock()
 	n := e.arena.Get(node)
 	if !n.Expanded {
-		if v, ok := e.ttLeafValue(b); ok {
-			e.backup(path, v)
+		if v, ok := e.ttGetLocked(br.Hash()); ok {
+			e.backupLocked(path, v)
+			e.mu.Unlock()
 			return
 		}
-		e.expand(node, br)
+		e.expandLocked(node, br)
 	}
+	e.mu.Unlock()
 
 	value := e.leafValue(br)
 	e.backup(path, value)
 }
 
 func (e *Engine) backup(path []int, value float64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.backupLocked(path, value)
+}
+
+func (e *Engine) backupLocked(path []int, value float64) {
 	for i := len(path) - 1; i >= 0; i-- {
 		nd := e.arena.Get(path[i])
+		if i > 0 && nd.Visits >= virtualLoss {
+			nd.Visits -= virtualLoss
+		}
 		nd.Visits++
 		nd.ValueSum += value
 		value = -value
@@ -154,7 +238,7 @@ func (e *Engine) applyMove(br *Board, m Move) {
 	}
 }
 
-func (e *Engine) expand(node int, b *Board) {
+func (e *Engine) expandLocked(node int, b *Board) {
 	n := e.arena.Get(node)
 	if n.Expanded {
 		return
@@ -169,17 +253,17 @@ func (e *Engine) expand(node int, b *Board) {
 	if len(res.Policy) > 0 {
 		priors = policyPriors(b, moves, res.Policy)
 	}
-	if node == 0 && e.cfg.RootNoise {
+	if node == e.root && e.cfg.RootNoise {
 		priors = blendDirichlet(priors, e.rng)
 	}
 	for i, m := range moves {
 		e.arena.AddChild(node, m, priors[i])
 	}
 	n.Expanded = true
-	e.TT.Store(b.Hash(), Entry{Depth: 1, Value: res.Value})
+	e.ttStoreLocked(b.Hash(), Entry{Depth: 1, Value: res.Value})
 }
 
-func (e *Engine) selectChild(node int, isRoot bool) int {
+func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	n := e.arena.Get(node)
 	parentVisits := float64(n.Visits)
 	if parentVisits == 0 {
@@ -194,6 +278,9 @@ func (e *Engine) selectChild(node int, isRoot bool) int {
 			bestScore = score
 			best = cidx
 		}
+	}
+	if best >= 0 {
+		e.arena.Get(best).Visits += virtualLoss
 	}
 	return best
 }
@@ -210,29 +297,43 @@ func (e *Engine) puctScore(c *Node, parentVisits float64, isRoot bool) float64 {
 	return q + u
 }
 
-func (e *Engine) ttLeafValue(b *Board) (float64, bool) {
-	entry, ok := e.TT.Get(b.Hash())
+func (e *Engine) ttGetLocked(hash uint64) (float64, bool) {
+	entry, ok := e.TT.Get(hash)
 	if !ok || entry.Depth == 0 {
 		return 0, false
 	}
 	return entry.Value, true
 }
 
+func (e *Engine) ttStoreLocked(hash uint64, entry Entry) {
+	e.TT.Store(hash, entry)
+}
+
 func (e *Engine) leafValue(b *Board) float64 {
-	if v, ok := e.ttLeafValue(b); ok {
+	hash := b.Hash()
+	e.mu.Lock()
+	if v, ok := e.ttGetLocked(hash); ok {
+		e.mu.Unlock()
 		return v
 	}
+	e.mu.Unlock()
+
 	res := e.Eval.Evaluate(b)
 	if res.Value != 0 {
-		e.TT.Store(b.Hash(), Entry{Depth: 1, Value: res.Value})
+		e.mu.Lock()
+		e.ttStoreLocked(hash, Entry{Depth: 1, Value: res.Value})
+		e.mu.Unlock()
 		return res.Value
 	}
 	v := e.randomPlayout(b)
-	e.TT.Store(b.Hash(), Entry{Depth: 1, Value: v})
+	e.mu.Lock()
+	e.ttStoreLocked(hash, Entry{Depth: 1, Value: v})
+	e.mu.Unlock()
 	return v
 }
 
 func (e *Engine) randomPlayout(b *Board) float64 {
+	rng := e.playoutRand()
 	br := b.Clone()
 	player := br.Player()
 	passes := 0
@@ -241,7 +342,7 @@ func (e *Engine) randomPlayout(b *Board) float64 {
 		if len(moves) == 0 {
 			break
 		}
-		m := moves[e.rng.Intn(len(moves))]
+		m := moves[rng.Intn(len(moves))]
 		e.Rules.Play(br, m)
 		if m.Pass {
 			passes++
@@ -263,6 +364,11 @@ func (e *Engine) randomPlayout(b *Board) float64 {
 	return 0
 }
 
+func (e *Engine) playoutRand() *rand.Rand {
+	seq := atomic.AddUint64(&e.rngSeq, 1)
+	return rand.New(rand.NewSource(e.cfg.Seed + int64(seq)))
+}
+
 func (e *Engine) isTerminal(b *Board) bool {
 	for _, m := range e.Rules.LegalMoves(b) {
 		if !m.Pass {
@@ -272,7 +378,7 @@ func (e *Engine) isTerminal(b *Board) bool {
 	return true
 }
 
-func (e *Engine) selectBestRoot(root int) Move {
+func (e *Engine) selectBestRootLocked(root int) Move {
 	n := e.arena.Get(root)
 	if len(n.Children) == 0 {
 		return PassMove
@@ -362,13 +468,13 @@ func movesEqual(a, b Move) bool {
 	return a.Point == b.Point
 }
 
-// PUCTScore exposes the formula for unit tests.
+// PUCTScore exposes the PUCT formula for unit tests.
 func PUCTScore(q, prior, parentVisits float64, visits uint32, cPUCT float64) float64 {
 	u := cPUCT * prior * math.Sqrt(parentVisits) / (1 + float64(visits))
 	return q + u
 }
 
-// TTHitRate returns fraction of lookups that hit (for M6 benchmarks).
+// TTHitRate returns the fraction of transposition-table lookups that hit.
 func (e *Engine) TTHitRate(b *Board, probes int) float64 {
 	if probes <= 0 {
 		return 0
@@ -380,4 +486,14 @@ func (e *Engine) TTHitRate(b *Board, probes int) float64 {
 		}
 	}
 	return float64(hits) / float64(probes)
+}
+
+// TreeSize returns the number of nodes in the search tree.
+func (e *Engine) TreeSize() int {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.arena == nil {
+		return 0
+	}
+	return len(e.arena.nodes)
 }

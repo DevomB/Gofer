@@ -1,4 +1,4 @@
-// Command bench runs package benchmarks and optional JSON regression output (M9).
+// Command bench runs package benchmarks and optional JSON regression output.
 package main
 
 import (
@@ -25,8 +25,12 @@ type report struct {
 	Results   []benchResult `json:"results"`
 }
 
+const regressionThreshold = 1.10 // 10% slower allowed
+
 func main() {
 	jsonOut := flag.String("json", "", "write regression JSON to path")
+	baselinePath := flag.String("baseline", "", "baseline JSON for -check")
+	check := flag.Bool("check", false, "fail if >10% regression vs -baseline")
 	flag.Parse()
 
 	cmd := exec.Command("go", "test", "-bench=.", "-benchmem", "./...")
@@ -39,8 +43,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	results := parseBenchOutput(string(out))
+
 	if *jsonOut != "" {
-		results := parseBenchOutput(string(out))
 		rep := report{
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
 			Results:   results,
@@ -55,6 +60,48 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	if *check {
+		if *baselinePath == "" {
+			fmt.Fprintln(os.Stderr, "-check requires -baseline")
+			os.Exit(1)
+		}
+		if err := checkRegression(*baselinePath, results); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+	}
+}
+
+func checkRegression(baselinePath string, current []benchResult) error {
+	data, err := os.ReadFile(baselinePath)
+	if err != nil {
+		return fmt.Errorf("read baseline: %w", err)
+	}
+	var base report
+	if err := json.Unmarshal(data, &base); err != nil {
+		return fmt.Errorf("parse baseline: %w", err)
+	}
+	baseMap := make(map[string]benchResult, len(base.Results))
+	for _, r := range base.Results {
+		baseMap[r.Name] = r
+	}
+	var regressions []string
+	for _, cur := range current {
+		b, ok := baseMap[cur.Name]
+		if !ok {
+			continue
+		}
+		if b.NsPerOp > 0 && cur.NsPerOp > b.NsPerOp*regressionThreshold {
+			regressions = append(regressions,
+				fmt.Sprintf("%s: %.0f ns/op > %.0f baseline (%.1f%%)",
+					cur.Name, cur.NsPerOp, b.NsPerOp, (cur.NsPerOp/b.NsPerOp-1)*100))
+		}
+	}
+	if len(regressions) > 0 {
+		return fmt.Errorf("bench regression:\n  %s", strings.Join(regressions, "\n  "))
+	}
+	return nil
 }
 
 var benchLine = regexp.MustCompile(`^(Benchmark\S+)-\d+\s+\d+\s+(\d+(?:\.\d+)?)\s+ns/op\s+(\d+)\s+B/op\s+(\d+)\s+allocs/op`)

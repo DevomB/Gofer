@@ -6,12 +6,12 @@ type Result struct {
 	Policy []float32 // optional move priors indexed by point (len size*size+1 for pass)
 }
 
-// Evaluator scores positions and optional policy priors (M7 boundary).
+// Evaluator scores positions and optional policy priors.
 type Evaluator interface {
 	Evaluate(b *Board) Result
 }
 
-// Uniform returns equal priors and zero value (M4-M5 placeholder).
+// Uniform returns equal priors and zero value.
 type Uniform struct{}
 
 func (Uniform) Evaluate(b *Board) Result {
@@ -23,7 +23,7 @@ func (Uniform) Evaluate(b *Board) Result {
 	return Result{Value: 0, Policy: p}
 }
 
-// Heuristic uses stone count diff as value (M7 ponytail).
+// Heuristic uses stone-count difference as a value proxy.
 type Heuristic struct{}
 
 func (Heuristic) Evaluate(b *Board) Result {

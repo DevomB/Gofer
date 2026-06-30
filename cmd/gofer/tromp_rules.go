@@ -66,7 +66,7 @@ func (r *trompRules) Play(b *Board, m Move) bool {
 // Score returns Tromp-Taylor area scores (komi to white).
 // ponytail: all on-board stones alive; territory via empty-region flood.
 // Ceiling: no Benson pass-alive removal.
-// Upgrade: Benson pass-alive (M3 backlog-core-engine).
+// Upgrade: Benson pass-alive removal.
 func (r *trompRules) Score(b *Board) (black, white float64) {
 	size := b.Size()
 	n := size * size

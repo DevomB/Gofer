@@ -16,11 +16,13 @@ func main() {
 	size := flag.Int("size", 9, "board size")
 	komi := flag.Float64("komi", 6.5, "komi")
 	playouts := flag.Int("playouts", 20, "MCTS playouts per move (with -selfplay)")
+	gtpPlayouts := flag.Int("gtp-playouts", 200, "MCTS playouts per move (with -gtp)")
+	evalMode := flag.String("eval", "heuristic", "evaluator: uniform or heuristic (with -gtp)")
 	out := flag.String("o", "", "write self-play JSON to path (stdout if empty)")
 	flag.Parse()
 
 	if *gtpMode {
-		runGTP()
+		runGTP(*gtpPlayouts, *evalMode)
 		return
 	}
 	if *selfplayMode {
@@ -35,8 +37,8 @@ func main() {
 		*size, *size, *komi, len(moves))
 }
 
-func runGTP() {
-	s := NewSession()
+func runGTP(playouts int, evalMode string) {
+	s := NewSession(SessionConfig{Playouts: playouts, Eval: evalMode})
 	in := bufio.NewScanner(os.Stdin)
 	for in.Scan() {
 		line := in.Text()

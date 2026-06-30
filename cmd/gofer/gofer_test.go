@@ -3,10 +3,10 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// --- internal/board\board_bench_test.go ---
 func BenchmarkApplyStone(b *testing.B) {
 	br := NewBoard(19, 7.5)
 	b.ReportAllocs()
@@ -52,7 +52,6 @@ func BenchmarkHashUpdate(b *testing.B) {
 	}
 }
 
-// --- internal/board\board_test.go ---
 func TestCoordRoundTrip(t *testing.T) {
 	size := 9
 	for y := 0; y < size; y++ {
@@ -110,7 +109,6 @@ func TestSnapshotRestore(t *testing.T) {
 	}
 }
 
-// --- internal/board\clone_vs_undo_bench_test.go ---
 // BenchmarkCloneVsUndo compares copy-make vs make-unmake for one stone play.
 func BenchmarkCloneVsUndo(b *testing.B) {
 	b.Run("Clone", func(b *testing.B) {
@@ -143,7 +141,6 @@ func BenchmarkCloneVsUndo(b *testing.B) {
 	})
 }
 
-// --- internal/engine\engine_test.go ---
 func TestPUCTFormula(t *testing.T) {
 	got := PUCTScore(0.5, 0.1, 100, 10, 1.1)
 	want := 0.5 + 1.1*0.1*10/11
@@ -196,9 +193,66 @@ func TestRootPolicySumsToOne(t *testing.T) {
 }
 
 func TestGTPBoardsize(t *testing.T) {
-	s := NewSession()
+	s := NewSession(SessionConfig{})
 	if out := s.Handle("boardsize 9"); out != "" {
 		t.Fatalf("boardsize: %q", out)
+	}
+}
+
+func TestGTPKnownCommand(t *testing.T) {
+	s := NewSession(SessionConfig{})
+	if out := s.Handle("known_command genmove"); out != "true" {
+		t.Fatalf("known genmove: %q", out)
+	}
+	if out := s.Handle("known_command not_a_command"); out != "false" {
+		t.Fatalf("unknown command: %q", out)
+	}
+}
+
+func TestGTPShowboard(t *testing.T) {
+	s := NewSession(SessionConfig{})
+	s.Handle("boardsize 9")
+	out := s.Handle("showboard")
+	if out == "" || !strings.Contains(out, ".") {
+		t.Fatalf("showboard empty or missing dots: %q", out)
+	}
+}
+
+func TestGTPFinalScore(t *testing.T) {
+	s := NewSession(SessionConfig{})
+	s.Handle("boardsize 9")
+	s.Handle("play black pass")
+	s.Handle("play white pass")
+	out := s.Handle("final_score")
+	if out == "" {
+		t.Fatal("final_score empty")
+	}
+}
+
+func TestMCTSTreeReuse(t *testing.T) {
+	r := Chinese()
+	b := NewBoard(9, 6.5)
+	cfg := DefaultConfig()
+	cfg.Playouts = 30
+	cfg.Workers = 1
+	eng := NewEngine(r, Uniform{}, cfg)
+	m1 := eng.BestMove(b)
+	len1 := eng.TreeSize()
+	if len1 == 0 {
+		t.Fatal("expected nodes after search")
+	}
+	eng.BestMove(b)
+	if eng.TreeSize() < len1 {
+		t.Fatalf("tree shrank on reuse: %d -> %d", len1, eng.TreeSize())
+	}
+	r.Play(b, m1)
+	eng.AdvanceTree(m1)
+	if eng.TreeSize() == 0 {
+		t.Fatal("tree cleared after advancing to best child")
+	}
+	eng.ResetArena()
+	if eng.TreeSize() != 0 {
+		t.Fatal("reset failed")
 	}
 }
 
@@ -211,6 +265,14 @@ func TestRunSelfplaySamples(t *testing.T) {
 	if len(samples) == 0 {
 		t.Fatal("expected samples")
 	}
+	for _, s := range samples {
+		if s.Komi != cfg.Komi {
+			t.Fatalf("komi %v want %v", s.Komi, cfg.Komi)
+		}
+		if s.Value != 1 && s.Value != -1 && s.Value != 0 {
+			t.Fatalf("value out of range: %v", s.Value)
+		}
+	}
 }
 
 func TestGatingHarness(t *testing.T) {
@@ -220,7 +282,6 @@ func TestGatingHarness(t *testing.T) {
 	}
 }
 
-// --- internal/rules\chinese_bench_test.go ---
 func BenchmarkLegalMoves(b *testing.B) {
 	br := NewBoard(19, 7.5)
 	r := Chinese()
@@ -230,7 +291,6 @@ func BenchmarkLegalMoves(b *testing.B) {
 	}
 }
 
-// BenchmarkMakeMove is the M1 MakeMove hot path (rules Play + Undo cycle).
 func BenchmarkMakeMove(b *testing.B) {
 	br := NewBoard(19, 7.5)
 	r := Chinese()
@@ -276,7 +336,6 @@ func BenchmarkScore(b *testing.B) {
 	}
 }
 
-// --- internal/rules\rules_test.go ---
 func play(t *testing.T, r Ruleset, b *Board, x, y int) {
 	t.Helper()
 	if !r.Play(b, StoneMove(At(x, y))) {
@@ -570,7 +629,6 @@ func TestTrompReplayCorpus(t *testing.T) {
 	}
 }
 
-// --- internal/rules\sgf_test.go ---
 func TestParseGameMeta(t *testing.T) {
 	g, err := ParseSGF("(;FF[4]SZ[9]KM[6.5];B[cc];W[dd])")
 	if err != nil {
@@ -670,5 +728,19 @@ func BenchmarkSGFReplay(b *testing.B) {
 				b.Fatal("illegal replay")
 			}
 		}
+	}
+}
+
+func BenchmarkSearchParallel(b *testing.B) {
+	r := Chinese()
+	board := NewBoard(9, 6.5)
+	cfg := DefaultConfig()
+	cfg.Playouts = 50
+	cfg.Workers = 4
+	eng := NewEngine(r, Uniform{}, cfg)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		eng.ResetArena()
+		eng.BestMove(board)
 	}
 }
