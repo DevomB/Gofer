@@ -5,3 +5,5 @@ bin/
 training/checkpoints/
 training/data/*.jsonl
 **/__pycache__/
+.tectonix/*.pem
+.tectonix/lightsail-key.json

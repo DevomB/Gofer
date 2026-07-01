@@ -6,10 +6,24 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-echo "==> install deps (Go, Python venv)"
-if ! command -v go >/dev/null; then
+echo "==> install deps (Go 1.22+, Python venv)"
+export DEBIAN_FRONTEND=noninteractive
+need_go() {
+  if ! command -v go >/dev/null; then return 0; fi
+  ver="$(go env GOVERSION 2>/dev/null | sed 's/go//')"
+  major="${ver%%.*}"; minor="$(echo "$ver" | cut -d. -f2)"
+  [[ "$major" -lt 1 || ( "$major" -eq 1 && "$minor" -lt 22 ) ]]
+}
+if need_go; then
+  GO_TAR=go1.22.12.linux-amd64.tar.gz
+  curl -fsSL "https://go.dev/dl/${GO_TAR}" -o "/tmp/${GO_TAR}"
+  sudo rm -rf /usr/local/go
+  sudo tar -C /usr/local -xzf "/tmp/${GO_TAR}"
+  export PATH="/usr/local/go/bin:$PATH"
+fi
+if ! command -v python3 >/dev/null; then
   sudo apt-get update -qq
-  sudo apt-get install -y golang-go python3 python3-pip python3-venv
+  sudo apt-get install -y python3 python3-pip python3-venv git curl
 fi
 
 python3 -m venv .venv
