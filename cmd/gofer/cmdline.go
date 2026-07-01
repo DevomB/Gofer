@@ -24,6 +24,10 @@ type cliFlags struct {
 	selfplayFullOnly                           bool
 	seed                                       int64
 	sgfPath, setup                             string
+	modelPath, onnxURL                         string
+	batchSize                                  int
+	evalTimeout                                time.Duration
+	arenaEnhanced                              string
 }
 
 func parseCLIFlags() cliFlags {
@@ -41,7 +45,7 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.gtpPlayouts, "gtp-playouts", 0, "MCTS playouts per GTP move (0 = size default)")
 	flag.DurationVar(&f.think, "think-time", 0, "search time budget per move (overrides -playouts when set)")
 	flag.IntVar(&f.topN, "top", 5, "top moves to show (with -analyze)")
-	flag.StringVar(&f.eval, "eval", "heuristic", "evaluator: uniform or heuristic")
+	flag.StringVar(&f.eval, "eval", "heuristic", "evaluator: uniform, heuristic, batched, onnx")
 	flag.StringVar(&f.humanColor, "color", "b", "your color in -play: b or w")
 	flag.StringVar(&f.out, "o", "", "output path (self-play JSON, game SGF, or GTP SGF on quit)")
 	flag.StringVar(&f.sgfDir, "sgf-dir", "", "write self-play games as SGF files to directory")
@@ -54,7 +58,19 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.whitePlayouts, "white-playouts", 0, "challenger playouts for -arena (0 = -playouts)")
 	flag.BoolVar(&f.selfplayFullOnly, "full-only", true, "export only full-search self-play positions")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
+	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar loads this)")
+	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
+	flag.IntVar(&f.batchSize, "batch-size", 8, "batched evaluator minimum batch size")
+	flag.DurationVar(&f.evalTimeout, "eval-timeout", 500*time.Millisecond, "batched/onnx eval timeout before heuristic fallback")
+	flag.StringVar(&f.arenaEnhanced, "arena-enhanced", "none", "arena forced root playouts: none, baseline, both")
 	flag.Parse()
+	SetEvalConfig(EvalConfig{
+		ModelPath:   f.modelPath,
+		ONNXURL:     f.onnxURL,
+		BatchSize:   f.batchSize,
+		EvalTimeout: f.evalTimeout,
+		MaxWait:     2 * time.Millisecond,
+	})
 	return f
 }
 
@@ -139,6 +155,7 @@ func runArenaCLI(f cliFlags) {
 		BlackEval:     f.blackEval,
 		WhiteEval:     f.whiteEval,
 		Seed:          f.seed,
+		ArenaEnhanced: f.arenaEnhanced,
 	}
 	result := RunMatch(cfg)
 	data, err := json.MarshalIndent(result, "", "  ")

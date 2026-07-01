@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -14,11 +15,28 @@ func parseEvaluator(name string) Evaluator {
 	case strings.EqualFold(name, "uniform"):
 		return Uniform{}
 	case strings.EqualFold(name, "batched"), strings.EqualFold(name, "mock-batch"):
-		return NewBatchedEvaluator(
+		return NewBatchedEvaluatorWithTimeout(
 			Inference{MockValue: 0, Latency: 500 * time.Microsecond},
 			Heuristic{},
-			8,
-			2*time.Millisecond,
+			evalConfig.BatchSize,
+			evalConfig.MaxWait,
+			evalConfig.EvalTimeout,
+		)
+	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
+		url := evalConfig.ONNXURL
+		if url == "" {
+			url = "http://127.0.0.1:8080"
+		}
+		return NewBatchedEvaluatorWithTimeout(
+			SidecarBackend{
+				URL:      url,
+				Fallback: Heuristic{},
+				Client:   &http.Client{Timeout: evalConfig.EvalTimeout},
+			},
+			Heuristic{},
+			evalConfig.BatchSize,
+			evalConfig.MaxWait,
+			evalConfig.EvalTimeout,
 		)
 	default:
 		return Heuristic{}

@@ -1,4 +1,4 @@
-# Gofer v2.0.0
+# Gofer v2.5.0
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
 
@@ -65,14 +65,31 @@ Nightly 200-game arena workflow: [`.github/workflows/arena-nightly.yml`](.github
 bin/gofer -watch -size 9 -playouts 50
 ```
 
+### ONNX inference (v2.5)
+
+Start the sidecar, then use `-eval onnx`:
+
+```bash
+make sidecar    # python training/inference_server.py on :8080
+bin/gofer -gtp -size 9 -eval onnx -onnx-url http://127.0.0.1:8080
+```
+
 ### Arena (gating)
 
-Documented strength check: baseline heuristic (600 playouts + forced root) vs challenger (200 playouts).
+Equal-config ONNX strength check (200 games, same playouts):
+
+```bash
+make sidecar
+make reproduce-9x9-onnx-gate
+```
+
+Legacy asymmetric heuristic gate (600 vs 200 playouts):
 
 ```bash
 bin/gofer -arena -games 200 -size 9 -playouts 400 \
   -black-playouts 600 -white-playouts 200 \
   -black-eval heuristic -white-eval heuristic -seed 42 \
+  -arena-enhanced baseline \
   -json .tectonix/reports/arena-report.json
 ```
 
@@ -104,6 +121,7 @@ bin/gofer -sgf cmd/gofer/testdata/simple.sgf
 - **`heuristic`** (default) — stones, liberties, territory estimate, move priors for PUCT
 - **`uniform`** — random-ish MCTS baseline
 - **`batched`** / **`mock-batch`** — batched mock inference queue
+- **`onnx`** — ONNX Runtime via HTTP sidecar (`-onnx-url`, `-batch-size`, `-eval-timeout`)
 
 ## Profile-guided build (optional)
 
@@ -121,6 +139,8 @@ make bench-check    # compare before/after
 |------|------|
 | `cmd/gofer/` | Engine binary (rules, MCTS, GTP, CLI) |
 | `cmd/bench/` | Benchmark regression runner |
+| `training/` | PyTorch bootstrap trainer + ONNX sidecar |
+| `models/` | Exported ONNX weights |
 | `docs/` | Blueprint, traceability, scorecard |
 
 ## Docs
@@ -134,10 +154,11 @@ make bench-check    # compare before/after
 - Chinese + Tromp-Taylor rules, SGF import/export
 - PUCT MCTS, transposition table, parallel playouts
 - GTP subset, terminal play/analyze/watch, self-play samples
-- Arena gating, Wilson CI, training sample export (v2)
+- Arena gating, Wilson CI, training sample export
+- ONNX sidecar inference (`-eval onnx`), bootstrap 9×9 net
 
 ## Not yet
 
-- Neural network training or ONNX inference in-process
 - KataGo-level strength or full analysis API
+- In-process ONNX (CGO); sidecar is v2.5 default
 - Full time controls (byo-yomi); `time_left` uses remaining time as next-move budget

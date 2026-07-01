@@ -110,6 +110,23 @@ func (b *Board) FinishTurn(newKo int) {
 	}
 }
 
+// MoveNum returns completed moves on the board.
+func (b *Board) MoveNum() int { return len(b.undo) }
+
+// historyMoves returns up to n most recent moves, oldest first (for feature history planes).
+func (b *Board) historyMoves(n int) []undoSnap {
+	if n <= 0 || len(b.undo) == 0 {
+		return nil
+	}
+	start := len(b.undo) - n
+	if start < 0 {
+		start = 0
+	}
+	out := make([]undoSnap, len(b.undo)-start)
+	copy(out, b.undo[start:])
+	return out
+}
+
 func (b *Board) CanUndo() bool { return len(b.undo) > 0 }
 
 func (b *Board) Undo() bool {

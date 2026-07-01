@@ -12,11 +12,31 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Test
-        run: go test ./...
+        run: go test ./... -short -count=1
+      - name: Sidecar unit tests
+        run: go test ./cmd/gofer/ -count=1 -run 'Sidecar|FeatureGolden|Batched'
       - name: Bench smoke
         run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
       - name: Bench regression
         run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
+      - name: Export ONNX fixture
+        run: |
+          pip install -r training/requirements.txt
+          python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
+      - name: ONNX integration
+        run: |
+          python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8080 &
+          sleep 2
+          GOFER_ONNX_URL=http://127.0.0.1:8080 go test -tags=onnx_integration ./cmd/gofer/ -count=1
       - name: Arena smoke
-        run: go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval uniform -seed 0
+        run: go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval uniform -seed 0 -arena-enhanced none
+      - name: Arena ONNX smoke
+        continue-on-error: true
+        run: |
+          python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8081 &
+          sleep 2
+          go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval onnx -onnx-url http://127.0.0.1:8081 -seed 0 -arena-enhanced none

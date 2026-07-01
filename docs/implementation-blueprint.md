@@ -24,6 +24,8 @@ A serious Go engine in idiomatic Go: rules-correct, search-strong, optionally ne
 
 **v1.0 (2026-06):** GTP, MCTS, SGF export, terminal play/analyze/watch, self-play samples.
 
+**v2.5 (2026-06):** Real ONNX via Python HTTP sidecar, `BuildFeaturesV2`, bootstrap 9×9 trainer in `training/`, equal-config arena gate (`make reproduce-9x9-onnx-gate`). See ADR 0001 and `docs/model-input-schema.md`.
+
 **v2.0 (2026-06):** Optimized `LegalMoves` (7 allocs/op), arena CLI with Wilson CI + config hash, sample schema v1 (JSONL), SE-4 search mechanisms (mixed caps, forced root, policy pruning), batched mock inference (`features.go`, `BatchedEvaluator`), ownership labels for training export. ADRs in `docs/decisions/`. Scorecard composite **7/10**. ONNX inference deferred to v2.5.
 
 ---

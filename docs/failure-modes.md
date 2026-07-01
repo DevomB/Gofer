@@ -1,6 +1,6 @@
 # Failure Modes
 
-Known limitations and blunder classes for Gofer v2.0.0.
+Known limitations and blunder classes for Gofer v2.5.
 
 ## Rules / scoring
 
@@ -19,6 +19,14 @@ Known limitations and blunder classes for Gofer v2.0.0.
 
 - No real ONNX yet; `-eval batched` exercises queue only.
 - p99 under load not characterized on reference hardware until v2.5 ONNX experiment.
+
+## Inference (v2.5 ONNX)
+
+- `-eval onnx` requires sidecar (`make sidecar`); falls back to heuristic on timeout or HTTP error.
+- Feature schema mismatch between Go and exported ONNX fails at sidecar startup or returns HTTP 400.
+- Sidecar down: all positions evaluate as heuristic (silent strength drop unless stats inspected).
+- Batch queue timeout under load increases fallback rate; tune `-batch-size` and `-eval-timeout`.
+- Self-play policy export uses board-indexed visit distribution (`RootPolicyBoard`) for training alignment.
 
 ## Arena / statistics
 

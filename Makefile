@@ -1,4 +1,4 @@
-.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build bench-check reproduce-9x9-baseline
+.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx
 
 test:
 	go test ./...
@@ -37,7 +37,24 @@ play:
 analyze:
 	go run ./cmd/gofer -analyze -size 9 -playouts 200
 
+sidecar:
+	python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8080
+
+export-onnx:
+	python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
+
+train-bootstrap:
+	go run ./cmd/gofer -selfplay -games 100 -size 9 -playouts 100 -eval heuristic -o training/data/samples.jsonl -seed 42
+	python training/train_bootstrap.py --data training/data/samples.jsonl --epochs 20
+	python training/export_onnx.py --checkpoint training/checkpoints/best.pt --out models/gofer-9x9-bootstrap.onnx
+
 reproduce-9x9-baseline:
 	go test ./... -count=1
 	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
-	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-playouts 600 -white-playouts 200 -black-eval heuristic -white-eval heuristic -seed 42 -json .tectonix/reports/arena-9x9-baseline.json
+	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-playouts 600 -white-playouts 200 -black-eval heuristic -white-eval heuristic -seed 42 -arena-enhanced baseline -json .tectonix/reports/arena-9x9-baseline.json
+
+reproduce-9x9-onnx-gate:
+	go test ./... -count=1
+	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
+	@test -f models/gofer-9x9-bootstrap.onnx || (echo "run: make export-onnx" && exit 1)
+	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-eval heuristic -white-eval onnx -seed 42 -arena-enhanced none -json .tectonix/reports/arena-9x9-onnx-v25.json

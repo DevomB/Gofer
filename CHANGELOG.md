@@ -2,6 +2,31 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.0] - 2026-06-30
+
+### Added
+
+- Real ONNX inference via HTTP sidecar (`-eval onnx`, `-onnx-url`, `-batch-size`, `-eval-timeout`)
+- `SidecarBackend` + `BuildFeaturesV2` (8 planes + 4 globals); schema in `docs/model-input-schema.md`
+- Bootstrap 9×9 ResNet in `training/` with `make train-bootstrap`, `make sidecar`, `make export-onnx`
+- Committed fixture model `models/gofer-9x9-bootstrap.onnx`
+- Self-play exports board-indexed policy (`RootPolicyBoard`) and feature tensors for training
+- Arena `-arena-enhanced` flag (`none` / `baseline` / `both`); equal-config ONNX gate via `make reproduce-9x9-onnx-gate`
+- Latency harness tests (`latency_test.go`); ONNX integration tests (`onnx_integration` build tag)
+- CI: ONNX export, sidecar integration, optional ONNX arena smoke
+
+### Changed
+
+- ADR 0001 updated with sidecar protocol, fallback behavior, latency SLO table
+- `BatchedEvaluator` supports configurable `reqTimeout`; `Engine.Close()` stops batch worker
+- Arena archived at `.tectonix/reports/arena-9x9-onnx-v25.json` (see win rate in report)
+
+### Not in v2.5.0
+
+- In-process ONNX Runtime (CGO)
+- Ownership / score-belief training heads
+- KataGo-level 19×19 strength
+
 ## [2.0.0] - 2026-06-30
 
 ### Added

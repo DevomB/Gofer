@@ -31,7 +31,9 @@ Maps paper/KataGo research concepts → Gofer implementation. Status updated at 
 | Simple ko | rules | M1 | done | TestSimpleKo, ko.sgf | — | [GOFER] |
 | Superko | WithSuperko | M2 | done | TestSuperkoWrapper | Positional | [GOFER] |
 | Analysis API | — | M8+ | deferred [POST-PAPER] | — | JSON batch eval | KataGo software |
-| Batched evaluation | BatchedEvaluator | M11 | done | `inference.go`, `inference_test.go` | mock queue v2.0 | [PAPER] ONNX v2.5 |
+| Batched evaluation | BatchedEvaluator + SidecarBackend | M11 | done | `onnx_sidecar.go`, `onnx_integration_test.go` | sidecar fallback | [PAPER] ONNX v2.5 |
+| Feature tensor v2 | BuildFeaturesV2 | M11 | done | `features_v2_test.go`, `model-input-schema.md` | history planes sparse | [GOFER] |
+| Bootstrap 9×9 net | training/ + models/ | M11 | done | `make train-bootstrap`, arena JSON | bootstrap strength | [GOFER] |
 | Graph search | TT lookup in MCTS | M6 | done | TestTTHitRateAfterSearch | replace-always TT | [GOFER] |
 | Branch generation | MCTS expand-one | M4 | done | mcts expand | Standard MCTS | [PAPER] |
 | Zobrist hashing | Board | M1 | done | BenchmarkHashUpdate | — | [GOFER] |

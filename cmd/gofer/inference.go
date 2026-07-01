@@ -62,24 +62,37 @@ type BatchedEvaluator struct {
 
 // NewBatchedEvaluator starts the batch worker.
 func NewBatchedEvaluator(backend EvalBackend, fallback Evaluator, minBatch int, maxWait time.Duration) *BatchedEvaluator {
+	return NewBatchedEvaluatorWithTimeout(backend, fallback, minBatch, maxWait, maxWait*4)
+}
+
+// NewBatchedEvaluatorWithTimeout starts the batch worker with an explicit request timeout.
+func NewBatchedEvaluatorWithTimeout(backend EvalBackend, fallback Evaluator, minBatch int, maxWait, reqTimeout time.Duration) *BatchedEvaluator {
 	if minBatch < 1 {
 		minBatch = 8
 	}
 	if maxWait <= 0 {
 		maxWait = 2 * time.Millisecond
 	}
+	if reqTimeout <= 0 {
+		reqTimeout = maxWait * 4
+	}
 	b := &BatchedEvaluator{
 		backend:    backend,
 		fallback:   fallback,
 		minBatch:   minBatch,
 		maxWait:    maxWait,
-		reqTimeout: maxWait * 4,
+		reqTimeout: reqTimeout,
 		reqCh:      make(chan batchReq, 256),
 		stopCh:     make(chan struct{}),
 	}
 	b.wg.Add(1)
 	go b.worker()
 	return b
+}
+
+// QueueDepth returns pending evaluate requests (measurement only).
+func (b *BatchedEvaluator) QueueDepth() int {
+	return len(b.reqCh)
 }
 
 // Close stops the batch worker.

@@ -2,3 +2,6 @@ default.pgo
 bin/
 *.exe
 .tectonix/session-baseline.json
+training/checkpoints/
+training/data/*.jsonl
+**/__pycache__/

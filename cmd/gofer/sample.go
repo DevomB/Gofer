@@ -15,6 +15,8 @@ type Sample struct {
 	MoveNum    int       `json:"move_num"`
 	Policy     []float32 `json:"policy"`
 	PolicyOpp  []float32 `json:"policy_opp,omitempty"`
+	FeaturesSpatial []float32 `json:"features_spatial,omitempty"`
+	FeaturesGlobal  []float32 `json:"features_global,omitempty"`
 	ToPlay     Color     `json:"to_play"`
 	Value      float32   `json:"value,omitempty"`
 	Komi       float64   `json:"komi,omitempty"`

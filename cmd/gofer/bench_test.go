@@ -1,6 +1,9 @@
 package main
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -155,6 +158,28 @@ func BenchmarkScore(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		_, _ = r.Score(br)
+	}
+}
+
+func BenchmarkSidecarBackendEvalBatch(b *testing.B) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		policy := make([]float32, 82)
+		for j := range policy {
+			policy[j] = 1.0 / 82
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"results": []map[string]any{{"value": 0.0, "policy": policy}},
+		})
+	}))
+	defer srv.Close()
+	backend := SidecarBackend{URL: srv.URL, Client: srv.Client()}
+	boards := make([]*Board, 32)
+	for i := range boards {
+		boards[i] = NewBoard(9, 6.5)
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = backend.EvalBatch(boards[:8])
 	}
 }
 

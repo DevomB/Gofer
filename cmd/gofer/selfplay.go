@@ -122,13 +122,16 @@ func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engin
 		eng.ConfigureSelfplayMove(playouts, fullSearch)
 		color := b.Player()
 		m := eng.BestMove(b)
-		policy := eng.RootPolicyPruned(moves)
+		policy := eng.RootPolicyBoard(b, moves)
+		spatial, globals := BuildFeaturesV2(b)
 		game = append(game, Sample{
-			BoardHash:  b.Hash(),
-			MoveNum:    moveNum,
-			Policy:     policy,
-			PolicyOpp:  append([]float32(nil), prevPolicy...),
-			ToPlay:     color,
+			BoardHash:       b.Hash(),
+			MoveNum:         moveNum,
+			Policy:          policy,
+			PolicyOpp:       append([]float32(nil), prevPolicy...),
+			FeaturesSpatial: spatial,
+			FeaturesGlobal:  globals,
+			ToPlay:          color,
 			Komi:       cfg.Komi,
 			FullSearch: fullSearch,
 		})

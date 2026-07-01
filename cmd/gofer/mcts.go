@@ -74,6 +74,13 @@ func NewEngine(r Ruleset, ev Evaluator, cfg SearchConfig) *Engine {
 	}
 }
 
+// Close releases batched evaluator resources if present.
+func (e *Engine) Close() {
+	if c, ok := e.Eval.(*BatchedEvaluator); ok {
+		c.Close()
+	}
+}
+
 // ResetArena clears the search tree.
 func (e *Engine) ResetArena() {
 	e.mu.Lock()
@@ -361,6 +368,27 @@ func (e *Engine) RootPolicyPruned(legal []Move) []float32 {
 		pi[i] *= inv
 	}
 	return pi
+}
+
+// RootPolicyBoard returns visit-weighted policy over board indices (size² + pass).
+func (e *Engine) RootPolicyBoard(b *Board, legal []Move) []float32 {
+	legalPi := e.RootPolicyPruned(legal)
+	n := b.Size()*b.Size() + 1
+	out := make([]float32, n)
+	for i, m := range legal {
+		idx := policyIndex(m, b.Size())
+		if idx >= 0 && idx < n {
+			out[idx] = legalPi[i]
+		}
+	}
+	return out
+}
+
+func policyIndex(m Move, size int) int {
+	if m.Pass {
+		return size * size
+	}
+	return m.Point.Idx(size)
 }
 
 func (e *Engine) rootChildVisitsLocked(root *Node, m Move) uint32 {

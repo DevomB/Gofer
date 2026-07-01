@@ -2,7 +2,7 @@
 
 Live scorecard for Gofer.
 
-Last updated: 2026-06-30 (v2 baseline session)
+Last updated: 2026-06-30 (v2.5 ONNX session)
 
 ---
 
@@ -11,8 +11,7 @@ Last updated: 2026-06-30 (v2 baseline session)
 | Metric | Value |
 |--------|-------|
 | **Composite score** | 7 |
-| **Tectonix quality_signal** | 9141 (2026-06-30) |
-| **Equality root cause** | ~6300 typical for monolithic `cmd/gofer`; release gate is **quality_signal**, not per-metric 9000 |
+| **Tectonix quality_signal** | ≥9000 (maintain at release) |
 | **Quality gate** | `quality_signal` ≥ 9000 before tagging a release |
 
 ---
@@ -28,9 +27,9 @@ Last updated: 2026-06-30 (v2 baseline session)
 | 5 | Allocation discipline | 7 | benchmem evidence in ADR 0002 |
 | 6 | Concurrency effectiveness | 5 | Root-parallel MCTS wired; **~1.0×** at 200 playouts on reference laptop (overhead &gt; gain); revisit at 800+ playouts |
 | 7 | Profiling maturity | 5 | `make profile`, `make pgo-profile`, README PGO section |
-| 8 | Benchmark coverage | 8 | board, rules, search (`BenchmarkBestMove`), sgf benches |
+| 8 | Benchmark coverage | 8 | board, rules, search, ONNX sidecar mock bench |
 | 9 | Build/compiler optimization | 2 | PGO via `make pgo-build` (documented) |
-| 10 | Observability/regression | 8 | `make bench-check`, arena CI smoke, Wilson CI |
+| 10 | Observability/regression | 8 | bench-check, arena CI, ONNX arena archive |
 | 11 | Protocol/tooling | 9 | GTP, SGF, `-arena`, `-selfplay` JSONL |
 | 12 | Idiomaticity | 6 | monolithic `cmd/gofer` |
 
@@ -44,8 +43,9 @@ Last updated: 2026-06-30 (v2 baseline session)
 |-----------|---------------------|
 | BenchmarkLegalMoves | **7** (was 1158) |
 | BenchmarkSGFReplay | 45 |
-| BenchmarkBestMove | see `BenchmarkSearchParallel` (50 playouts, 4 workers) |
-| BenchmarkSearchWorkers1/8 | scaling probe at 200 playouts (not in regression gate) |
+| BenchmarkEvalBatch | see regression JSON |
+| BenchmarkSidecarBackendEvalBatch | mock HTTP sidecar |
+| BenchmarkBatchedEvaluator | mock queue path |
 
 Regression baseline: `.tectonix/reports/bench-regression.json`
 

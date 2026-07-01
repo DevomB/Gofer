@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"runtime/debug"
+	"strings"
 	"time"
 )
 
@@ -22,6 +23,7 @@ type MatchConfig struct {
 	WhiteEval       string
 	Seed            int64
 	SwapColors      bool
+	ArenaEnhanced   string // none, baseline, both — forced root playouts
 }
 
 // GameSummary is one arena game outcome.
@@ -80,9 +82,9 @@ func WilsonCI(wins, n int, z float64) (low, high float64) {
 
 func matchConfigHash(cfg MatchConfig) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "games=%d size=%d komi=%.2f playouts=%d bpl=%d wpl=%d think=%d black=%s white=%s seed=%d swap=%v",
+	fmt.Fprintf(h, "games=%d size=%d komi=%.2f playouts=%d bpl=%d wpl=%d think=%d black=%s white=%s seed=%d swap=%v enhanced=%s",
 		cfg.Games, cfg.Size, cfg.Komi, cfg.Playouts, cfg.BlackPlayouts, cfg.WhitePlayouts,
-		cfg.ThinkTime, cfg.BlackEval, cfg.WhiteEval, cfg.Seed, cfg.SwapColors)
+		cfg.ThinkTime, cfg.BlackEval, cfg.WhiteEval, cfg.Seed, cfg.SwapColors, cfg.ArenaEnhanced)
 	if info, ok := debug.ReadBuildInfo(); ok {
 		fmt.Fprintf(h, " mod=%s", info.Main.Version)
 	}
@@ -123,11 +125,13 @@ func RunMatch(cfg MatchConfig) MatchResult {
 		if cfg.WhitePlayouts > 0 {
 			wp = cfg.WhitePlayouts
 		}
-		blackEng := newArenaEngine(r, bp, cfg.ThinkTime, blackEval, cfg.Seed+int64(g)*2, evalIsBaseline(blackEval, cfg.BlackEval))
-		whiteEng := newArenaEngine(r, wp, cfg.ThinkTime, whiteEval, cfg.Seed+int64(g)*2+1, evalIsBaseline(whiteEval, cfg.BlackEval))
+		blackEng := newArenaEngine(r, bp, cfg.ThinkTime, blackEval, cfg.Seed+int64(g)*2, arenaEnhancedFor(blackEval, cfg))
+		whiteEng := newArenaEngine(r, wp, cfg.ThinkTime, whiteEval, cfg.Seed+int64(g)*2+1, arenaEnhancedFor(whiteEval, cfg))
 
 		b := NewBoard(cfg.Size, cfg.Komi)
 		moves := playArenaGame(r, b, blackEng, whiteEng, cfg.Size)
+		blackEng.Close()
+		whiteEng.Close()
 		bl, wl := r.Score(b)
 
 		summary := GameSummary{
@@ -201,6 +205,17 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size int) in
 		}
 	}
 	return moves
+}
+
+func arenaEnhancedFor(evalName string, cfg MatchConfig) bool {
+	switch strings.ToLower(cfg.ArenaEnhanced) {
+	case "both":
+		return true
+	case "baseline":
+		return evalIsBaseline(evalName, cfg.BlackEval)
+	default:
+		return false
+	}
 }
 
 func newArenaEngine(r Ruleset, playouts int, think time.Duration, evalName string, seed int64, enhanced bool) *Engine {
