@@ -24,6 +24,9 @@ fi
 if ! command -v python3 >/dev/null; then
   sudo apt-get update -qq
   sudo apt-get install -y python3 python3-pip python3-venv git curl
+elif ! python3 -m venv --help >/dev/null 2>&1; then
+  sudo apt-get update -qq
+  sudo apt-get install -y python3-venv python3-pip git curl
 fi
 
 python3 -m venv .venv
