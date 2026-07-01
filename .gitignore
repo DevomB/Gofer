@@ -5,5 +5,14 @@ bin/
 training/checkpoints/
 training/data/*.jsonl
 **/__pycache__/
+
+# Secrets / local AWS (never commit)
 .tectonix/*.pem
+.tectonix/*-key.json
 .tectonix/lightsail-key.json
+*.pem
+
+# Local reports / profiles (not release artifacts)
+.tectonix/reports/*.prof
+.tectonix/reports/*.log
+.tectonix/reports/lightsail-run.log
