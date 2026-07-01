@@ -60,6 +60,19 @@ destroy)
   echo "deleted $NAME"
   exit 0
   ;;
+week)
+  echo "==> start ${WEEK_DAYS:-7}-day training loop on $INSTANCE"
+  "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/weekly-train-loop.sh && \
+    (test -f week.pid && kill \$(cat week.pid) 2>/dev/null || true); \
+    nohup env WEEK_DAYS=${WEEK_DAYS:-7} WIN_TARGET=${WIN_TARGET:-0.75} bash scripts/weekly-train-loop.sh > week.log 2>&1 & \
+    echo \$! > week.pid && echo week_loop_pid=\$(cat week.pid)"
+  echo "poll: bash scripts/aws-run-arena.sh $INSTANCE week-status"
+  exit 0
+  ;;
+week-status)
+  "${SSH[@]}" 'tail -30 ~/Gofer/week.log 2>/dev/null || tail -30 ~/Gofer/run.log 2>/dev/null || echo no log'
+  exit 0
+  ;;
 start)
   ;;
 *)
