@@ -23,24 +23,33 @@ func parseEvaluator(name string) Evaluator {
 			evalConfig.EvalTimeout,
 		)
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
-		url := evalConfig.ONNXURL
-		if url == "" {
-			url = "http://127.0.0.1:8080"
-		}
-		return NewBatchedEvaluatorWithTimeout(
-			SidecarBackend{
-				URL:      url,
-				Fallback: Heuristic{},
-				Client:   &http.Client{Timeout: evalConfig.EvalTimeout},
-			},
-			Heuristic{},
-			evalConfig.BatchSize,
-			evalConfig.MaxWait,
-			evalConfig.EvalTimeout,
-		)
+		return newONNXEvaluator(evalConfig.BatchSize)
 	default:
 		return Heuristic{}
 	}
+}
+
+// newONNXEvaluator builds a batched sidecar evaluator with the given minimum
+// batch size (self-play sets this to its parallelism to fill real batches).
+func newONNXEvaluator(minBatch int) Evaluator {
+	url := evalConfig.ONNXURL
+	if url == "" {
+		url = "http://127.0.0.1:8080"
+	}
+	if minBatch < 1 {
+		minBatch = evalConfig.BatchSize
+	}
+	return NewBatchedEvaluatorWithTimeout(
+		SidecarBackend{
+			URL:      url,
+			Fallback: Heuristic{},
+			Client:   &http.Client{Timeout: evalConfig.EvalTimeout},
+		},
+		Heuristic{},
+		minBatch,
+		evalConfig.MaxWait,
+		evalConfig.EvalTimeout,
+	)
 }
 
 func newSearchEngine(r Ruleset, playouts int, think time.Duration, evalName string) *Engine {

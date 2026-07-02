@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"math/rand"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,45 +10,12 @@ import (
 )
 
 func TestSelfplayEvalONNXEmitsSamples(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/v1/eval" {
-			http.NotFound(w, r)
-			return
-		}
-		var req sidecarEvalReq
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			t.Errorf("decode: %v", err)
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-		resp := sidecarEvalResp{Results: make([]struct {
-			Value  float64   `json:"value"`
-			Policy []float32 `json:"policy"`
-		}, len(req.Spatial))}
-		for i := range resp.Results {
-			resp.Results[i].Value = 0.1
-			resp.Results[i].Policy = make([]float32, 82)
-			resp.Results[i].Policy[0] = 1
-		}
-		_ = json.NewEncoder(w).Encode(resp)
-	}))
+	srv := httptest.NewServer(http.HandlerFunc(testSidecarEvalHandler(t)))
 	defer srv.Close()
 
-	SetEvalConfig(EvalConfig{
-		ONNXURL:     srv.URL,
-		BatchSize:   1,
-		EvalTimeout: 2 * time.Second,
-		MaxWait:     time.Millisecond,
-	})
+	setTestEvalConfig(srv.URL)
 
-	cfg := DefaultSelfplayConfig()
-	cfg.Games = 1
-	cfg.Playouts = 8
-	cfg.FastPlayouts = 8
-	cfg.FullPlayouts = 8
-	cfg.CapRandomizeP = 1.0
-	cfg.FullOnlyExport = false
-	cfg.EvalMode = "onnx"
+	cfg := testSelfplayConfig("onnx", 1)
 	cfg.Seed = 99
 
 	samples, _ := RunSelfplayWithLogs(cfg)
@@ -59,6 +27,36 @@ func TestSelfplayEvalONNXEmitsSamples(t *testing.T) {
 			t.Fatalf("invalid sample: spatial=%d policy=%d", len(s.FeaturesSpatial), len(s.Policy))
 		}
 	}
+}
+
+func testSidecarEvalHandler(t *testing.T) http.HandlerFunc {
+	t.Helper()
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/eval" {
+			http.NotFound(w, r)
+			return
+		}
+		var req sidecarEvalReq
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("decode: %v", err)
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(testSidecarResponse(len(req.Spatial)))
+	}
+}
+
+func testSidecarResponse(n int) sidecarEvalResp {
+	resp := sidecarEvalResp{Results: make([]struct {
+		Value  float64   `json:"value"`
+		Policy []float32 `json:"policy"`
+	}, n)}
+	for i := range resp.Results {
+		resp.Results[i].Value = 0.1
+		resp.Results[i].Policy = make([]float32, 82)
+		resp.Results[i].Policy[0] = 1
+	}
+	return resp
 }
 
 func TestSelfplayMixModeAlternates(t *testing.T) {
@@ -73,21 +71,9 @@ func TestSelfplayMixModeAlternates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	SetEvalConfig(EvalConfig{
-		ONNXURL:     srv.URL,
-		BatchSize:   1,
-		EvalTimeout: 2 * time.Second,
-		MaxWait:     time.Millisecond,
-	})
+	setTestEvalConfig(srv.URL)
 
-	cfg := DefaultSelfplayConfig()
-	cfg.Games = 4
-	cfg.Playouts = 6
-	cfg.FastPlayouts = 6
-	cfg.FullPlayouts = 6
-	cfg.CapRandomizeP = 1.0
-	cfg.FullOnlyExport = false
-	cfg.EvalMode = "mix"
+	cfg := testSelfplayConfig("mix", 4)
 	cfg.Seed = 7
 
 	_, _ = RunSelfplayWithLogs(cfg)
@@ -96,21 +82,48 @@ func TestSelfplayMixModeAlternates(t *testing.T) {
 	}
 }
 
+func setTestEvalConfig(url string) {
+	SetEvalConfig(EvalConfig{
+		ONNXURL:     url,
+		BatchSize:   1,
+		EvalTimeout: 2 * time.Second,
+		MaxWait:     time.Millisecond,
+	})
+}
+
+func testSelfplayConfig(evalMode string, games int) SelfplayConfig {
+	cfg := DefaultSelfplayConfig()
+	cfg.Games = games
+	cfg.Playouts = 6
+	cfg.FastPlayouts = 6
+	cfg.FullPlayouts = 6
+	cfg.CapRandomizeP = 1.0
+	cfg.FullOnlyExport = false
+	cfg.EvalMode = evalMode
+	return cfg
+}
+
 func TestSelfplayEvaluatorSelection(t *testing.T) {
+	batched := NewBatchedEvaluatorWithTimeout(Inference{}, Heuristic{}, 1, time.Millisecond, time.Second)
+	defer batched.Close()
+	pool := evalPool{onnx: batched, heuristic: Heuristic{}}
+
 	cfg := DefaultSelfplayConfig()
 	cfg.EvalMode = "heuristic"
-	if _, ok := selfplayEvaluator(cfg, 0).(Heuristic); !ok {
+	if _, ok := selfplayEvaluator(cfg, 0, rand.New(rand.NewSource(1)), pool).(Heuristic); !ok {
 		t.Fatal("heuristic mode expected Heuristic evaluator")
 	}
 	cfg.EvalMode = "onnx"
-	if _, ok := selfplayEvaluator(cfg, 0).(*BatchedEvaluator); !ok {
+	if _, ok := selfplayEvaluator(cfg, 0, rand.New(rand.NewSource(1)), pool).(*BatchedEvaluator); !ok {
 		t.Fatal("onnx mode expected BatchedEvaluator")
 	}
 	cfg.EvalMode = "mix"
-	if _, ok := selfplayEvaluator(cfg, 1).(*BatchedEvaluator); !ok {
-		t.Fatal("mix odd game expected BatchedEvaluator")
+	cfg.ONNXFraction = 1.0
+	if _, ok := selfplayEvaluator(cfg, 0, rand.New(rand.NewSource(1)), pool).(*BatchedEvaluator); !ok {
+		t.Fatal("mix with fraction 1.0 expected BatchedEvaluator")
 	}
-	if _, ok := selfplayEvaluator(cfg, 0).(Heuristic); !ok {
-		t.Fatal("mix even game expected Heuristic")
+	cfg.ONNXFraction = 0.0
+	if _, ok := selfplayEvaluator(cfg, 0, rand.New(rand.NewSource(1)), pool).(Heuristic); !ok {
+		t.Fatal("mix with fraction 0.0 expected Heuristic")
 	}
 }

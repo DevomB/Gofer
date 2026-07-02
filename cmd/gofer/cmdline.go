@@ -24,6 +24,8 @@ type cliFlags struct {
 	selfplayFullOnly                           bool
 	selfplayEval                               string
 	selfplayONNXFraction                       float64
+	selfplayParallel                           int
+	selfplayTempMoves                          int
 	seed                                       int64
 	sgfPath, setup                             string
 	modelPath, onnxURL                         string
@@ -59,8 +61,10 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.blackPlayouts, "black-playouts", 0, "baseline playouts for -arena (0 = -playouts)")
 	flag.IntVar(&f.whitePlayouts, "white-playouts", 0, "challenger playouts for -arena (0 = -playouts)")
 	flag.BoolVar(&f.selfplayFullOnly, "full-only", true, "export only full-search self-play positions")
-	flag.StringVar(&f.selfplayEval, "selfplay-eval", "heuristic", "self-play evaluator: heuristic, onnx, mix")
+	flag.StringVar(&f.selfplayEval, "selfplay-eval", "mix", "self-play evaluator: heuristic, onnx, mix")
 	flag.Float64Var(&f.selfplayONNXFraction, "selfplay-onnx-fraction", 0.7, "fraction of mix-mode games using ONNX (odd games use ONNX)")
+	flag.IntVar(&f.selfplayParallel, "selfplay-parallel", 8, "concurrent self-play games (feeds real batches to the ONNX sidecar)")
+	flag.IntVar(&f.selfplayTempMoves, "selfplay-temp-moves", 16, "opening plies sampled from the visit distribution for game diversity (0 = always argmax)")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar loads this)")
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
@@ -105,7 +109,7 @@ func runMode(f cliFlags) bool {
 		}
 		runAnalyze(f.size, f.komi, p, f.think, f.topN, f.eval, parseSetupMoves(f.setup))
 	case f.selfplay:
-		runSelfplayCLI(f.games, f.size, f.komi, f.playouts, f.out, f.sgfDir, f.selfplayFullOnly, f.selfplayEval, f.selfplayONNXFraction, f.seed)
+		runSelfplayCLI(f)
 	case f.watch:
 		p := f.playouts
 		if p <= 0 && f.think <= 0 {
@@ -223,28 +227,31 @@ func runGTP(playouts, defaultSize int, think time.Duration, evalMode, sgfOut str
 	}
 }
 
-func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir string, fullOnly bool, evalMode string, onnxFraction float64, seed int64) {
+func runSelfplayCLI(f cliFlags) {
+	playouts := f.playouts
 	if playouts <= 0 {
-		playouts = defaultPlayoutsForSize(size)
+		playouts = defaultPlayoutsForSize(f.size)
 	}
 	cfg := DefaultSelfplayConfig()
-	cfg.Games = games
-	cfg.BoardSize = size
-	cfg.Komi = komi
+	cfg.Games = f.games
+	cfg.BoardSize = f.size
+	cfg.Komi = f.komi
 	cfg.Playouts = playouts
-	cfg.FullOnlyExport = fullOnly
-	cfg.EvalMode = evalMode
-	cfg.ONNXFraction = onnxFraction
-	cfg.Seed = seed
+	cfg.FullOnlyExport = f.selfplayFullOnly
+	cfg.EvalMode = f.selfplayEval
+	cfg.ONNXFraction = f.selfplayONNXFraction
+	cfg.Seed = f.seed
+	cfg.Parallel = f.selfplayParallel
+	cfg.TemperatureMoves = f.selfplayTempMoves
 	samples, logs := RunSelfplayWithLogs(cfg)
-	if outPath != "" {
-		writeSelfplayJSON(outPath, samples)
-	} else if sgfDir == "" {
+	if f.out != "" {
+		writeSelfplayJSON(f.out, samples)
+	} else if f.sgfDir == "" {
 		data, _ := MarshalSampleExport(samples)
 		fmt.Println(string(data))
 	}
-	if sgfDir != "" {
-		writeSelfplaySGFs(sgfDir, logs)
+	if f.sgfDir != "" {
+		writeSelfplaySGFs(f.sgfDir, logs)
 	}
 }
 

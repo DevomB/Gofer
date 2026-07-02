@@ -156,6 +156,47 @@ func (e *Engine) BestMove(b *Board) Move {
 	return e.arena.bestRootMove(e.root)
 }
 
+// SelectMove runs MCTS and returns a root move. temperature<=0 plays the most
+// visited move; temperature>0 samples proportional to visits^(1/temperature).
+func (e *Engine) SelectMove(b *Board, rng *rand.Rand, temperature float64) Move {
+	e.runSearch(b)
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if temperature <= 0 {
+		return e.arena.bestRootMove(e.root)
+	}
+	return e.sampleRootMoveLocked(rng, temperature)
+}
+
+func (e *Engine) sampleRootMoveLocked(rng *rand.Rand, temperature float64) Move {
+	root := e.arena.Get(e.root)
+	if len(root.Children) == 0 {
+		return PassMove
+	}
+	weights := make([]float64, len(root.Children))
+	sum := 0.0
+	invT := 1.0 / temperature
+	for i, cidx := range root.Children {
+		v := float64(e.arena.Get(cidx).Visits)
+		if v <= 0 {
+			continue
+		}
+		weights[i] = math.Pow(v, invT)
+		sum += weights[i]
+	}
+	if sum <= 0 {
+		return e.arena.bestRootMove(e.root)
+	}
+	target := rng.Float64() * sum
+	for i, cidx := range root.Children {
+		target -= weights[i]
+		if target <= 0 {
+			return e.arena.Get(cidx).Move
+		}
+	}
+	return e.arena.Get(root.Children[len(root.Children)-1]).Move
+}
+
 // Analyze runs search and returns ranked candidates plus a principal variation.
 func (e *Engine) Analyze(b *Board, topN int) Analysis {
 	playouts := e.runSearch(b)
