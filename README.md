@@ -1,4 +1,4 @@
-# Gofer v2.5.0
+# Gofer v2.6.0
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
 
@@ -96,9 +96,20 @@ bin/gofer -arena -games 200 -size 9 -playouts 400 \
 ### Self-play
 
 ```bash
-bin/gofer -selfplay -games 5 -size 9 -playouts 100 -o samples.json
+bin/gofer -selfplay -games 5 -size 9 -playouts 200 -selfplay-eval mix -o samples.jsonl
 bin/gofer -selfplay -games 3 -size 9 -sgf-dir games/
 ```
+
+### ML training loop v3
+
+Persistent replay buffer, resume training, monotonic arena promote:
+
+```bash
+SEED_FROM_CYCLE2=1 WEEK_DAYS=14 bash scripts/train-loop-v3.sh
+# Lightsail: bash scripts/aws-run-arena.sh IP start-v3
+```
+
+See [docs/decisions/0003-iterative-training-loop.md](docs/decisions/0003-iterative-training-loop.md).
 
 ### SGF replay
 

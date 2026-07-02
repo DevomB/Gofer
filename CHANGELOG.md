@@ -2,6 +2,24 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.6.0] - 2026-07-01
+
+### Added
+
+- ML pipeline v3: `scripts/train-loop-v3.sh` with replay buffer, manifest, monotonic promote
+- Trainer `--resume` / `--init-from`, validation split, val-based `best.pt` (G1, G5)
+- Self-play `-selfplay-eval heuristic|onnx|mix` with ONNX sidecar (G4)
+- `training/replay.py`, `training/manifest.py`, `scripts/gating.env`
+- AWS ops: `start-v3`, `stop-loop`, `fetch-all`, `seed-status` on `aws-run-arena.sh`
+- Pytest suite: `training/test_train.py`, `test_replay.py`, `test_export.py`
+- ADR 0003: iterative training loop
+
+### Changed
+
+- Sidecar: batched ORT, optional CUDA provider, SIGHUP reload, latency logging
+- `remote-arena-gate.sh`: fail without checkpoint when `SELFPLAY_GAMES>0`; `ENFORCE_GATE`
+- CI runs `pytest training/`
+
 ## [2.5.0] - 2026-06-30
 
 ### Added

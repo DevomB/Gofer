@@ -25,8 +25,11 @@ jobs:
         run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
       - name: Export ONNX fixture
         run: |
+          pip install pytest
           pip install -r training/requirements.txt
           python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
+      - name: Training pytest
+        run: pytest training/ -q
       - name: ONNX integration
         run: |
           python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8080 &

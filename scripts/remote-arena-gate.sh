@@ -6,6 +6,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# shellcheck disable=SC1091
+[[ -f scripts/gating.env ]] && source scripts/gating.env
+
+WIN_TARGET="${WIN_TARGET:-0.75}"
+ENFORCE_GATE="${ENFORCE_GATE:-0}"
+
 echo "==> install deps (Go 1.22+, Python venv)"
 export DEBIAN_FRONTEND=noninteractive
 need_go() {
@@ -46,7 +52,12 @@ if [[ "$SELFPLAY_GAMES" -gt 0 ]]; then
   mkdir -p training/data
   go run ./cmd/gofer -selfplay -games "$SELFPLAY_GAMES" -size 9 -playouts 100 \
     -eval heuristic -o training/data/samples.jsonl -seed 42
-  python training/train_bootstrap.py --data training/data/samples.jsonl --epochs 25
+  python training/train_bootstrap.py --data training/data/samples.jsonl --epochs 25 \
+    --out-dir training/checkpoints
+  if [[ ! -f training/checkpoints/best.pt ]]; then
+    echo "training failed: no checkpoint at training/checkpoints/best.pt"
+    exit 1
+  fi
   python training/export_onnx.py --checkpoint training/checkpoints/best.pt \
     --out models/gofer-9x9-bootstrap.onnx
 fi
@@ -67,3 +78,13 @@ go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 \
 kill "$SIDECAR_PID" 2>/dev/null || true
 echo "==> done. Report: .tectonix/reports/arena-9x9-onnx-v25.json"
 grep -E 'win_rate_challenger|wilson_ci' .tectonix/reports/arena-9x9-onnx-v25.json | head -5 || true
+
+if [[ "$ENFORCE_GATE" == "1" ]]; then
+  rate="$(python3 -c "import json; d=json.load(open('.tectonix/reports/arena-9x9-onnx-v25.json')); print(d.get('win_rate_challenger',0))")"
+  if python3 -c "import sys; sys.exit(0 if float('$rate') >= float('$WIN_TARGET') else 1)"; then
+    echo "gate passed rate=$rate target=$WIN_TARGET"
+  else
+    echo "gate failed rate=$rate target=$WIN_TARGET"
+    exit 1
+  fi
+fi

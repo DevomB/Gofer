@@ -47,14 +47,15 @@ Epics adapted for monolithic `cmd/gofer` + `training/` (v2.5).
 
 ---
 
-## Epic ML-5: Training pipeline — bootstrap done
+## Epic ML-5: Training pipeline — v3 iterative loop
 
 | ID | Task | Status |
 |----|------|--------|
-| ML-5.1 | PyTorch trainer | done — `training/train_bootstrap.py` |
+| ML-5.1 | PyTorch trainer | done — resume + val-based `best.pt` |
 | ML-5.2 | Global pooling | deferred |
 | ML-5.3 | Progressive scaling | deferred |
 | ML-5.4 | Full paper loss weights | partial — policy + value |
+| ML-5.5 | Iterative train loop | done — `train-loop-v3.sh`, replay, manifest, monotonic promote (ADR 0003) |
 
 ---
 
