@@ -32,6 +32,44 @@ SSH=(ssh -i "$KEY" -o StrictHostKeyChecking=no -o ConnectTimeout=30 "ubuntu@${IN
 SCP=(scp -i "$KEY" -o StrictHostKeyChecking=no)
 
 case "$CMD" in
+stop-loop)
+  "${SSH[@]}" 'cd ~/Gofer 2>/dev/null || exit 0; \
+    test -f week.pid && kill $(cat week.pid) 2>/dev/null || true; \
+    pkill -f inference_server.py 2>/dev/null || true; \
+    pkill -f train-loop-v3.sh 2>/dev/null || true; \
+    pkill -f weekly-train-loop.sh 2>/dev/null || true; \
+    echo stopped'
+  exit 0
+  ;;
+start-v3)
+  echo "==> start train-loop-v3 on $INSTANCE"
+  "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/train-loop-v3.sh && \
+    (test -f week.pid && kill \$(cat week.pid) 2>/dev/null || true); \
+    pkill -f inference_server.py 2>/dev/null || true; \
+    nohup env SEED_FROM_CYCLE2=${SEED_FROM_CYCLE2:-0} WEEK_DAYS=${WEEK_DAYS:-14} \
+      WIN_TARGET=${WIN_TARGET:-0.75} NEW_SELFPLAY_PER_CYCLE=${NEW_SELFPLAY_PER_CYCLE:-200} \
+      bash scripts/train-loop-v3.sh > train-v3.log 2>&1 & \
+    echo \$! > week.pid && echo v3_loop_pid=\$(cat week.pid)"
+  echo "poll: bash scripts/aws-run-arena.sh $INSTANCE week-status"
+  exit 0
+  ;;
+fetch-all)
+  mkdir -p "$ROOT/.tectonix/reports/training-history"
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/.tectonix/reports/arena-cycle-*.json" \
+    "$ROOT/.tectonix/reports/" 2>/dev/null || true
+  "${SCP[@]}" -r "ubuntu@${INSTANCE}:~/Gofer/.tectonix/reports/training-history/" \
+    "$ROOT/.tectonix/reports/" 2>/dev/null || true
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/train-v3.log" "$ROOT/.tectonix/reports/train-v3.log" 2>/dev/null || true
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/training/state/manifest.json" \
+    "$ROOT/.tectonix/reports/manifest.json" 2>/dev/null || true
+  echo "fetched reports to .tectonix/reports/"
+  exit 0
+  ;;
+seed-status)
+  "${SSH[@]}" 'cd ~/Gofer && echo "=== manifest ===" && cat training/state/manifest.json 2>/dev/null || echo no manifest; \
+    echo "=== artifacts ===" && ls -la training/state/best.pt models/gofer-9x9-best.onnx 2>/dev/null || true'
+  exit 0
+  ;;
 status)
   "${SSH[@]}" 'tail -40 ~/Gofer/run.log 2>/dev/null || echo no log yet; ps aux | grep -E "remote-arena|inference_server|gofer" | grep -v grep | head -5 || true'
   exit 0
@@ -70,7 +108,7 @@ week)
   exit 0
   ;;
 week-status)
-  "${SSH[@]}" 'tail -30 ~/Gofer/week.log 2>/dev/null || tail -30 ~/Gofer/run.log 2>/dev/null || echo no log'
+  "${SSH[@]}" 'tail -30 ~/Gofer/train-v3.log 2>/dev/null || tail -30 ~/Gofer/week.log 2>/dev/null || tail -30 ~/Gofer/run.log 2>/dev/null || echo no log'
   exit 0
   ;;
 start)
