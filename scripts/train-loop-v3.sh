@@ -78,8 +78,8 @@ m["replay_rows"] = count_lines(Path("training/data/replay.jsonl"))
 save_manifest(Path("training/state/manifest.json"), m)
 PY
   if [[ -f models/gofer-9x9-best.onnx ]]; then
-    cp models/gofer-9x9-best.onnx "$BEST_ONNX"
-    cp models/gofer-9x9-best.onnx "$BOOTSTRAP_ONNX"
+    cp -f models/gofer-9x9-best.onnx "$BOOTSTRAP_ONNX"
+    [[ "$BEST_ONNX" != models/gofer-9x9-best.onnx ]] && cp -f models/gofer-9x9-best.onnx "$BEST_ONNX" || true
   fi
   log "INIT complete manifest=$(cat "$MANIFEST")"
 }
