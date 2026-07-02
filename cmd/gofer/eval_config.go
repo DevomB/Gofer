@@ -6,6 +6,7 @@ import "time"
 type EvalConfig struct {
 	ModelPath   string
 	ONNXURL     string
+	ONNXURL2    string // second sidecar (eval name "onnx2") for champion-vs-challenger arenas
 	BatchSize   int
 	EvalTimeout time.Duration
 	MaxWait     time.Duration

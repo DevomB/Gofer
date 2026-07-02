@@ -24,15 +24,22 @@ func parseEvaluator(name string) Evaluator {
 		)
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
 		return newONNXEvaluator(evalConfig.BatchSize)
+	case strings.EqualFold(name, "onnx2"):
+		return newONNXEvaluatorURL(evalConfig.ONNXURL2, evalConfig.BatchSize)
 	default:
 		return Heuristic{}
 	}
 }
 
-// newONNXEvaluator builds a batched sidecar evaluator with the given minimum
-// batch size (self-play sets this to its parallelism to fill real batches).
+// newONNXEvaluator builds a batched sidecar evaluator against the primary sidecar
+// URL with the given minimum batch size (callers set this to their parallelism
+// so the batcher fills real batches).
 func newONNXEvaluator(minBatch int) Evaluator {
-	url := evalConfig.ONNXURL
+	return newONNXEvaluatorURL(evalConfig.ONNXURL, minBatch)
+}
+
+// newONNXEvaluatorURL builds a batched sidecar evaluator against an explicit URL.
+func newONNXEvaluatorURL(url string, minBatch int) Evaluator {
 	if url == "" {
 		url = "http://127.0.0.1:8080"
 	}

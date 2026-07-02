@@ -28,10 +28,11 @@ type cliFlags struct {
 	selfplayTempMoves                          int
 	seed                                       int64
 	sgfPath, setup                             string
-	modelPath, onnxURL                         string
+	modelPath, onnxURL, onnxURL2               string
 	batchSize                                  int
 	evalTimeout                                time.Duration
 	arenaEnhanced                              string
+	arenaParallel                              int
 }
 
 func parseCLIFlags() cliFlags {
@@ -68,13 +69,16 @@ func parseCLIFlags() cliFlags {
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar loads this)")
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
+	flag.StringVar(&f.onnxURL2, "onnx-url-2", "http://127.0.0.1:8081", "second ONNX sidecar base URL (eval name onnx2, for champion-vs-challenger)")
 	flag.IntVar(&f.batchSize, "batch-size", 8, "batched evaluator minimum batch size")
 	flag.DurationVar(&f.evalTimeout, "eval-timeout", 500*time.Millisecond, "batched/onnx eval timeout before heuristic fallback")
 	flag.StringVar(&f.arenaEnhanced, "arena-enhanced", "none", "arena forced root playouts: none, baseline, both")
+	flag.IntVar(&f.arenaParallel, "arena-parallel", 8, "concurrent arena games (shared evaluators feed real batches to the sidecars)")
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
 		ModelPath:   f.modelPath,
 		ONNXURL:     f.onnxURL,
+		ONNXURL2:    f.onnxURL2,
 		BatchSize:   f.batchSize,
 		EvalTimeout: f.evalTimeout,
 		MaxWait:     2 * time.Millisecond,
@@ -164,6 +168,7 @@ func runArenaCLI(f cliFlags) {
 		WhiteEval:     f.whiteEval,
 		Seed:          f.seed,
 		ArenaEnhanced: f.arenaEnhanced,
+		Parallel:      f.arenaParallel,
 	}
 	result := RunMatch(cfg)
 	data, err := json.MarshalIndent(result, "", "  ")
