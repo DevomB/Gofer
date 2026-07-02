@@ -53,7 +53,7 @@ start-v3)
     (test -f week.pid && kill \$(cat week.pid) 2>/dev/null || true); \
     pkill -f inference_server.py 2>/dev/null || true; \
     nohup env SEED_FROM_CYCLE2=${SEED_FROM_CYCLE2:-0} WEEK_DAYS=${WEEK_DAYS:-14} \
-      WIN_TARGET=${WIN_TARGET:-0.75} NEW_SELFPLAY_PER_CYCLE=${NEW_SELFPLAY_PER_CYCLE:-200} \
+      PROMOTE_WIN=${PROMOTE_WIN:-0.55} NEW_SELFPLAY_PER_CYCLE=${NEW_SELFPLAY_PER_CYCLE:-200} \
       bash scripts/train-loop-v3.sh > train-v3.log 2>&1 & \
     echo \$! > week.pid && echo v3_loop_pid=\$(cat week.pid)"
   echo "poll: bash scripts/aws-run-arena.sh $INSTANCE week-status"
