@@ -68,12 +68,16 @@ def record_cycle(
     *,
     promote_win: float,
     history_dir: Path,
+    seed_champion: bool = False,
 ) -> tuple[bool, dict]:
     arena = json.loads(report_path.read_text(encoding="utf-8"))
     rate = float(arena.get("win_rate_challenger", 0))
     ci_low = float(arena.get("wilson_ci_low", 0))
     manifest = load_manifest(MANIFEST_PATH)
-    promote = should_promote(rate, ci_low, promote_win=promote_win)
+    # seed_champion: the first network in the lineage is installed unconditionally
+    # so self-play can start using the net. The arena still runs as a sanity check,
+    # but there is no champion yet to gate against.
+    promote = seed_champion or should_promote(rate, ci_low, promote_win=promote_win)
 
     manifest["cycle"] = cycle
     manifest["replay_rows"] = count_lines(REPLAY_PATH)
@@ -118,6 +122,8 @@ def main() -> None:
     rec_p.add_argument("--promote-win", type=float, default=0.55,
                        help="head-to-head win rate the candidate must clear to replace the champion")
     rec_p.add_argument("--history-dir", type=Path, default=Path(".tectonix/reports/training-history"))
+    rec_p.add_argument("--seed-champion", action="store_true",
+                       help="install this candidate as the first champion unconditionally (bootstrap cycle)")
 
     args = p.parse_args()
     if args.cmd == "init-cycle2":
@@ -131,6 +137,7 @@ def main() -> None:
             args.report,
             promote_win=args.promote_win,
             history_dir=args.history_dir,
+            seed_champion=args.seed_champion,
         )
         print("promote" if promote else "reject")
 

@@ -23,6 +23,7 @@ NEW_SELFPLAY_PER_CYCLE="${NEW_SELFPLAY_PER_CYCLE:-200}"
 SELFPLAY_PLAYOUTS="${SELFPLAY_PLAYOUTS:-200}"
 ARENA_PLAYOUTS="${ARENA_PLAYOUTS:-400}"
 SELFPLAY_TEMP_MOVES="${SELFPLAY_TEMP_MOVES:-16}"
+ARENA_OPENING_MOVES="${ARENA_OPENING_MOVES:-8}"
 REPLAY_MAX="${REPLAY_MAX:-50000}"
 TRAIN_EPOCHS_FRESH="${TRAIN_EPOCHS_FRESH:-25}"
 TRAIN_EPOCHS_RESUME="${TRAIN_EPOCHS_RESUME:-15}"
@@ -138,26 +139,36 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
       -black-eval onnx -white-eval onnx2 \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
       -onnx-url-2 "http://127.0.0.1:${CHALLENGER_PORT}" \
-      -arena-parallel "$PARALLEL" -eval-timeout 2s -arena-enhanced none \
+      -arena-parallel "$PARALLEL" -arena-opening-moves "$ARENA_OPENING_MOVES" \
+      -eval-timeout 2s -arena-enhanced none \
       -seed "$((42 + cycle))" -json "$report" | tee -a "$LOG_FILE"
     stop_sidecars
   else
-    log "cycle $cycle arena=$ARENA_GAMES candidate vs heuristic (bootstrap champion) parallel=$PARALLEL"
+    log "cycle $cycle arena=$ARENA_GAMES candidate vs heuristic (bootstrap sanity check) parallel=$PARALLEL"
     start_sidecar "$CANDIDATE_ONNX" "$CHAMP_PORT"
     "./$GOFER_BIN" -arena -games "$ARENA_GAMES" -size 9 -playouts "$ARENA_PLAYOUTS" \
       -black-eval heuristic -white-eval onnx \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
-      -arena-parallel "$PARALLEL" -eval-timeout 2s -arena-enhanced none \
+      -arena-parallel "$PARALLEL" -arena-opening-moves "$ARENA_OPENING_MOVES" \
+      -eval-timeout 2s -arena-enhanced none \
       -seed "$((42 + cycle))" -json "$report" | tee -a "$LOG_FILE"
     stop_sidecars
   fi
 
+  # The first cycle seeds the champion unconditionally (the net only imitates the
+  # heuristic from bootstrap data; real gains come from net-vs-net self-play next).
+  seed_flag=()
+  [[ "$have_champion" == "0" ]] && seed_flag=(--seed-champion)
   promote="$(python -m training.cycle record-cycle "$cycle" "$report" \
-    --promote-win "$PROMOTE_WIN" --history-dir "$HISTORY_DIR")"
+    --promote-win "$PROMOTE_WIN" --history-dir "$HISTORY_DIR" "${seed_flag[@]}")"
   rate="$(python3 -c "import json; print(json.load(open('$report')).get('win_rate_challenger',0))")"
 
   if [[ "$promote" == "promote" ]]; then
-    log "PROMOTE cycle=$cycle rate=$rate promote_win=$PROMOTE_WIN (candidate is the new champion)"
+    if [[ "$have_champion" == "0" ]]; then
+      log "SEED cycle=$cycle rate=$rate (first champion established; self-play now uses the net)"
+    else
+      log "PROMOTE cycle=$cycle rate=$rate promote_win=$PROMOTE_WIN (candidate is the new champion)"
+    fi
     cp "$CANDIDATE_ONNX" "$BEST_ONNX"
     cp "$BEST_ONNX" "$BOOTSTRAP_ONNX"
     rm -f "${STATE_DIR}/best.pt.pre-cycle"
