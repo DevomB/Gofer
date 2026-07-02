@@ -102,9 +102,13 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
   log "cycle $cycle selfplay=$NEW_SELFPLAY_PER_CYCLE train_resume=$BEST_PT"
   samples="${DATA_DIR}/samples-cycle${cycle}.jsonl"
 
+  if [[ -f "$BEST_ONNX" ]]; then
+    start_sidecar "$BEST_ONNX"
+  fi
   go run ./cmd/gofer -selfplay -games "$NEW_SELFPLAY_PER_CYCLE" -size 9 \
-    -playouts "$SELFPLAY_PLAYOUTS" -full-only true -eval heuristic \
+    -playouts "$SELFPLAY_PLAYOUTS" -full-only true -selfplay-eval mix \
     -o "$samples" -seed "$((42 + cycle))"
+  stop_sidecar
 
   python -c "from pathlib import Path; from training.replay import append_jsonl, trim, count_lines; append_jsonl(Path('$samples'), Path('$REPLAY')); trim(Path('$REPLAY'), $REPLAY_MAX); print(count_lines(Path('$REPLAY')))" \
     | tee -a "$LOG_FILE"

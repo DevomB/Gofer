@@ -22,6 +22,8 @@ type cliFlags struct {
 	blackEval, whiteEval, arenaJSON            string
 	blackPlayouts, whitePlayouts               int
 	selfplayFullOnly                           bool
+	selfplayEval                               string
+	selfplayONNXFraction                       float64
 	seed                                       int64
 	sgfPath, setup                             string
 	modelPath, onnxURL                         string
@@ -57,6 +59,8 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.blackPlayouts, "black-playouts", 0, "baseline playouts for -arena (0 = -playouts)")
 	flag.IntVar(&f.whitePlayouts, "white-playouts", 0, "challenger playouts for -arena (0 = -playouts)")
 	flag.BoolVar(&f.selfplayFullOnly, "full-only", true, "export only full-search self-play positions")
+	flag.StringVar(&f.selfplayEval, "selfplay-eval", "heuristic", "self-play evaluator: heuristic, onnx, mix")
+	flag.Float64Var(&f.selfplayONNXFraction, "selfplay-onnx-fraction", 0.7, "fraction of mix-mode games using ONNX (odd games use ONNX)")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar loads this)")
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
@@ -101,7 +105,7 @@ func runMode(f cliFlags) bool {
 		}
 		runAnalyze(f.size, f.komi, p, f.think, f.topN, f.eval, parseSetupMoves(f.setup))
 	case f.selfplay:
-		runSelfplayCLI(f.games, f.size, f.komi, f.playouts, f.out, f.sgfDir, f.selfplayFullOnly, f.seed)
+		runSelfplayCLI(f.games, f.size, f.komi, f.playouts, f.out, f.sgfDir, f.selfplayFullOnly, f.selfplayEval, f.selfplayONNXFraction, f.seed)
 	case f.watch:
 		p := f.playouts
 		if p <= 0 && f.think <= 0 {
@@ -219,7 +223,7 @@ func runGTP(playouts, defaultSize int, think time.Duration, evalMode, sgfOut str
 	}
 }
 
-func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir string, fullOnly bool, seed int64) {
+func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir string, fullOnly bool, evalMode string, onnxFraction float64, seed int64) {
 	if playouts <= 0 {
 		playouts = defaultPlayoutsForSize(size)
 	}
@@ -229,6 +233,8 @@ func runSelfplayCLI(games, size int, komi float64, playouts int, outPath, sgfDir
 	cfg.Komi = komi
 	cfg.Playouts = playouts
 	cfg.FullOnlyExport = fullOnly
+	cfg.EvalMode = evalMode
+	cfg.ONNXFraction = onnxFraction
 	cfg.Seed = seed
 	samples, logs := RunSelfplayWithLogs(cfg)
 	if outPath != "" {

@@ -17,6 +17,8 @@ type SelfplayConfig struct {
 	Seed           int64
 	RulesRandomize bool
 	FullOnlyExport bool // export only full-search positions (paper training set)
+	EvalMode       string  // heuristic, onnx, mix
+	ONNXFraction   float64 // used by mix mode (odd/even when 0.5 default)
 }
 
 // DefaultSelfplayConfig returns reasonable defaults.
@@ -32,6 +34,8 @@ func DefaultSelfplayConfig() SelfplayConfig {
 		Seed:           1,
 		RulesRandomize: false,
 		FullOnlyExport: true,
+		EvalMode:       "heuristic",
+		ONNXFraction:   0.7,
 	}
 }
 
@@ -76,12 +80,27 @@ func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, rng *rand.Rand) ([
 	log := NewGameLog(size, cfg.Komi)
 	scfg := DefaultConfig()
 	scfg.Seed = cfg.Seed + int64(gameIdx)
-	eng := NewEngine(rs, Heuristic{}, scfg)
+	eval := selfplayEvaluator(cfg, gameIdx)
+	eng := NewEngine(rs, eval, scfg)
 	game, _ := collectSelfplaySamples(cfg, rs, b, eng, size, log, rng)
 	bl, wl := rs.Score(b)
 	ownership := OwnershipLabel(b)
 	labelGameSamples(game, bl, wl, ownership)
 	return game, log
+}
+
+func selfplayEvaluator(cfg SelfplayConfig, gameIdx int) Evaluator {
+	switch strings.ToLower(cfg.EvalMode) {
+	case "onnx":
+		return parseEvaluator("onnx")
+	case "mix":
+		if gameIdx%2 == 1 {
+			return parseEvaluator("onnx")
+		}
+		return Heuristic{}
+	default:
+		return Heuristic{}
+	}
 }
 
 func selfplayRuleset(cfg SelfplayConfig, rng *rand.Rand) (Ruleset, int) {
