@@ -39,7 +39,7 @@ func (inf Inference) Evaluate(b *Board) Result {
 			p[i] = 1
 		}
 	}
-	return Result{Value: inf.MockValue, Policy: p}
+	return Result{Value: inf.MockValue, Policy: p, HasValue: true}
 }
 
 type batchReq struct {
@@ -49,15 +49,15 @@ type batchReq struct {
 
 // BatchedEvaluator queues positions and evaluates in batches.
 type BatchedEvaluator struct {
-	backend   EvalBackend
-	fallback  Evaluator
-	minBatch  int
-	maxWait   time.Duration
+	backend    EvalBackend
+	fallback   Evaluator
+	minBatch   int
+	maxWait    time.Duration
 	reqTimeout time.Duration
-	reqCh     chan batchReq
-	stopCh    chan struct{}
-	wg        sync.WaitGroup
-	once      sync.Once
+	reqCh      chan batchReq
+	stopCh     chan struct{}
+	wg         sync.WaitGroup
+	once       sync.Once
 }
 
 // NewBatchedEvaluator starts the batch worker.
@@ -182,7 +182,7 @@ func (g GatingHarness) Pass(baselineWin, candidateWin float64) bool {
 	}
 	margin := g.MinWinRateMargin
 	if margin == 0 {
-		margin = 0.55
+		margin = PromoteMin
 	}
 	return candidateWin >= margin && candidateWin > baselineWin
 }

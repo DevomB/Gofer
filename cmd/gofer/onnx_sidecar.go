@@ -61,16 +61,7 @@ type sidecarEvalResp struct {
 	} `json:"results"`
 }
 
-// EvalBatch implements EvalBackend.
-func (s SidecarBackend) EvalBatch(boards []*Board) []Result {
-	out := make([]Result, len(boards))
-	fb := s.fallback()
-	st := s.stats()
-	if len(boards) == 0 {
-		return out
-	}
-	st.Requests.Add(uint64(len(boards)))
-
+func makeSidecarRequest(boards []*Board) ([]byte, error) {
 	reqBody := sidecarEvalReq{
 		SchemaVersion: FeatureSchemaVersion,
 		BatchSize:     len(boards),
@@ -82,52 +73,42 @@ func (s SidecarBackend) EvalBatch(boards []*Board) []Result {
 		reqBody.Spatial[i] = sp
 		reqBody.Globals[i] = gl
 	}
-	data, err := json.Marshal(reqBody)
-	if err != nil {
-		st.Fallbacks.Add(uint64(len(boards)))
-		for i, b := range boards {
-			out[i] = fb.Evaluate(b)
-		}
-		return out
-	}
+	return json.Marshal(reqBody)
+}
 
+func fallbackBatch(out []Result, boards []*Board, fb Evaluator) []Result {
+	for i, b := range boards {
+		out[i] = fb.Evaluate(b)
+	}
+	return out
+}
+
+func (s SidecarBackend) postEval(data []byte) ([]byte, error) {
 	url := s.URL + sidecarEvalPath
 	httpReq, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
-		st.Fallbacks.Add(uint64(len(boards)))
-		for i, b := range boards {
-			out[i] = fb.Evaluate(b)
-		}
-		return out
+		return nil, err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.httpClient().Do(httpReq)
 	if err != nil {
-		st.Fallbacks.Add(uint64(len(boards)))
-		for i, b := range boards {
-			out[i] = fb.Evaluate(b)
-		}
-		return out
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil || resp.StatusCode != http.StatusOK {
-		st.Fallbacks.Add(uint64(len(boards)))
-		for i, b := range boards {
-			out[i] = fb.Evaluate(b)
-		}
-		return out
+		return nil, fmt.Errorf("sidecar eval: status=%d err=%w", resp.StatusCode, err)
 	}
+	return body, nil
+}
 
+func decodeSidecarResults(out []Result, boards []*Board, body []byte, fb Evaluator, st *SidecarStats) []Result {
 	var parsed sidecarEvalResp
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		st.Fallbacks.Add(uint64(len(boards)))
-		for i, b := range boards {
-			out[i] = fb.Evaluate(b)
-		}
-		return out
+		return fallbackBatch(out, boards, fb)
 	}
 
 	for i, b := range boards {
@@ -143,9 +124,32 @@ func (s SidecarBackend) EvalBatch(boards []*Board) []Result {
 			out[i] = fb.Evaluate(b)
 			continue
 		}
-		out[i] = Result{Value: r.Value, Policy: r.Policy}
+		out[i] = Result{Value: r.Value, Policy: r.Policy, HasValue: true}
 	}
 	return out
+}
+
+// EvalBatch implements EvalBackend.
+func (s SidecarBackend) EvalBatch(boards []*Board) []Result {
+	out := make([]Result, len(boards))
+	if len(boards) == 0 {
+		return out
+	}
+	fb := s.fallback()
+	st := s.stats()
+	st.Requests.Add(uint64(len(boards)))
+
+	data, err := makeSidecarRequest(boards)
+	if err != nil {
+		st.Fallbacks.Add(uint64(len(boards)))
+		return fallbackBatch(out, boards, fb)
+	}
+	body, err := s.postEval(data)
+	if err != nil {
+		st.Fallbacks.Add(uint64(len(boards)))
+		return fallbackBatch(out, boards, fb)
+	}
+	return decodeSidecarResults(out, boards, body, fb, st)
 }
 
 // CheckSidecarHealth GETs /health and returns an error if unreachable.

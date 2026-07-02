@@ -6,15 +6,18 @@ import (
 )
 
 const (
-	dirichletAlpha  = 0.03
+	// dirichletAlpha ~ 10/avg-legal-moves; 9x9 opens with ~70 moves. The AZ 19x19
+	// value (0.03) is far too peaky here and kills root exploration on 9x9.
+	dirichletAlpha  = 0.15
 	dirichletBlend  = 0.25
 	maxRolloutMoves = 150
 )
 
 // Result holds leaf evaluation from an Evaluator.
 type Result struct {
-	Value  float64   // from current player perspective, in [-1,1]
-	Policy []float32 // optional move priors indexed by point (len size*size+1 for pass)
+	Value    float64   // from current player perspective, in [-1,1]
+	Policy   []float32 // optional move priors indexed by point (len size*size+1 for pass)
+	HasValue bool      // true when Value is a real estimate (false => caller may roll out)
 }
 
 // Evaluator scores positions and optional policy priors.
@@ -57,7 +60,7 @@ func (Heuristic) Evaluate(b *Board) Result {
 		v = -v
 	}
 	v = clamp(v, -1, 1)
-	return Result{Value: v, Policy: heuristicPolicy(b)}
+	return Result{Value: v, Policy: heuristicPolicy(b), HasValue: true}
 }
 
 func groupLibertyTotals(b *Board, color Color) int {
@@ -146,7 +149,7 @@ type Mock struct {
 }
 
 func (m Mock) Evaluate(b *Board) Result {
-	return Result{Value: m.Value, Policy: m.Policy}
+	return Result{Value: m.Value, Policy: m.Policy, HasValue: true}
 }
 
 func uniformPriors(n int) []float64 {
@@ -197,17 +200,54 @@ func policyPriors(b *Board, moves []Move, policy []float32) []float64 {
 	return raw
 }
 
+// blendDirichlet mixes symmetric Dirichlet(alpha) noise into root priors (AZ SE-4.1).
 func blendDirichlet(priors []float64, rng *rand.Rand) []float64 {
+	noise := sampleDirichlet(len(priors), dirichletAlpha, rng)
 	out := make([]float64, len(priors))
-	sum := 0.0
-	noise := make([]float64, len(priors))
-	for i := range noise {
-		noise[i] = math.Pow(rng.Float64(), 1/dirichletAlpha)
-		sum += noise[i]
-	}
 	for i := range out {
-		n := noise[i] / sum
-		out[i] = (1-dirichletBlend)*priors[i] + dirichletBlend*n
+		out[i] = (1-dirichletBlend)*priors[i] + dirichletBlend*noise[i]
 	}
 	return out
+}
+
+// sampleDirichlet draws a symmetric Dirichlet(alpha) vector via normalized Gamma samples.
+func sampleDirichlet(n int, alpha float64, rng *rand.Rand) []float64 {
+	out := make([]float64, n)
+	sum := 0.0
+	for i := range out {
+		out[i] = sampleGamma(alpha, rng)
+		sum += out[i]
+	}
+	if sum <= 0 {
+		return uniformPriors(n)
+	}
+	for i := range out {
+		out[i] /= sum
+	}
+	return out
+}
+
+// sampleGamma draws from Gamma(shape, 1) using Marsaglia-Tsang, with the
+// shape<1 boost trick. Correct for the small alpha we use at the root.
+func sampleGamma(shape float64, rng *rand.Rand) float64 {
+	if shape < 1 {
+		return sampleGamma(shape+1, rng) * math.Pow(rng.Float64(), 1/shape)
+	}
+	d := shape - 1.0/3.0
+	c := 1.0 / math.Sqrt(9*d)
+	for {
+		x := rng.NormFloat64()
+		v := 1 + c*x
+		if v <= 0 {
+			continue
+		}
+		v = v * v * v
+		u := rng.Float64()
+		if u < 1-0.0331*x*x*x*x {
+			return d * v
+		}
+		if math.Log(u) < 0.5*x*x+d*(1-v+math.Log(v)) {
+			return d * v
+		}
+	}
 }
