@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/rand"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -24,8 +25,10 @@ type MatchConfig struct {
 	WhiteEval     string
 	Seed          int64
 	SwapColors    bool
-	ArenaEnhanced string // none, baseline, both — forced root playouts
-	Parallel      int    // concurrent games sharing one evaluator per role
+	ArenaEnhanced string  // none, baseline, both — forced root playouts
+	Parallel      int     // concurrent games sharing one evaluator per role
+	OpeningMoves  int     // opening plies sampled from the visit distribution (0 = deterministic argmax)
+	OpeningTemp   float64 // sampling temperature for those opening plies
 }
 
 // GameSummary is one arena game outcome.
@@ -191,7 +194,11 @@ func runArenaSummary(r Ruleset, cfg MatchConfig, gameIdx int, evals map[string]E
 	whiteEng := newArenaEngineEval(r, wp, cfg.ThinkTime, evals[whiteEval], cfg.Seed+int64(gameIdx)*2+1, arenaEnhancedFor(whiteEval, cfg))
 
 	b := NewBoard(cfg.Size, cfg.Komi)
-	moves := playArenaGame(r, b, blackEng, whiteEng, cfg.Size)
+	// Per-game RNG seeds opening-move sampling so the games in a match are
+	// actually distinct; without it the deterministic MCTS replays one identical
+	// game N times and the win rate is decided by komi symmetry, not strength.
+	rng := rand.New(rand.NewSource(cfg.Seed + int64(gameIdx+1)*0x9E3779B1))
+	moves := playArenaGame(r, b, blackEng, whiteEng, cfg.Size, cfg.OpeningMoves, cfg.OpeningTemp, rng)
 	bl, wl := r.Score(b)
 	summary := GameSummary{Game: gameIdx + 1, BlackEval: blackEval, WhiteEval: whiteEval, Moves: moves}
 	switch {
@@ -227,7 +234,7 @@ func countRoleWin(cfg MatchConfig, summary GameSummary, baselineWins, challenger
 	return baselineWins, challengerWins
 }
 
-func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size int) int {
+func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openingMoves int, temp float64, rng *rand.Rand) int {
 	passes := 0
 	moves := 0
 	for moveNum := 0; moveNum < size*size+2; moveNum++ {
@@ -238,7 +245,12 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size int) in
 		if b.Player() == Black {
 			eng = blackEng
 		}
-		m := eng.BestMove(b)
+		var m Move
+		if moveNum < openingMoves && temp > 0 {
+			m = eng.SelectMove(b, rng, temp)
+		} else {
+			m = eng.BestMove(b)
+		}
 		if !r.Play(b, m) {
 			m = PassMove
 			r.Play(b, m)

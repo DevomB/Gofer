@@ -33,6 +33,8 @@ type cliFlags struct {
 	evalTimeout                                time.Duration
 	arenaEnhanced                              string
 	arenaParallel                              int
+	arenaOpeningMoves                          int
+	arenaTemp                                  float64
 }
 
 func parseCLIFlags() cliFlags {
@@ -74,6 +76,8 @@ func parseCLIFlags() cliFlags {
 	flag.DurationVar(&f.evalTimeout, "eval-timeout", 500*time.Millisecond, "batched/onnx eval timeout before heuristic fallback")
 	flag.StringVar(&f.arenaEnhanced, "arena-enhanced", "none", "arena forced root playouts: none, baseline, both")
 	flag.IntVar(&f.arenaParallel, "arena-parallel", 8, "concurrent arena games (shared evaluators feed real batches to the sidecars)")
+	flag.IntVar(&f.arenaOpeningMoves, "arena-opening-moves", 8, "opening plies sampled from the visit distribution so match games differ (0 = deterministic, identical games)")
+	flag.Float64Var(&f.arenaTemp, "arena-temp", 1.0, "sampling temperature for arena opening plies")
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
 		ModelPath:   f.modelPath,
@@ -169,6 +173,8 @@ func runArenaCLI(f cliFlags) {
 		Seed:          f.seed,
 		ArenaEnhanced: f.arenaEnhanced,
 		Parallel:      f.arenaParallel,
+		OpeningMoves:  f.arenaOpeningMoves,
+		OpeningTemp:   f.arenaTemp,
 	}
 	result := RunMatch(cfg)
 	data, err := json.MarshalIndent(result, "", "  ")
