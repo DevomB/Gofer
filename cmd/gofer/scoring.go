@@ -7,12 +7,7 @@ func OwnershipLabel(b *Board) []float32 {
 	n := b.Size() * b.Size()
 	out := make([]float32, n)
 	for i := 0; i < n; i++ {
-		switch b.AtIndex(i) {
-		case Black:
-			out[i] = 1
-		case White:
-			out[i] = -1
-		}
+		out[i] = ownershipValue(b.AtIndex(i))
 	}
 	seen := make([]bool, n)
 	for i := 0; i < n; i++ {
@@ -20,29 +15,50 @@ func OwnershipLabel(b *Board) []float32 {
 			continue
 		}
 		indices := emptyRegionIndices(b, i)
-		touchB, touchW := false, false
 		for _, idx := range indices {
 			seen[idx] = true
-			b.forEachNeighbor(idx, func(nb int) {
-				switch b.AtIndex(nb) {
-				case Black:
-					touchB = true
-				case White:
-					touchW = true
-				}
-			})
 		}
-		val := float32(0)
-		if touchB && !touchW {
-			val = 1
-		} else if touchW && !touchB {
-			val = -1
-		}
-		for _, idx := range indices {
-			out[idx] = val
-		}
+		fillRegion(out, indices, regionOwner(b, indices))
 	}
 	return out
+}
+
+func ownershipValue(c Color) float32 {
+	switch c {
+	case Black:
+		return 1
+	case White:
+		return -1
+	default:
+		return 0
+	}
+}
+
+func regionOwner(b *Board, indices []int) float32 {
+	touchB, touchW := false, false
+	for _, idx := range indices {
+		b.forEachNeighbor(idx, func(nb int) {
+			switch b.AtIndex(nb) {
+			case Black:
+				touchB = true
+			case White:
+				touchW = true
+			}
+		})
+	}
+	if touchB && !touchW {
+		return 1
+	}
+	if touchW && !touchB {
+		return -1
+	}
+	return 0
+}
+
+func fillRegion(out []float32, indices []int, val float32) {
+	for _, idx := range indices {
+		out[idx] = val
+	}
 }
 
 func emptyRegionIndices(b *Board, start int) []int {

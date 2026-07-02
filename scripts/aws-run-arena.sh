@@ -8,7 +8,10 @@
 #   bash scripts/aws-run-arena.sh IP destroy   # delete Lightsail instance
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "$0")" && pwd)/common.sh"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/gating.env"
 KEY="${GOFER_LIGHTSAIL_KEY:-$ROOT/.tectonix/gofer-v25-run.pem}"
 INSTANCE="${1:-}"
 CMD="${2:-start}"
@@ -41,6 +44,9 @@ stop-loop)
     echo stopped'
   exit 0
   ;;
+week)
+  echo "DEPRECATED: use start-v3. Forwarding..."
+  ;&
 start-v3)
   echo "==> start train-loop-v3 on $INSTANCE"
   "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/train-loop-v3.sh && \
@@ -96,15 +102,6 @@ wait)
 destroy)
   aws lightsail delete-instance --instance-name "$NAME" --region "$REGION"
   echo "deleted $NAME"
-  exit 0
-  ;;
-week)
-  echo "==> start ${WEEK_DAYS:-7}-day training loop on $INSTANCE"
-  "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/weekly-train-loop.sh && \
-    (test -f week.pid && kill \$(cat week.pid) 2>/dev/null || true); \
-    nohup env WEEK_DAYS=${WEEK_DAYS:-7} WIN_TARGET=${WIN_TARGET:-0.75} bash scripts/weekly-train-loop.sh > week.log 2>&1 & \
-    echo \$! > week.pid && echo week_loop_pid=\$(cat week.pid)"
-  echo "poll: bash scripts/aws-run-arena.sh $INSTANCE week-status"
   exit 0
   ;;
 week-status)

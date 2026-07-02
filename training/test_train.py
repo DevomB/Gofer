@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Subset
 
 from dataset import SampleDataset
 from model import GoferBootstrapNet
-from train_bootstrap import load_weights, run_epoch, split_indices, train
+from train_bootstrap import TrainJob, TrainOptions, load_weights, run_epoch, split_indices, train
 
 ROOT = Path(__file__).resolve().parent
 FIXTURE = ROOT / "testdata" / "fixture_samples.jsonl"
@@ -19,14 +19,18 @@ FIXTURE = ROOT / "testdata" / "fixture_samples.jsonl"
 
 def _run_train(out_dir: Path, **kwargs: object) -> Path:
     return train(
-        FIXTURE,
-        int(kwargs.get("epochs", 5)),  # type: ignore[arg-type]
-        float(kwargs.get("lr", 0.05)),  # type: ignore[arg-type]
-        out_dir,
-        resume=kwargs.get("resume"),  # type: ignore[arg-type]
-        init_from=kwargs.get("init_from"),  # type: ignore[arg-type]
-        val_split=float(kwargs.get("val_split", 0.2)),  # type: ignore[arg-type]
-        patience=int(kwargs.get("patience", 100)),  # type: ignore[arg-type]
+        TrainJob(
+            data=FIXTURE,
+            epochs=int(kwargs.get("epochs", 5)),  # type: ignore[arg-type]
+            lr=float(kwargs.get("lr", 0.05)),  # type: ignore[arg-type]
+            out_dir=out_dir,
+            options=TrainOptions(
+                resume=kwargs.get("resume"),  # type: ignore[arg-type]
+                init_from=kwargs.get("init_from"),  # type: ignore[arg-type]
+                val_split=float(kwargs.get("val_split", 0.2)),  # type: ignore[arg-type]
+                patience=int(kwargs.get("patience", 100)),  # type: ignore[arg-type]
+            ),
+        )
     )
 
 

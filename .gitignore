@@ -16,3 +16,7 @@ training/data/*.jsonl
 .tectonix/reports/*.prof
 .tectonix/reports/*.log
 .tectonix/reports/lightsail-run.log
+.tectonix/reports/arena-cycle-*.json
+.tectonix/reports/arena-9x9-*.json
+.tectonix/reports/training-history/
+train-v3.log

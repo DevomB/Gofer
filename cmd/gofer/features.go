@@ -61,8 +61,14 @@ func BuildFeaturesV2(b *Board) (spatial []float32, globals []float32) {
 	planes := featurePlanesV2
 	spatial = make([]float32, planes*n)
 	player := b.Player()
+	fillStonePlanes(b, spatial, player, n)
+	fillToMovePlane(spatial, player, n)
+	fillHistoryPlanes(b, spatial, n)
+	return spatial, buildGlobalFeatures(b, player, size)
+}
+
+func fillStonePlanes(b *Board, spatial []float32, player Color, n int) {
 	opp := player.Opposite()
-	ko := b.Ko()
 	for i := 0; i < n; i++ {
 		switch b.AtIndex(i) {
 		case player:
@@ -72,30 +78,36 @@ func BuildFeaturesV2(b *Board) (spatial []float32, globals []float32) {
 		case Empty:
 			spatial[2*n+i] = 1
 		}
-		if i == ko {
+		if i == b.Ko() {
 			spatial[3*n+i] = 1
 		}
 	}
-	tm := float32(0)
-	if player == Black {
-		tm = 1
+}
+
+func fillToMovePlane(spatial []float32, player Color, n int) {
+	if player != Black {
+		return
 	}
 	for i := 0; i < n; i++ {
-		spatial[4*n+i] = tm
+		spatial[4*n+i] = 1
 	}
-	hist := b.historyMoves(3)
-	for h := 0; h < len(hist); h++ {
-		snap := hist[h]
+}
+
+func fillHistoryPlanes(b *Board, spatial []float32, n int) {
+	for h, snap := range b.historyMoves(3) {
 		if snap.move.Pass {
 			continue
 		}
-		idx := snap.move.Point.Idx(size)
+		idx := snap.move.Point.Idx(b.Size())
 		if idx >= 0 {
 			spatial[(5+h)*n+idx] = 1
 		}
 	}
+}
+
+func buildGlobalFeatures(b *Board, player Color, size int) []float32 {
 	denom := float32(size*size + 1)
-	globals = []float32{
+	globals := []float32{
 		float32(b.Komi()) / 10,
 		float32(b.MoveNum()) / denom,
 	}
@@ -104,7 +116,7 @@ func BuildFeaturesV2(b *Board) (spatial []float32, globals []float32) {
 	} else {
 		globals = append(globals, 0, 1)
 	}
-	return spatial, globals
+	return globals
 }
 
 // FeatureHashV2 hashes spatial + globals for golden tests.

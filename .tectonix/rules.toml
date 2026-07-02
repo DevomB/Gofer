@@ -10,11 +10,16 @@ paths = ["cmd/gofer/*"]
 order = 0
 
 [[layers]]
-name = "app"
-paths = ["cmd/bench/*"]
+name = "training"
+paths = ["training/*"]
 order = 1
 
+[[layers]]
+name = "ops"
+paths = ["scripts/*"]
+order = 2
+
 [[boundaries]]
-from = "cmd/bench/*"
+from = "scripts/*"
 to = "cmd/gofer/*"
-reason = "Bench runner invokes go test; no direct import"
+reason = "Shell ops must not import Go engine internals directly"

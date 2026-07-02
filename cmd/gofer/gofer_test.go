@@ -148,7 +148,7 @@ func TestMatchResultJSONFields(t *testing.T) {
 }
 
 func TestGatingHarness(t *testing.T) {
-	g := GatingHarness{Games: 100, MinWinRateMargin: 0.55}
+	g := GatingHarness{Games: 100, MinWinRateMargin: PromoteMin}
 	if !g.Pass(0.4, 0.56) {
 		t.Fatal("should pass")
 	}

@@ -3,11 +3,11 @@
 # Usage: bash scripts/remote-arena-gate.sh
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$ROOT"
-
 # shellcheck disable=SC1091
-[[ -f scripts/gating.env ]] && source scripts/gating.env
+source "$(cd "$(dirname "$0")" && pwd)/common.sh"
+cd "$ROOT"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/gating.env"
 
 WIN_TARGET="${WIN_TARGET:-0.75}"
 ENFORCE_GATE="${ENFORCE_GATE:-0}"

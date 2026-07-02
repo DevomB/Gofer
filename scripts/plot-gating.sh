@@ -3,6 +3,11 @@
 # Usage: ./scripts/plot-gating.sh [.tectonix/reports/arena-9x9-baseline.json] [out.png]
 set -euo pipefail
 
+# shellcheck disable=SC1091
+source "$(cd "$(dirname "$0")" && pwd)/common.sh"
+# shellcheck disable=SC1091
+source "$ROOT/scripts/gating.env"
+
 JSON="${1:-.tectonix/reports/arena-9x9-baseline.json}"
 OUT="${2:-.tectonix/reports/gating-cumulative.png}"
 CSV="${OUT%.png}.csv"
