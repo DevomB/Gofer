@@ -27,7 +27,9 @@ class ResBlock(nn.Module):
 
 
 class GoferBootstrapNet(nn.Module):
-    def __init__(self, board_size: int = BOARD_SIZE, channels: int = 32, blocks: int = 4) -> None:
+    # Wider/deeper than the 4x32 bootstrap: 6x64 gives a much higher strength
+    # ceiling on 9x9 while staying cheap enough to train per cycle.
+    def __init__(self, board_size: int = BOARD_SIZE, channels: int = 64, blocks: int = 6) -> None:
         super().__init__()
         self.board_size = board_size
         self.policy_size = board_size * board_size + 1
@@ -49,12 +51,19 @@ class GoferBootstrapNet(nn.Module):
             nn.ReLU(inplace=True),
             nn.Linear(channels, 1),
         )
+        # Ownership auxiliary head (KataGo-style): predicts per-point final owner
+        # in [-1,1]. Shares the trunk, so it sharpens features the value/policy
+        # heads reuse; the Go engine ignores this output at inference time.
+        self.ownership_conv = nn.Conv2d(channels, 1, 1)
 
-    def forward(self, spatial_input: torch.Tensor, global_input: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, spatial_input: torch.Tensor, global_input: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.stem(spatial_input)
         x = self.blocks(x)
         g = self.global_fc(global_input)
         flat = torch.cat([x.reshape(x.size(0), -1), g], dim=1)
         policy_logits = self.policy_fc(flat)
         value = torch.tanh(self.value_fc(flat).squeeze(-1))
-        return policy_logits, value
+        ownership = torch.tanh(self.ownership_conv(x)).reshape(x.size(0), self.board_size * self.board_size)
+        return policy_logits, value, ownership

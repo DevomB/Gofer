@@ -58,7 +58,10 @@ class Session:
         sp = np.array(spatial, dtype=np.float32).reshape(batch, 8, BOARD_SIZE, BOARD_SIZE)
         gl = np.array(globals_, dtype=np.float32).reshape(batch, 4)
         feeds = {self.spatial_name: sp, self.global_name: gl}
-        logits, value = self.sess.run(None, feeds)
+        # Model may emit a third "ownership" output; the engine only needs
+        # policy + value, so take the first two and ignore the rest.
+        outputs = self.sess.run(None, feeds)
+        logits, value = outputs[0], outputs[1]
         results = []
         for i in range(batch):
             policy = softmax(logits[i]).astype(np.float32).tolist()
@@ -84,49 +87,52 @@ def make_handler(session: Session):
             if self.path != "/health":
                 self.send_error(404)
                 return
-            body = json.dumps(
-                {
-                    "status": "ok",
-                    "schema_version": SCHEMA_VERSION,
-                    "policy_size": POLICY_SIZE,
-                    "spatial_shape": [8, BOARD_SIZE, BOARD_SIZE],
-                    "global_shape": [4],
-                    "model": session.model_path,
-                    "providers": session.providers,
-                }
-            ).encode()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
+            write_json(self, 200, health_payload(session))
 
         def do_POST(self) -> None:
             if self.path != "/v1/eval":
                 self.send_error(404)
                 return
-            length = int(self.headers.get("Content-Length", "0"))
-            raw = self.rfile.read(length)
-            try:
-                req = json.loads(raw)
-                if req.get("schema_version") != SCHEMA_VERSION:
-                    raise ValueError("schema_version mismatch")
-                results = session.eval_batch(req["spatial"], req["globals"])
-                body = json.dumps({"results": results}).encode()
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-            except Exception as exc:
-                msg = json.dumps({"error": str(exc)}).encode()
-                self.send_response(400)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(msg)))
-                self.end_headers()
-                self.wfile.write(msg)
+            handle_eval(self, session)
 
     return Handler
+
+
+def health_payload(session: Session) -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "schema_version": SCHEMA_VERSION,
+        "policy_size": POLICY_SIZE,
+        "spatial_shape": [8, BOARD_SIZE, BOARD_SIZE],
+        "global_shape": [4],
+        "model": session.model_path,
+        "providers": session.providers,
+    }
+
+
+def write_json(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
+    body = json.dumps(payload).encode()
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+def read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
+    length = int(handler.headers.get("Content-Length", "0"))
+    return json.loads(handler.rfile.read(length))
+
+
+def handle_eval(handler: BaseHTTPRequestHandler, session: Session) -> None:
+    try:
+        req = read_json(handler)
+        if req.get("schema_version") != SCHEMA_VERSION:
+            raise ValueError("schema_version mismatch")
+        results = session.eval_batch(req["spatial"], req["globals"])
+        write_json(handler, 200, {"results": results})
+    except Exception as exc:
+        write_json(handler, 400, {"error": str(exc)})
 
 
 def main() -> None:

@@ -44,10 +44,14 @@ class SampleDataset(Dataset):
     def __len__(self) -> int:
         return len(self.rows)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         row = self.rows[idx]
         spatial = torch.tensor(row["features_spatial"], dtype=torch.float32).reshape(PLANES, BOARD_SIZE, BOARD_SIZE)
         globals_ = torch.tensor(row["features_global"], dtype=torch.float32)
         policy = torch.tensor(row["policy"], dtype=torch.float32)
         value = torch.tensor(float(row.get("value", 0.0)), dtype=torch.float32)
-        return spatial, globals_, policy, value
+        own = row.get("ownership") or [0.0] * (BOARD_SIZE * BOARD_SIZE)
+        if len(own) != BOARD_SIZE * BOARD_SIZE:
+            own = [0.0] * (BOARD_SIZE * BOARD_SIZE)
+        ownership = torch.tensor(own, dtype=torch.float32)
+        return spatial, globals_, policy, value, ownership
