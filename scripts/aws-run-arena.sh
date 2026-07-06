@@ -4,8 +4,8 @@
 #   bash scripts/aws-run-arena.sh              # start (uses default instance)
 #   bash scripts/aws-run-arena.sh IP status    # tail log
 #   bash scripts/aws-run-arena.sh IP fetch     # download arena JSON
-#   bash scripts/aws-run-arena.sh IP wait      # block until done, then fetch
-#   bash scripts/aws-run-arena.sh IP destroy   # delete Lightsail instance
+#   bash scripts/aws-run-arena.sh IP destroy       # delete Lightsail instance
+#   bash scripts/aws-run-arena.sh IP inprocess-cycle  # one in-process ORT cycle (no sidecar)
 set -euo pipefail
 
 # shellcheck disable=SC1091
@@ -47,7 +47,7 @@ stop-loop)
 week)
   echo "DEPRECATED: use start-v3. Forwarding..."
   ;&
-start-v3-inprocess)
+inprocess-cycle|start-v3-inprocess)
   echo "==> one in-process ORT cycle on $INSTANCE (no sidecar)"
   "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/lightsail-inprocess-cycle.sh scripts/train-loop-v3.sh scripts/parity-onnx.sh && \
     nohup bash scripts/lightsail-inprocess-cycle.sh > train-inprocess-cycle.log 2>&1 & echo \$! > inprocess.pid && echo inprocess_pid=\$(cat inprocess.pid)"
