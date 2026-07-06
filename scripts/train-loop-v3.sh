@@ -84,12 +84,13 @@ ensure_ort_shared_lib() {
 gofer_eval_args() {
   # Sets global GOFER_EVAL_EXTRA array for ./bin/gofer invocations.
   GOFER_EVAL_EXTRA=()
-  if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
-    return
-  fi
-  GOFER_EVAL_EXTRA=(-eval-backend inprocess -model "$1")
-  if [[ -n "${2:-}" ]]; then
-    GOFER_EVAL_EXTRA+=(-model-2 "$2")
+  if [[ "$EVAL_BACKEND" == "inprocess" ]]; then
+    GOFER_EVAL_EXTRA=(-eval-backend inprocess -model "$1")
+    if [[ -n "${2:-}" ]]; then
+      GOFER_EVAL_EXTRA+=(-model-2 "$2")
+    fi
+  elif [[ "$EVAL_BACKEND" == "sidecar" ]]; then
+    GOFER_EVAL_EXTRA=(-eval-backend sidecar)
   fi
 }
 

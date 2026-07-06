@@ -1,4 +1,4 @@
-# Gofer v2.6.0
+# Gofer v2.7.0
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
 
@@ -65,14 +65,43 @@ Nightly 200-game arena workflow: [`.github/workflows/arena-nightly.yml`](.github
 bin/gofer -watch -size 9 -playouts 50
 ```
 
-### ONNX inference (v2.5)
+### ONNX inference (v2.5+)
 
-Start the sidecar, then use `-eval onnx`:
+Default path is **in-process ORT** (no sidecar). Build with ONNX support:
+
+```bash
+make build-onnx     # CGO + -tags=onnx -> bin/gofer
+```
+
+Use `-eval-backend` to choose the transport:
+
+| Flag / env | Values | Default |
+|------------|--------|---------|
+| `-eval-backend` | `inprocess`, `sidecar` | `inprocess` |
+| `EVAL_BACKEND` | same (train loop) | `inprocess` |
+| `-model` | champion ONNX path | `models/gofer-9x9-bootstrap.onnx` |
+| `-model-2` | challenger ONNX (`onnx2` eval) | — |
+
+**Sidecar fallback** (HTTP, still supported):
 
 ```bash
 make sidecar    # python training/inference_server.py on :8080
-bin/gofer -gtp -size 9 -eval onnx -onnx-url http://127.0.0.1:8080
+bin/gofer -gtp -size 9 -eval onnx -eval-backend sidecar -onnx-url http://127.0.0.1:8080
 ```
+
+**Parity harness** — proves Go ORT matches Python `inference_server.Session` bit-exact (ORT 1.26.0):
+
+```bash
+# quick (500 positions)
+bash scripts/parity-onnx.sh
+
+# full samples file
+GOFER_PARITY_LIMIT=1722 bash scripts/parity-onnx.sh
+```
+
+Requires `onnxruntime==1.26.0` on the Python side (`training/requirements-ort-parity.txt` or pip). Linux amd64 also needs `ONNXRUNTIME_SHARED_LIBRARY_PATH` (script downloads ORT 1.26.0 if missing). Go test: `CGO_ENABLED=1 go test -tags=onnx ./cmd/gofer/ -run TestONNXParityPythonRef`.
+
+See [ADR 0004](docs/decisions/0004-in-process-onnx-inference.md).
 
 ### Arena (gating)
 

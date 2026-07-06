@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Deprecated compatibility wrapper. The v3 loop owns replay, resume, and promotion.
+# LEGACY — superseded by scripts/train-loop-v3.sh (ML pipeline v3, ADR 0003).
+# This file is a compatibility alias only; do not extend it.
+# Kept so old docs/commands that reference weekly-train-loop.sh still work.
 set -euo pipefail
 
 # shellcheck disable=SC1091

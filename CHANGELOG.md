@@ -2,6 +2,31 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.0] - 2026-07-06
+
+### Added
+
+- In-process ONNX Runtime backend (`ORTBackend`, `//go:build onnx`) via `onnxruntime_go` v1.31.0 / ORT 1.26.0
+- `-eval-backend inprocess|sidecar`, `-model`, `-model-2` flags; default inference path is now **in-process**
+- Parity harness: `scripts/parity-onnx.sh`, `training/parity_harness.py`, `cmd/gofer/onnx_parity_test.go`
+- `make build-onnx`; `scripts/lightsail-inprocess-cycle.sh`; `MAX_CYCLES` in `train-loop-v3.sh`
+- ADR [0004](docs/decisions/0004-in-process-onnx-inference.md); [docs/known-issues.md](docs/known-issues.md) (komi/scoring workaround)
+
+### Changed
+
+- Arena early-stop: promotion gate with `minGamesBeforePromote=100`, early reject when max achievable win rate &lt; 0.55, floor 20 games; skipped for identical evaluators; CLI prints `black=`/`white=` stone counts
+- 9×9 arena komi workaround: default CLI `6.5` remapped to `3.5` in arena only (`komi9x9Arena`); self-play unchanged at `6.5`
+- `training/export_onnx.py`: default export is policy+value only (`--with-ownership` for three heads)
+- `training/inference_server.py`: ORT `intra_op`/`inter_op` threads capped at 1 (init + reload)
+- `training/train_bootstrap.py`: validation epoch under `torch.no_grad()`
+- `training/requirements.txt`: `onnxruntime==1.26.0` pinned
+- Sidecar path retained as fallback (`EVAL_BACKEND=sidecar`, `-eval-backend=sidecar`)
+
+### Fixed
+
+- `lightsail-inprocess-cycle.sh`: no Python ORT pip install on in-process path; uses `.venv311` for parity only
+- Documented production RAM: Lightsail instance is `t3.small` (~2 GiB), not 4 GiB (ADR 0004)
+
 ## [2.6.0] - 2026-07-01
 
 ### Added

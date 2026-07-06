@@ -65,6 +65,7 @@ Instance RAM at validation: **1910 MiB total**, ~1518 MiB available — no swap.
 - ORT shared library **1.26.0** downloaded to `.tectonix/artifacts/` on Linux amd64 (no bundled `.so` in `onnxruntime_go`).
 - Parity preflight on Lightsail needs Python **≥3.11** (`.venv311`) for `onnxruntime==1.26.0`; training-only in-process cycles skip Python ORT install.
 - `ONNXRUNTIME_SHARED_LIBRARY_PATH` must point at `libonnxruntime.so.1.26.0` when not using the train-loop downloader.
+- Production instance: AWS **`t3.small`** (~**2 GiB** RAM + **2 GiB swap**). Capacity planning should not assume 4 GiB.
 
 ## Revisit trigger
 

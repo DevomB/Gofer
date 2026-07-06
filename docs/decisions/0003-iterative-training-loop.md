@@ -31,7 +31,7 @@ Replace the weekly loop with `scripts/train-loop-v3.sh`:
 - Cycle-2 seed (`SEED_FROM_CYCLE2=1`) bootstraps manifest at 58% floor.
 - Arena uses 400 playouts; self-play uses 200 (reduced distribution shift).
 - Wilson CI logged for diagnostics; promotion uses point estimate + margin.
-- `weekly-train-loop.sh` kept for reference only.
+- `weekly-train-loop.sh` is a **legacy alias** that execs `train-loop-v3.sh` (do not extend).
 
 ## Alternatives considered
 
