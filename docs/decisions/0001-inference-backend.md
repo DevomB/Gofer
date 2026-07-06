@@ -20,6 +20,8 @@ Gofer v2 needs a batched evaluation path for MCTS without blocking playout loops
 
 CGO deferred unless sidecar p99 regresses >10% vs SLO on reference hardware.
 
+**v2.5+ (Phase 1 complete):** Default inference is in-process ORT — see [0004-in-process-onnx-inference.md](./0004-in-process-onnx-inference.md). Sidecar retained for rollback only.
+
 ## HTTP protocol
 
 `POST /v1/eval` — JSON body:

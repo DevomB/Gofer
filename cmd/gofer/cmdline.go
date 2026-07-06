@@ -72,7 +72,7 @@ func parseCLIFlags() cliFlags {
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar or in-process primary)")
 	flag.StringVar(&f.modelPath2, "model-2", "models/gofer-9x9-candidate.onnx", "second ONNX model for -white-eval onnx2 / champion-vs-challenger")
-	flag.StringVar(&f.evalBackend, "eval-backend", "sidecar", "ONNX inference transport: sidecar (HTTP) or inprocess (ORT in Go binary, requires -tags=onnx build)")
+	flag.StringVar(&f.evalBackend, "eval-backend", "inprocess", "ONNX inference transport: inprocess (ORT in Go binary, requires -tags=onnx build) or sidecar (HTTP)")
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
 	flag.StringVar(&f.onnxURL2, "onnx-url-2", "http://127.0.0.1:8081", "second ONNX sidecar base URL (eval name onnx2, for champion-vs-challenger)")
 	flag.IntVar(&f.batchSize, "batch-size", 8, "batched evaluator minimum batch size")

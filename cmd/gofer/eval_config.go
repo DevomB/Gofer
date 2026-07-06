@@ -8,14 +8,14 @@ type EvalConfig struct {
 	ModelPath2  string // second model for eval name "onnx2" (champion-vs-challenger)
 	ONNXURL     string
 	ONNXURL2    string // second sidecar (eval name "onnx2") for champion-vs-challenger arenas
-	Backend     string // sidecar (default) or inprocess
+	Backend     string // inprocess (default) or sidecar
 	BatchSize   int
 	EvalTimeout time.Duration
 	MaxWait     time.Duration
 }
 
 var evalConfig = EvalConfig{
-	Backend:   "sidecar",
+	Backend:   "inprocess",
 	BatchSize: 8,
 	EvalTimeout: 500 * time.Millisecond,
 	MaxWait:     2 * time.Millisecond,
@@ -33,7 +33,7 @@ func SetEvalConfig(c EvalConfig) {
 		c.MaxWait = 2 * time.Millisecond
 	}
 	if c.Backend == "" {
-		c.Backend = "sidecar"
+		c.Backend = "inprocess"
 	}
 	evalConfig = c
 }

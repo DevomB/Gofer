@@ -30,7 +30,8 @@ TRAIN_EPOCHS_RESUME="${TRAIN_EPOCHS_RESUME:-15}"
 TRAIN_LR_FRESH="${TRAIN_LR_FRESH:-0.01}"
 TRAIN_LR_RESUME="${TRAIN_LR_RESUME:-0.001}"
 PARALLEL="${PARALLEL:-$(nproc 2>/dev/null || echo 8)}"
-EVAL_BACKEND="${EVAL_BACKEND:-sidecar}"
+MAX_CYCLES="${MAX_CYCLES:-0}" # 0 = run until WEEK_DAYS deadline; 1 = single unattended cycle
+EVAL_BACKEND="${EVAL_BACKEND:-inprocess}"
 ORT_VERSION="1.26.0"
 ORT_ART="${ROOT}/.tectonix/artifacts/onnxruntime-linux-x64-${ORT_VERSION}"
 ORT_SO="${ORT_ART}/lib/libonnxruntime.so.${ORT_VERSION}"
@@ -129,6 +130,7 @@ if [[ ! -f "$MANIFEST" ]]; then
 fi
 
 cycle="$(python3 -c "import json; print(json.load(open('$MANIFEST')).get('cycle',0)+1)")"
+first_cycle="$cycle"
 
 while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
   samples="${DATA_DIR}/samples-cycle${cycle}.jsonl"
@@ -240,6 +242,10 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
   fi
 
   cycle=$((cycle + 1))
+  if [[ "$MAX_CYCLES" -gt 0 && $((cycle - first_cycle)) -ge "$MAX_CYCLES" ]]; then
+    log "MAX_CYCLES=$MAX_CYCLES complete after cycle $((cycle - 1))"
+    exit 0
+  fi
 done
 
 log "deadline reached after cycle $((cycle - 1))"
