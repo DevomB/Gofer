@@ -5,15 +5,18 @@ import "time"
 // EvalConfig holds CLI options for evaluator construction.
 type EvalConfig struct {
 	ModelPath   string
+	ModelPath2  string // second model for eval name "onnx2" (champion-vs-challenger)
 	ONNXURL     string
 	ONNXURL2    string // second sidecar (eval name "onnx2") for champion-vs-challenger arenas
+	Backend     string // sidecar (default) or inprocess
 	BatchSize   int
 	EvalTimeout time.Duration
 	MaxWait     time.Duration
 }
 
 var evalConfig = EvalConfig{
-	BatchSize:   8,
+	Backend:   "sidecar",
+	BatchSize: 8,
 	EvalTimeout: 500 * time.Millisecond,
 	MaxWait:     2 * time.Millisecond,
 }
@@ -28,6 +31,9 @@ func SetEvalConfig(c EvalConfig) {
 	}
 	if c.MaxWait <= 0 {
 		c.MaxWait = 2 * time.Millisecond
+	}
+	if c.Backend == "" {
+		c.Backend = "sidecar"
 	}
 	evalConfig = c
 }

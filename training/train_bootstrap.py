@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import random
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -89,20 +90,22 @@ def run_epoch(
         net.eval()
     total = 0.0
     n_batches = 0
-    for spatial, globals_, policy, value, ownership in loader:
-        if train and opt is not None:
-            opt.zero_grad()
-        logits, pred_v, pred_own = net(spatial, globals_)
-        target = policy / policy.sum(dim=1, keepdim=True).clamp(min=1e-8)
-        loss_p = -(target * torch.log_softmax(logits, dim=1)).sum(dim=1).mean()
-        loss_v = F.mse_loss(pred_v, value)
-        loss_own = F.mse_loss(pred_own, ownership)
-        loss = loss_p + loss_v + OWNERSHIP_LOSS_WEIGHT * loss_own
-        if train and opt is not None:
-            loss.backward()
-            opt.step()
-        total += loss.item()
-        n_batches += 1
+    grad_ctx = nullcontext() if train else torch.no_grad()
+    with grad_ctx:
+        for spatial, globals_, policy, value, ownership in loader:
+            if train and opt is not None:
+                opt.zero_grad()
+            logits, pred_v, pred_own = net(spatial, globals_)
+            target = policy / policy.sum(dim=1, keepdim=True).clamp(min=1e-8)
+            loss_p = -(target * torch.log_softmax(logits, dim=1)).sum(dim=1).mean()
+            loss_v = F.mse_loss(pred_v, value)
+            loss_own = F.mse_loss(pred_own, ownership)
+            loss = loss_p + loss_v + OWNERSHIP_LOSS_WEIGHT * loss_own
+            if train and opt is not None:
+                loss.backward()
+                opt.step()
+            total += loss.item()
+            n_batches += 1
     return total / max(n_batches, 1)
 
 

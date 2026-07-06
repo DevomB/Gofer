@@ -97,10 +97,23 @@ func matchConfigHash(cfg MatchConfig) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// komi9x9Arena replaces the CLI default 6.5 on 9x9 arena runs. Under Chinese
+// area scoring, komi 6.5 heavily favors white for equal-strength ONNX MCTS;
+// 3.5 is calibrated for production arena settings (400 playouts, opening-moves 8).
+const komi9x9Arena = 3.5
+
+func normalizeArenaKomi(size int, komi float64) float64 {
+	if size == 9 && komi == 6.5 {
+		return komi9x9Arena
+	}
+	return komi
+}
+
 func normalizeMatchConfig(cfg MatchConfig) MatchConfig {
 	if cfg.Games <= 0 {
 		cfg.Games = 1
 	}
+	cfg.Komi = normalizeArenaKomi(cfg.Size, cfg.Komi)
 	if cfg.Playouts <= 0 && cfg.ThinkTime <= 0 {
 		cfg.Playouts = defaultPlayoutsForSize(cfg.Size)
 	}
@@ -110,14 +123,49 @@ func normalizeMatchConfig(cfg MatchConfig) MatchConfig {
 	return cfg
 }
 
-// RunMatch plays cfg.Games between BlackEval (baseline) and WhiteEval (challenger).
+// promoteCILow is the Wilson CI lower bound required for promotion
+// (see training/cycle.py should_promote).
+const promoteCILow = 0.5
+
+// minGamesBeforeStop avoids stopping micro-arenas before enough evidence accumulates.
+const minGamesBeforeStop = 20
+
+// minGamesBeforePromote blocks early promotion on short runs; reject can still
+// fire once the win-rate bar is unreachable.
+var minGamesBeforePromote = 100
+
+// promotionGateDecided reports whether the head-to-head gate is already
+// settled after played games out of maxGames.
+func promotionGateDecided(challengerWins, played, maxGames int, promoteWin float64) (accept, reject bool) {
+	if played < minGamesBeforeStop || maxGames < minGamesBeforeStop {
+		return false, false
+	}
+	winRate := float64(challengerWins) / float64(played)
+	ciLow, _ := WilsonCI(challengerWins, played, 1.96)
+	if played >= minGamesBeforePromote && winRate >= promoteWin && ciLow > promoteCILow {
+		return true, false
+	}
+	remaining := maxGames - played
+	maxWins := challengerWins + remaining
+	maxWinRate := float64(maxWins) / float64(maxGames)
+	// Wilson reject is evaluated at end-of-match only; early reject fires when the
+	// win-rate bar is unreachable even if every remaining game is won.
+	if maxWinRate < promoteWin {
+		return false, true
+	}
+	return false, false
+}
+
+// RunMatch plays up to cfg.Games between BlackEval (baseline) and WhiteEval (challenger).
 // Games run concurrently (cfg.Parallel) over one shared evaluator per role so the
-// inference sidecars receive real batches. Per-game seeds keep results deterministic.
+// inference sidecars receive real batches. Stops early once the promotion gate is
+// statistically decided (same Wilson CI bar as the train loop).
 func RunMatch(cfg MatchConfig) MatchResult {
 	cfg = normalizeMatchConfig(cfg)
 	r := Chinese()
+	maxGames := cfg.Games
 	out := MatchResult{
-		Games:          cfg.Games,
+		Games:          maxGames,
 		ConfigHash:     matchConfigHash(cfg),
 		BaselineEval:   cfg.BlackEval,
 		ChallengerEval: cfg.WhiteEval,
@@ -130,40 +178,84 @@ func RunMatch(cfg MatchConfig) MatchResult {
 	if par < 1 {
 		par = 1
 	}
-	if par > cfg.Games {
-		par = cfg.Games
+	if par > maxGames {
+		par = maxGames
 	}
-	summaries := make([]GameSummary, cfg.Games)
+
+	type arenaProgress struct {
+		mu             sync.Mutex
+		nextIdx        int
+		stop           bool
+		played         int
+		baselineWins   int
+		challengerWins int
+		summaries      []GameSummary
+	}
+
+	prog := &arenaProgress{}
 	sem := make(chan struct{}, par)
 	var wg sync.WaitGroup
-	for g := 0; g < cfg.Games; g++ {
+
+	worker := func() {
+		defer wg.Done()
+		for {
+			prog.mu.Lock()
+			if prog.stop || prog.nextIdx >= maxGames {
+				prog.mu.Unlock()
+				return
+			}
+			idx := prog.nextIdx
+			prog.nextIdx++
+			prog.mu.Unlock()
+
+			sem <- struct{}{}
+			summary := runArenaSummary(r, cfg, idx, evals)
+			<-sem
+
+			prog.mu.Lock()
+			if prog.stop {
+				prog.mu.Unlock()
+				return
+			}
+			prog.summaries = append(prog.summaries, summary)
+			accumulateArenaSummary(&out, summary)
+			prog.baselineWins, prog.challengerWins = countRoleWin(
+				cfg, summary, prog.baselineWins, prog.challengerWins,
+			)
+			prog.played++
+			if cfg.BlackEval != cfg.WhiteEval {
+				accept, reject := promotionGateDecided(
+					prog.challengerWins, prog.played, maxGames, PromoteMin,
+				)
+				if accept || reject {
+					prog.stop = true
+				}
+			}
+			prog.mu.Unlock()
+		}
+	}
+
+	for w := 0; w < par; w++ {
 		wg.Add(1)
-		sem <- struct{}{}
-		go func(idx int) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			summaries[idx] = runArenaSummary(r, cfg, idx, evals)
-		}(g)
+		go worker()
 	}
 	wg.Wait()
 
-	baselineWins := 0
-	challengerWins := 0
-	for _, summary := range summaries {
-		accumulateArenaSummary(&out, summary)
-		baselineWins, challengerWins = countRoleWin(cfg, summary, baselineWins, challengerWins)
-		out.GameSummaries = append(out.GameSummaries, summary)
+	played := prog.played
+	out.Games = played
+	out.GameSummaries = prog.summaries
+	out.WinsBaseline = prog.baselineWins
+	out.WinsChallenger = prog.challengerWins
+	if played == 0 {
+		return out
 	}
+	out.WinRateBlack = float64(out.WinsBlack) / float64(played)
+	out.WinRateBaseline = float64(prog.baselineWins) / float64(played)
+	out.WinRateChallenger = float64(prog.challengerWins) / float64(played)
+	out.WilsonCILow, out.WilsonCIHigh = WilsonCI(prog.challengerWins, played, 1.96)
+	out.BaselineWilsonLow, out.BaselineWilsonHigh = WilsonCI(prog.baselineWins, played, 1.96)
 
-	out.WinsBaseline = baselineWins
-	out.WinsChallenger = challengerWins
-	out.WinRateBlack = float64(out.WinsBlack) / float64(cfg.Games)
-	out.WinRateBaseline = float64(baselineWins) / float64(cfg.Games)
-	out.WinRateChallenger = float64(challengerWins) / float64(cfg.Games)
-	out.WilsonCILow, out.WilsonCIHigh = WilsonCI(challengerWins, cfg.Games, 1.96)
-	out.BaselineWilsonLow, out.BaselineWilsonHigh = WilsonCI(baselineWins, cfg.Games, 1.96)
-
-	harness := GatingHarness{Games: cfg.Games, MinWinRateMargin: PromoteMin}
+	harness := GatingHarness{Games: played, MinWinRateMargin: PromoteMin}
 	out.Promoted = harness.Pass(out.WinRateBaseline, out.WinRateChallenger)
 	return out
 }
@@ -224,6 +316,9 @@ func accumulateArenaSummary(out *MatchResult, summary GameSummary) {
 }
 
 func countRoleWin(cfg MatchConfig, summary GameSummary, baselineWins, challengerWins int) (int, int) {
+	if cfg.BlackEval == cfg.WhiteEval {
+		return baselineWins, challengerWins
+	}
 	if summary.BlackWins && summary.BlackEval == cfg.BlackEval {
 		baselineWins++
 	} else if summary.WhiteWins && summary.WhiteEval == cfg.BlackEval {
@@ -312,7 +407,7 @@ func buildSharedEvaluator(name string, minBatch int) Evaluator {
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
 		return newONNXEvaluator(minBatch)
 	case strings.EqualFold(name, "onnx2"):
-		return newONNXEvaluatorURL(evalConfig.ONNXURL2, minBatch)
+		return newONNXEvaluatorSecondary(minBatch)
 	default:
 		return parseEvaluator(name)
 	}

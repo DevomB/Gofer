@@ -30,6 +30,12 @@ TRAIN_EPOCHS_RESUME="${TRAIN_EPOCHS_RESUME:-15}"
 TRAIN_LR_FRESH="${TRAIN_LR_FRESH:-0.01}"
 TRAIN_LR_RESUME="${TRAIN_LR_RESUME:-0.001}"
 PARALLEL="${PARALLEL:-$(nproc 2>/dev/null || echo 8)}"
+EVAL_BACKEND="${EVAL_BACKEND:-sidecar}"
+ORT_VERSION="1.26.0"
+ORT_ART="${ROOT}/.tectonix/artifacts/onnxruntime-linux-x64-${ORT_VERSION}"
+ORT_SO="${ORT_ART}/lib/libonnxruntime.so.${ORT_VERSION}"
+GO_BUILD_TAGS=()
+GOFER_EVAL_EXTRA=()
 
 STATE_DIR="training/state"
 DATA_DIR="training/data"
@@ -57,9 +63,44 @@ fi
 
 log() { echo "[$(date -Is)] $*" | tee -a "$LOG_FILE"; }
 
+ensure_ort_shared_lib() {
+  if [[ -n "${ONNXRUNTIME_SHARED_LIBRARY_PATH:-}" && -f "${ONNXRUNTIME_SHARED_LIBRARY_PATH}" ]]; then
+    return 0
+  fi
+  if [[ -f "$ORT_SO" ]]; then
+    export ONNXRUNTIME_SHARED_LIBRARY_PATH="$ORT_SO"
+    return 0
+  fi
+  log "downloading ORT ${ORT_VERSION} linux/amd64 for in-process inference"
+  mkdir -p "${ROOT}/.tectonix/artifacts"
+  local tgz="${ROOT}/.tectonix/artifacts/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+  curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" -o "$tgz"
+  rm -rf "$ORT_ART"
+  tar -xzf "$tgz" -C "${ROOT}/.tectonix/artifacts"
+  export ONNXRUNTIME_SHARED_LIBRARY_PATH="$ORT_SO"
+}
+
+gofer_eval_args() {
+  # Sets global GOFER_EVAL_EXTRA array for ./bin/gofer invocations.
+  GOFER_EVAL_EXTRA=()
+  if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+    return
+  fi
+  GOFER_EVAL_EXTRA=(-eval-backend inprocess -model "$1")
+  if [[ -n "${2:-}" ]]; then
+    GOFER_EVAL_EXTRA+=(-model-2 "$2")
+  fi
+}
+
 # Build the engine once and reuse the binary every cycle (no per-cycle recompile).
-log "BUILD $GOFER_BIN"
-go build -o "$GOFER_BIN" ./cmd/gofer
+if [[ "$EVAL_BACKEND" == "inprocess" ]]; then
+  ensure_ort_shared_lib
+  GO_BUILD_TAGS=(-tags=onnx)
+  log "BUILD $GOFER_BIN (in-process ORT, -tags=onnx)"
+else
+  log "BUILD $GOFER_BIN (sidecar, no CGO)"
+fi
+CGO_ENABLED=1 go build "${GO_BUILD_TAGS[@]}" -o "$GOFER_BIN" ./cmd/gofer
 
 SIDECAR_PIDS=()
 start_sidecar() {
@@ -96,15 +137,21 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
 
   # ---- self-play (parallel; vs current champion when one exists) ----
   if [[ "$have_champion" == "1" ]]; then
-    log "cycle $cycle selfplay=$NEW_SELFPLAY_PER_CYCLE (mix vs champion) parallel=$PARALLEL"
-    start_sidecar "$BEST_ONNX" "$CHAMP_PORT"
+    log "cycle $cycle selfplay=$NEW_SELFPLAY_PER_CYCLE (mix vs champion) parallel=$PARALLEL backend=$EVAL_BACKEND"
+    gofer_eval_args "$BEST_ONNX"
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      start_sidecar "$BEST_ONNX" "$CHAMP_PORT"
+    fi
     "./$GOFER_BIN" -selfplay -games "$NEW_SELFPLAY_PER_CYCLE" -size 9 \
       -playouts "$SELFPLAY_PLAYOUTS" -full-only=true -selfplay-eval mix \
       -selfplay-onnx-fraction 0.7 -selfplay-parallel "$PARALLEL" \
       -selfplay-temp-moves "$SELFPLAY_TEMP_MOVES" \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
+      "${GOFER_EVAL_EXTRA[@]}" \
       -o "$samples" -seed "$((42 + cycle))"
-    stop_sidecars
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      stop_sidecars
+    fi
   else
     log "cycle $cycle selfplay=$NEW_SELFPLAY_PER_CYCLE (heuristic bootstrap) parallel=$PARALLEL"
     "./$GOFER_BIN" -selfplay -games "$NEW_SELFPLAY_PER_CYCLE" -size 9 \
@@ -132,27 +179,39 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
   # ---- arena: candidate vs CURRENT champion (head-to-head) ----
   report=".tectonix/reports/arena-cycle-${cycle}.json"
   if [[ "$have_champion" == "1" ]]; then
-    log "cycle $cycle arena=$ARENA_GAMES candidate vs champion parallel=$PARALLEL"
-    start_sidecar "$BEST_ONNX" "$CHAMP_PORT"
-    start_sidecar "$CANDIDATE_ONNX" "$CHALLENGER_PORT"
+    log "cycle $cycle arena=$ARENA_GAMES candidate vs champion parallel=$PARALLEL backend=$EVAL_BACKEND"
+    gofer_eval_args "$BEST_ONNX" "$CANDIDATE_ONNX"
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      start_sidecar "$BEST_ONNX" "$CHAMP_PORT"
+      start_sidecar "$CANDIDATE_ONNX" "$CHALLENGER_PORT"
+    fi
     "./$GOFER_BIN" -arena -games "$ARENA_GAMES" -size 9 -playouts "$ARENA_PLAYOUTS" \
       -black-eval onnx -white-eval onnx2 \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
       -onnx-url-2 "http://127.0.0.1:${CHALLENGER_PORT}" \
+      "${GOFER_EVAL_EXTRA[@]}" \
       -arena-parallel "$PARALLEL" -arena-opening-moves "$ARENA_OPENING_MOVES" \
       -eval-timeout 2s -arena-enhanced none \
       -seed "$((42 + cycle))" -json "$report" | tee -a "$LOG_FILE"
-    stop_sidecars
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      stop_sidecars
+    fi
   else
-    log "cycle $cycle arena=$ARENA_GAMES candidate vs heuristic (bootstrap sanity check) parallel=$PARALLEL"
-    start_sidecar "$CANDIDATE_ONNX" "$CHAMP_PORT"
+    log "cycle $cycle arena=$ARENA_GAMES candidate vs heuristic (bootstrap sanity check) parallel=$PARALLEL backend=$EVAL_BACKEND"
+    gofer_eval_args "$CANDIDATE_ONNX"
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      start_sidecar "$CANDIDATE_ONNX" "$CHAMP_PORT"
+    fi
     "./$GOFER_BIN" -arena -games "$ARENA_GAMES" -size 9 -playouts "$ARENA_PLAYOUTS" \
       -black-eval heuristic -white-eval onnx \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
+      "${GOFER_EVAL_EXTRA[@]}" \
       -arena-parallel "$PARALLEL" -arena-opening-moves "$ARENA_OPENING_MOVES" \
       -eval-timeout 2s -arena-enhanced none \
       -seed "$((42 + cycle))" -json "$report" | tee -a "$LOG_FILE"
-    stop_sidecars
+    if [[ "$EVAL_BACKEND" != "inprocess" ]]; then
+      stop_sidecars
+    fi
   fi
 
   # The first cycle seeds the champion unconditionally (the net only imitates the

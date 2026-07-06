@@ -47,6 +47,31 @@ stop-loop)
 week)
   echo "DEPRECATED: use start-v3. Forwarding..."
   ;&
+start-v3-inprocess)
+  echo "==> one in-process ORT cycle on $INSTANCE (no sidecar)"
+  "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/lightsail-inprocess-cycle.sh scripts/train-loop-v3.sh scripts/parity-onnx.sh && \
+    nohup bash scripts/lightsail-inprocess-cycle.sh > train-inprocess-cycle.log 2>&1 & echo \$! > inprocess.pid && echo inprocess_pid=\$(cat inprocess.pid)"
+  echo "poll:  bash scripts/aws-run-arena.sh $INSTANCE inprocess-status"
+  echo "fetch: bash scripts/aws-run-arena.sh $INSTANCE inprocess-fetch"
+  exit 0
+  ;;
+inprocess-status)
+  "${SSH[@]}" 'tail -40 ~/Gofer/train-inprocess-cycle.log 2>/dev/null || echo no log; \
+    echo "=== rss ===" && tail -15 ~/Gofer/.tectonix/reports/inprocess-rss.log 2>/dev/null || true; \
+    ps aux | grep -E "[g]ofer|[t]rain-loop" | head -5 || true'
+  exit 0
+  ;;
+inprocess-fetch)
+  mkdir -p "$ROOT/.tectonix/reports"
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/train-inprocess-cycle.log" \
+    "$ROOT/.tectonix/reports/train-inprocess-cycle.log" 2>/dev/null || true
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/.tectonix/reports/inprocess-rss.log" \
+    "$ROOT/.tectonix/reports/inprocess-rss.log" 2>/dev/null || true
+  "${SCP[@]}" "ubuntu@${INSTANCE}:~/Gofer/.tectonix/reports/arena-cycle-"*.json \
+    "$ROOT/.tectonix/reports/" 2>/dev/null || true
+  echo "fetched inprocess logs to .tectonix/reports/"
+  exit 0
+  ;;
 start-v3)
   echo "==> start train-loop-v3 on $INSTANCE"
   "${SSH[@]}" "cd ~/Gofer && git pull --ff-only && chmod +x scripts/train-loop-v3.sh && \

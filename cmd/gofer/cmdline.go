@@ -29,6 +29,7 @@ type cliFlags struct {
 	seed                                       int64
 	sgfPath, setup                             string
 	modelPath, onnxURL, onnxURL2               string
+	evalBackend, modelPath2                    string
 	batchSize                                  int
 	evalTimeout                                time.Duration
 	arenaEnhanced                              string
@@ -69,7 +70,9 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.selfplayParallel, "selfplay-parallel", 8, "concurrent self-play games (feeds real batches to the ONNX sidecar)")
 	flag.IntVar(&f.selfplayTempMoves, "selfplay-temp-moves", 16, "opening plies sampled from the visit distribution for game diversity (0 = always argmax)")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
-	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar loads this)")
+	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar or in-process primary)")
+	flag.StringVar(&f.modelPath2, "model-2", "models/gofer-9x9-candidate.onnx", "second ONNX model for -white-eval onnx2 / champion-vs-challenger")
+	flag.StringVar(&f.evalBackend, "eval-backend", "sidecar", "ONNX inference transport: sidecar (HTTP) or inprocess (ORT in Go binary, requires -tags=onnx build)")
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
 	flag.StringVar(&f.onnxURL2, "onnx-url-2", "http://127.0.0.1:8081", "second ONNX sidecar base URL (eval name onnx2, for champion-vs-challenger)")
 	flag.IntVar(&f.batchSize, "batch-size", 8, "batched evaluator minimum batch size")
@@ -81,8 +84,10 @@ func parseCLIFlags() cliFlags {
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
 		ModelPath:   f.modelPath,
+		ModelPath2:  f.modelPath2,
 		ONNXURL:     f.onnxURL,
 		ONNXURL2:    f.onnxURL2,
+		Backend:     f.evalBackend,
 		BatchSize:   f.batchSize,
 		EvalTimeout: f.evalTimeout,
 		MaxWait:     2 * time.Millisecond,
@@ -188,9 +193,10 @@ func runArenaCLI(f cliFlags) {
 			os.Exit(1)
 		}
 	}
-	fmt.Printf("arena %d games: baseline(%s)=%d challenger(%s)=%d draws=%d win_rate_challenger=%.3f CI=[%.3f,%.3f] promoted=%v hash=%s\n",
+	fmt.Printf("arena %d games: baseline(%s)=%d challenger(%s)=%d draws=%d black=%d white=%d win_rate_challenger=%.3f CI=[%.3f,%.3f] promoted=%v hash=%s\n",
 		result.Games, result.BaselineEval, result.WinsBaseline, result.ChallengerEval, result.WinsChallenger,
-		result.Draws, result.WinRateChallenger, result.WilsonCILow, result.WilsonCIHigh, result.Promoted, result.ConfigHash)
+		result.Draws, result.WinsBlack, result.WinsWhite,
+		result.WinRateChallenger, result.WilsonCILow, result.WilsonCIHigh, result.Promoted, result.ConfigHash)
 	if f.arenaJSON == "" {
 		fmt.Println(string(data))
 	}

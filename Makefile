@@ -1,4 +1,4 @@
-.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx
+.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build build-onnx bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx
 
 test:
 	go test ./...
@@ -27,6 +27,9 @@ pgo-profile:
 pgo-build:
 	@test -f default.pgo || (echo "run: make pgo-profile" && exit 1)
 	go build -pgo=default.pgo -o bin/gofer ./cmd/gofer
+
+build-onnx:
+	CGO_ENABLED=1 go build -tags=onnx -o bin/gofer ./cmd/gofer
 
 build:
 	go build -o bin/gofer ./cmd/gofer

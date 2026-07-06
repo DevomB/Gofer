@@ -39,18 +39,29 @@ def pick_providers() -> list[str]:
     return ["CPUExecutionProvider"]
 
 
+def _session_options() -> ort.SessionOptions:
+    opts = ort.SessionOptions()
+    opts.intra_op_num_threads = 1
+    opts.inter_op_num_threads = 1
+    return opts
+
+
 class Session:
     def __init__(self, model_path: str) -> None:
         self.model_path = model_path
         self.providers = pick_providers()
-        self.sess = ort.InferenceSession(model_path, providers=self.providers)
+        self.sess = ort.InferenceSession(
+            model_path, sess_options=_session_options(), providers=self.providers
+        )
         self.spatial_name = "spatial_input"
         self.global_name = "global_input"
         self.request_count = 0
 
     def reload(self, model_path: str) -> None:
         self.model_path = model_path
-        self.sess = ort.InferenceSession(model_path, providers=self.providers)
+        self.sess = ort.InferenceSession(
+            model_path, sess_options=_session_options(), providers=self.providers
+        )
 
     def eval_batch(self, spatial: list[list[float]], globals_: list[list[float]]) -> list[dict[str, Any]]:
         t0 = time.perf_counter()

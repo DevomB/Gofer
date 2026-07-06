@@ -6,6 +6,7 @@ import (
 )
 
 // EvalBackend evaluates a batch of boards (ONNX/mock worker).
+// Implementations: SidecarBackend (HTTP), ORTBackend (in-process, -tags=onnx).
 type EvalBackend interface {
 	EvalBatch(boards []*Board) []Result
 }

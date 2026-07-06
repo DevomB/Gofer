@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+func evalBackendInprocess() bool {
+	return strings.EqualFold(evalConfig.Backend, "inprocess")
+}
+
 func parseEvaluator(name string) Evaluator {
 	switch {
 	case strings.EqualFold(name, "uniform"):
@@ -25,21 +29,38 @@ func parseEvaluator(name string) Evaluator {
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
 		return newONNXEvaluator(evalConfig.BatchSize)
 	case strings.EqualFold(name, "onnx2"):
-		return newONNXEvaluatorURL(evalConfig.ONNXURL2, evalConfig.BatchSize)
+		return newONNXEvaluatorSecondary(evalConfig.BatchSize)
 	default:
 		return Heuristic{}
 	}
 }
 
-// newONNXEvaluator builds a batched sidecar evaluator against the primary sidecar
-// URL with the given minimum batch size (callers set this to their parallelism
-// so the batcher fills real batches).
+// newONNXEvaluator builds a batched ONNX evaluator (sidecar or in-process).
 func newONNXEvaluator(minBatch int) Evaluator {
-	return newONNXEvaluatorURL(evalConfig.ONNXURL, minBatch)
+	return newONNXEvaluatorModel(evalConfig.ModelPath, minBatch)
+}
+
+// newONNXEvaluatorSecondary builds the second ONNX evaluator (onnx2 / challenger model).
+func newONNXEvaluatorSecondary(minBatch int) Evaluator {
+	model := evalConfig.ModelPath2
+	if model == "" {
+		model = evalConfig.ModelPath
+	}
+	return newONNXEvaluatorModel(model, minBatch)
 }
 
 // newONNXEvaluatorURL builds a batched sidecar evaluator against an explicit URL.
 func newONNXEvaluatorURL(url string, minBatch int) Evaluator {
+	if evalBackendInprocess() {
+		model := evalConfig.ModelPath
+		if url == evalConfig.ONNXURL2 {
+			model = evalConfig.ModelPath2
+			if model == "" {
+				model = evalConfig.ModelPath
+			}
+		}
+		return newONNXEvaluatorModel(model, minBatch)
+	}
 	if url == "" {
 		url = "http://127.0.0.1:8080"
 	}
@@ -57,6 +78,27 @@ func newONNXEvaluatorURL(url string, minBatch int) Evaluator {
 		evalConfig.MaxWait,
 		evalConfig.EvalTimeout,
 	)
+}
+
+func newONNXEvaluatorModel(modelPath string, minBatch int) Evaluator {
+	if minBatch < 1 {
+		minBatch = evalConfig.BatchSize
+	}
+	if evalBackendInprocess() {
+		backend, err := newORTBackend(modelPath, Heuristic{})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "in-process ONNX: %v\n", err)
+			os.Exit(1)
+		}
+		return NewBatchedEvaluatorWithTimeout(
+			backend,
+			Heuristic{},
+			minBatch,
+			evalConfig.MaxWait,
+			evalConfig.EvalTimeout,
+		)
+	}
+	return newONNXEvaluatorURL(evalConfig.ONNXURL, minBatch)
 }
 
 func newSearchEngine(r Ruleset, playouts int, think time.Duration, evalName string) *Engine {
