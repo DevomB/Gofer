@@ -2,6 +2,24 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.1] - 2026-07-07
+
+### Added
+
+- `GATING_MODE=hold` for scoring investigation: arena runs but champion is not swapped (`training/cycle.py`, `train-loop-v3.sh`)
+- Chinese area scoring invariant tests (`chinese_scoring_test.go`, `score_symmetry_test.go`, `arena_bias_test.go`)
+- Champion ONNX archive on promote: `models/archive/pre-promote-cycle-N.onnx` before overwrite (`train-loop-v3.sh`)
+- `scripts/replay-arena-cycle.sh` for Lightsail cycle validation
+
+### Changed
+
+- **Unified komi at 6.5** for self-play and arena; removed `komi9x9Arena` / `normalizeArenaKomi` arena-only remap
+- Gating restored to `GATING_MODE=normal` after scoring investigation
+
+### Fixed
+
+- CI: CGO-free build gate, ONNX sidecar smoke, linux-amd64 bench regression baseline (`8a18c70`)
+
 ## [2.7.0] - 2026-07-06
 
 ### Added
@@ -10,12 +28,12 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
 - `-eval-backend inprocess|sidecar`, `-model`, `-model-2` flags; default inference path is now **in-process**
 - Parity harness: `scripts/parity-onnx.sh`, `training/parity_harness.py`, `cmd/gofer/onnx_parity_test.go`
 - `make build-onnx`; `scripts/lightsail-inprocess-cycle.sh`; `MAX_CYCLES` in `train-loop-v3.sh`
-- ADR [0004](docs/decisions/0004-in-process-onnx-inference.md); [docs/known-issues.md](docs/known-issues.md) (komi/scoring workaround)
+- ADR [0004](docs/decisions/0004-in-process-onnx-inference.md); [docs/known-issues.md](docs/known-issues.md)
 
 ### Changed
 
 - Arena early-stop: promotion gate with `minGamesBeforePromote=100`, early reject when max achievable win rate &lt; 0.55, floor 20 games; skipped for identical evaluators; CLI prints `black=`/`white=` stone counts
-- 9×9 arena komi workaround: default CLI `6.5` remapped to `3.5` in arena only (`komi9x9Arena`); self-play unchanged at `6.5`
+- 9×9 arena komi workaround (later removed in 2.7.1): default CLI `6.5` remapped to `3.5` in arena only
 - `training/export_onnx.py`: default export is policy+value only (`--with-ownership` for three heads)
 - `training/inference_server.py`: ORT `intra_op`/`inter_op` threads capped at 1 (init + reload)
 - `training/train_bootstrap.py`: validation epoch under `torch.no_grad()`
