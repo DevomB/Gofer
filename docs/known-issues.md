@@ -25,3 +25,7 @@ Open problems documented here so they survive chat history.
 ## Production hardware assumption
 
 Lightsail training box is **`t3.small` (~2 GiB RAM)**, not 4 GiB. See ADR 0004. A 2 GiB swapfile is configured on the instance.
+
+## Champion ONNX archive (from cycle 25+)
+
+On promotion, `train-loop-v3.sh` copies the current `gofer-9x9-best.onnx` to `models/archive/pre-promote-cycle-N.onnx` before overwriting. Cycle 24 and earlier promotions have no archived ONNX.

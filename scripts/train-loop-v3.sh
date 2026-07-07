@@ -46,6 +46,7 @@ BEST_PT="${STATE_DIR}/best.pt"
 CANDIDATE_ONNX="models/gofer-9x9-candidate.onnx"
 BEST_ONNX="models/gofer-9x9-best.onnx"
 BOOTSTRAP_ONNX="models/gofer-9x9-bootstrap.onnx"
+CHAMPION_ARCHIVE_DIR="models/archive"
 GOFER_BIN="bin/gofer"
 CHAMP_PORT=8080
 CHALLENGER_PORT=8081
@@ -239,6 +240,12 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
       log "SEED cycle=$cycle rate=$rate (first champion established; self-play now uses the net)"
     else
       log "PROMOTE cycle=$cycle rate=$rate promote_win=$PROMOTE_WIN (candidate is the new champion)"
+      if [[ -f "$BEST_ONNX" ]]; then
+        mkdir -p "$CHAMPION_ARCHIVE_DIR"
+        archive="${CHAMPION_ARCHIVE_DIR}/pre-promote-cycle-${cycle}.onnx"
+        cp "$BEST_ONNX" "$archive"
+        log "archived pre-promotion champion -> $archive"
+      fi
     fi
     cp "$CANDIDATE_ONNX" "$BEST_ONNX"
     cp "$BEST_ONNX" "$BOOTSTRAP_ONNX"
