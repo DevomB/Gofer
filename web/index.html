@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Gofer — a Go engine with MCTS, neural net evaluation, GTP, and self-play training.">
+  <title>Gofer</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0c0f0d;
+      --bg-raised: #141a16;
+      --board: #3d4a3f;
+      --line: rgba(196, 178, 140, 0.12);
+      --text: #e6e2d8;
+      --muted: #8a9489;
+      --accent: #6baa7a;
+      --accent-dim: rgba(107, 170, 122, 0.14);
+      --stone-black: #1a1c1a;
+      --stone-white: #f2ede4;
+      --radius: 14px;
+      --max: 68rem;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body {
+      margin: 0;
+      font-family: "DM Sans", system-ui, sans-serif;
+      font-size: 1.05rem;
+      line-height: 1.65;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+
+    a:hover { opacity: 0.8; }
+
+    .shell {
+      width: min(100% - 2.5rem, var(--max));
+      margin-inline: auto;
+    }
+
+    /* —— header —— */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--line);
+      background: rgba(12, 15, 13, 0.82);
+      backdrop-filter: blur(12px);
+    }
+
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 0;
+      gap: 1rem;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: 1.35rem;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+
+    .logo-mark {
+      width: 1.75rem;
+      height: 1.75rem;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #444, var(--stone-black));
+      box-shadow: inset 0 -2px 4px rgba(0,0,0,0.5);
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.92rem;
+    }
+
+    .nav-links a { color: var(--muted); }
+    .nav-links a:hover { color: var(--text); opacity: 1; }
+
+    /* —— hero —— */
+    .hero {
+      position: relative;
+      padding: 5.5rem 0 6rem;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(var(--line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--line) 1px, transparent 1px);
+      background-size: calc(100% / 9) calc(100% / 9);
+      mask-image: radial-gradient(ellipse 70% 80% at 50% 40%, black 20%, transparent 75%);
+      pointer-events: none;
+    }
+
+    .hero-glow {
+      position: absolute;
+      top: -20%;
+      left: 50%;
+      translate: -50% 0;
+      width: 36rem;
+      height: 36rem;
+      background: radial-gradient(circle, var(--accent-dim), transparent 65%);
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 3rem;
+      align-items: center;
+    }
+
+    @media (max-width: 800px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .board-preview { justify-self: center; }
+    }
+
+    .eyebrow {
+      display: inline-block;
+      margin-bottom: 1rem;
+      padding: 0.3rem 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border-radius: 999px;
+    }
+
+    h1 {
+      margin: 0 0 1.25rem;
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(2.6rem, 6vw, 4.2rem);
+      font-weight: 400;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+    }
+
+    .lead {
+      max-width: 34rem;
+      margin: 0 0 2rem;
+      font-size: 1.15rem;
+      color: var(--muted);
+    }
+
+    .cta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.7rem 1.25rem;
+      font-size: 0.95rem;
+      font-weight: 500;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      transition: transform 0.15s, background 0.15s;
+    }
+
+    .btn:hover { transform: translateY(-1px); opacity: 1; }
+
+    .btn-primary {
+      color: var(--bg);
+      background: var(--accent);
+    }
+
+    .btn-primary:hover { background: #7dbc8c; }
+
+    .btn-ghost {
+      color: var(--text);
+      border-color: var(--line);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .btn-ghost:hover { background: rgba(255,255,255,0.06); }
+
+    /* mini board */
+    .board-preview {
+      display: grid;
+      grid-template-columns: repeat(9, 1.55rem);
+      gap: 0;
+      padding: 0.85rem;
+      background: var(--board);
+      border-radius: var(--radius);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,0.06) inset,
+        0 24px 48px rgba(0,0,0,0.45);
+    }
+
+    .intersection {
+      position: relative;
+      width: 1.55rem;
+      height: 1.55rem;
+    }
+
+    .intersection::before,
+    .intersection::after {
+      content: "";
+      position: absolute;
+      background: rgba(196, 178, 140, 0.35);
+    }
+
+    .intersection::before {
+      top: 50%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      transform: translateY(-50%);
+    }
+
+    .intersection::after {
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      transform: translateX(-50%);
+    }
+
+    .stone {
+      position: absolute;
+      inset: 18%;
+      border-radius: 50%;
+      z-index: 1;
+    }
+
+    .stone.b {
+      background: radial-gradient(circle at 35% 28%, #555, var(--stone-black));
+      box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    }
+
+    .stone.w {
+      background: radial-gradient(circle at 35% 28%, #fff, var(--stone-white));
+      box-shadow: 0 2px 4px rgba(0,0,0,0.35);
+    }
+
+    /* —— sections —— */
+    section { padding: 4.5rem 0; }
+
+    .section-label {
+      margin: 0 0 0.5rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    h2 {
+      margin: 0 0 2.5rem;
+      font-family: "Instrument Serif", Georgia, serif;
+      font-size: clamp(1.8rem, 4vw, 2.4rem);
+      font-weight: 400;
+    }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+      gap: 1.25rem;
+    }
+
+    .card {
+      padding: 1.5rem;
+      background: var(--bg-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+    }
+
+    .card h3 {
+      margin: 0 0 0.5rem;
+      font-size: 1.05rem;
+      font-weight: 600;
+    }
+
+    .card p {
+      margin: 0;
+      font-size: 0.95rem;
+      color: var(--muted);
+    }
+
+    .code-block {
+      padding: 1.25rem 1.5rem;
+      font-family: ui-monospace, "Cascadia Code", "SF Mono", monospace;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: #c8d4ca;
+      background: var(--bg-raised);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow-x: auto;
+    }
+
+    .code-block .comment { color: var(--muted); }
+    .code-block .cmd { color: var(--accent); }
+
+    .split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2.5rem;
+      align-items: start;
+    }
+
+    @media (max-width: 700px) {
+      .split { grid-template-columns: 1fr; }
+    }
+
+    .split p { color: var(--muted); margin: 0 0 1rem; }
+
+    footer {
+      padding: 2.5rem 0 3rem;
+      border-top: 1px solid var(--line);
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    footer .shell {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-inner > * {
+        animation: fade-up 0.7s ease both;
+      }
+      .hero-inner > *:nth-child(2) { animation-delay: 0.12s; }
+      @keyframes fade-up {
+        from { opacity: 0; transform: translateY(12px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="shell nav">
+      <a class="logo" href="/">
+        <span class="logo-mark" aria-hidden="true"></span>
+        Gofer
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#start">Get started</a>
+        <a href="https://github.com/DevomB/gofer" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-grid" aria-hidden="true"></div>
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="shell hero-inner">
+        <div>
+          <span class="eyebrow">Go engine</span>
+          <h1>Play, analyze,<br>and train.</h1>
+          <p class="lead">
+            Gofer is a Go engine with Chinese rules, MCTS search, neural net evaluation,
+            GTP for GUIs, and a self-play training loop. Built to be understood and extended.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="https://github.com/DevomB/gofer" target="_blank" rel="noopener">
+              View on GitHub
+            </a>
+            <a class="btn btn-ghost" href="#start">Quick start</a>
+          </div>
+        </div>
+
+        <!-- edit stone layout anytime -->
+        <div class="board-preview" aria-label="9×9 board preview">
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"><span class="stone b"></span></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"><span class="stone w"></span></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"><span class="stone b"></span></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"><span class="stone w"></span></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"><span class="stone b"></span></div>
+          <div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"><span class="stone b"></span></div>
+          <div class="intersection"></div><div class="intersection"><span class="stone w"></span></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"><span class="stone w"></span></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"><span class="stone w"></span></div>
+          <div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"><span class="stone b"></span></div><div class="intersection"></div>
+          <div class="intersection"><span class="stone w"></span></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"><span class="stone b"></span></div>
+          <div class="intersection"></div>
+
+          <div class="intersection"></div><div class="intersection"><span class="stone b"></span></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"><span class="stone w"></span></div>
+
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+          <div class="intersection"></div><div class="intersection"></div><div class="intersection"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features">
+      <div class="shell">
+        <p class="section-label">Features</p>
+        <h2>Everything in one binary.</h2>
+        <div class="features">
+          <article class="card">
+            <h3>MCTS search</h3>
+            <p>PUCT with transposition table, parallel playouts, and heuristic or ONNX policy/value heads.</p>
+          </article>
+          <article class="card">
+            <h3>GTP engine</h3>
+            <p>Plug into Sabaki, Lizzie, or any GTP client. Think-time or fixed playout budgets.</p>
+          </article>
+          <article class="card">
+            <h3>Terminal play</h3>
+            <p>Play, analyze, watch engine vs engine, and export SGF — no GUI required.</p>
+          </article>
+          <article class="card">
+            <h3>Training loop</h3>
+            <p>Self-play samples, PyTorch bootstrap trainer, arena gating, and ONNX export.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="start">
+      <div class="shell split">
+        <div>
+          <p class="section-label">Get started</p>
+          <h2>Up and running in minutes.</h2>
+          <p>Clone the repo, build the binary, and play a game in your terminal or hook it up to a GUI.</p>
+          <p>Defaults are tuned for 9×9. ONNX inference runs in-process — no sidecar required.</p>
+        </div>
+        <pre class="code-block"><span class="comment"># build</span>
+<span class="cmd">make</span> build
+
+<span class="comment"># play in the terminal</span>
+<span class="cmd">bin/gofer</span> -play -size 9 -color b
+
+<span class="comment"># GTP for Sabaki / Lizzie</span>
+<span class="cmd">bin/gofer</span> -gtp -size 9 -think-time 5s</pre>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell">
+      <span>Gofer — a Go engine by <a href="https://github.com/DevomB">DevomB</a></span>
+      <span>Chinese rules · MCTS · ONNX · GTP</span>
+    </div>
+  </footer>
+
+</body>
+</html>
