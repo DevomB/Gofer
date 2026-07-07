@@ -30,6 +30,8 @@ func parseEvaluator(name string) Evaluator {
 		return newONNXEvaluator(evalConfig.BatchSize)
 	case strings.EqualFold(name, "onnx2"):
 		return newONNXEvaluatorSecondary(evalConfig.BatchSize)
+	case strings.EqualFold(name, "heuristic2"):
+		return Heuristic{}
 	default:
 		return Heuristic{}
 	}

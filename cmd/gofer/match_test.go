@@ -226,14 +226,6 @@ func TestIdenticalEvalColorBalance(t *testing.T) {
 		res.WinsBlack, res.WinsWhite, res.Draws, -1.0)
 }
 
-func TestKomiRemap9x9(t *testing.T) {
-	if got := normalizeArenaKomi(9, 6.5); got != komi9x9Arena {
-		t.Fatalf("arena komi remap got %v want %v", got, komi9x9Arena)
-	}
-	if got := normalizeArenaKomi(9, 7.0); got != 7.0 {
-		t.Fatalf("explicit komi should pass through got %v", got)
-	}
-}
 
 func assertWinsNearExpected(t *testing.T, wins, n int, p, sigmaN float64) {
 	t.Helper()

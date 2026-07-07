@@ -97,23 +97,10 @@ func matchConfigHash(cfg MatchConfig) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// komi9x9Arena replaces the CLI default 6.5 on 9x9 arena runs. Under Chinese
-// area scoring, komi 6.5 heavily favors white for equal-strength ONNX MCTS;
-// 3.5 is calibrated for production arena settings (400 playouts, opening-moves 8).
-const komi9x9Arena = 3.5
-
-func normalizeArenaKomi(size int, komi float64) float64 {
-	if size == 9 && komi == 6.5 {
-		return komi9x9Arena
-	}
-	return komi
-}
-
 func normalizeMatchConfig(cfg MatchConfig) MatchConfig {
 	if cfg.Games <= 0 {
 		cfg.Games = 1
 	}
-	cfg.Komi = normalizeArenaKomi(cfg.Size, cfg.Komi)
 	if cfg.Playouts <= 0 && cfg.ThinkTime <= 0 {
 		cfg.Playouts = defaultPlayoutsForSize(cfg.Size)
 	}
@@ -408,6 +395,8 @@ func buildSharedEvaluator(name string, minBatch int) Evaluator {
 		return newONNXEvaluator(minBatch)
 	case strings.EqualFold(name, "onnx2"):
 		return newONNXEvaluatorSecondary(minBatch)
+	case strings.EqualFold(name, "heuristic2"):
+		return Heuristic{} // alias for symmetric arena bias tests (same strength as heuristic)
 	default:
 		return parseEvaluator(name)
 	}
