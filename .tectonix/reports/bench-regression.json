@@ -1,0 +1,119 @@
+{
+  "timestamp": "2026-07-07T05:41:00Z",
+  "results": [
+    {
+      "name": "BenchmarkApplyStone",
+      "ns_per_op": 3.521,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkUndo",
+      "ns_per_op": 23.42,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkClone",
+      "ns_per_op": 129.5,
+      "bytes_per_op": 384,
+      "allocs_per_op": 1
+    },
+    {
+      "name": "BenchmarkHashUpdate",
+      "ns_per_op": 3.442,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkCloneVsUndo/Clone",
+      "ns_per_op": 127.6,
+      "bytes_per_op": 384,
+      "allocs_per_op": 1
+    },
+    {
+      "name": "BenchmarkCloneVsUndo/Undo",
+      "ns_per_op": 21.08,
+      "bytes_per_op": 0,
+      "allocs_per_op": 0
+    },
+    {
+      "name": "BenchmarkSearchWorkers1",
+      "ns_per_op": 64867,
+      "bytes_per_op": 68848,
+      "allocs_per_op": 428
+    },
+    {
+      "name": "BenchmarkSearchWorkers8",
+      "ns_per_op": 91503,
+      "bytes_per_op": 69313,
+      "allocs_per_op": 445
+    },
+    {
+      "name": "BenchmarkSearchParallel",
+      "ns_per_op": 53449,
+      "bytes_per_op": 40289,
+      "allocs_per_op": 137
+    },
+    {
+      "name": "BenchmarkBestMove",
+      "ns_per_op": 52775,
+      "bytes_per_op": 40289,
+      "allocs_per_op": 137
+    },
+    {
+      "name": "BenchmarkLegalMoves",
+      "ns_per_op": 155678,
+      "bytes_per_op": 18016,
+      "allocs_per_op": 7
+    },
+    {
+      "name": "BenchmarkMakeMove",
+      "ns_per_op": 3681,
+      "bytes_per_op": 10096,
+      "allocs_per_op": 9
+    },
+    {
+      "name": "BenchmarkPlay",
+      "ns_per_op": 3686,
+      "bytes_per_op": 10096,
+      "allocs_per_op": 9
+    },
+    {
+      "name": "BenchmarkCaptureHeavy",
+      "ns_per_op": 336481,
+      "bytes_per_op": 18016,
+      "allocs_per_op": 7
+    },
+    {
+      "name": "BenchmarkScore",
+      "ns_per_op": 38069,
+      "bytes_per_op": 23528,
+      "allocs_per_op": 1032
+    },
+    {
+      "name": "BenchmarkSidecarBackendEvalBatch",
+      "ns_per_op": 625589,
+      "bytes_per_op": 136446,
+      "allocs_per_op": 3568
+    },
+    {
+      "name": "BenchmarkEvalBatch",
+      "ns_per_op": 4805,
+      "bytes_per_op": 12672,
+      "allocs_per_op": 33
+    },
+    {
+      "name": "BenchmarkBatchedEvaluator",
+      "ns_per_op": 2186097,
+      "bytes_per_op": 1168,
+      "allocs_per_op": 15
+    },
+    {
+      "name": "BenchmarkSGFReplay",
+      "ns_per_op": 5281,
+      "bytes_per_op": 10016,
+      "allocs_per_op": 42
+    }
+  ]
+}

@@ -15,6 +15,7 @@ func TestLatencyReport9x9ONNX(t *testing.T) {
 		url = "http://127.0.0.1:8080"
 	}
 	SetEvalConfig(EvalConfig{
+		Backend:     "sidecar",
 		ONNXURL:     url,
 		BatchSize:   8,
 		EvalTimeout: 50 * time.Millisecond,

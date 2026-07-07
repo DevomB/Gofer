@@ -17,29 +17,41 @@ jobs:
           python-version: "3.11"
       - name: Test
         run: go test ./... -short -count=1
+      - name: Default build (no onnx tag, CGO off)
+        run: CGO_ENABLED=0 go build -o bin/gofer ./cmd/gofer
       - name: Sidecar unit tests
         run: go test ./cmd/gofer/ -count=1 -run 'Sidecar|FeatureGolden|Batched'
       - name: Bench smoke
         run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
       - name: Bench regression
         run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
-      - name: Export ONNX fixture
+      - name: Export ONNX fixture (policy+value)
         run: |
           pip install pytest
           pip install -r training/requirements.txt
-          python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
+          python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx | grep -q 'outputs=policy+value'
       - name: Training pytest
         run: pytest training/ -q
       - name: ONNX integration
         run: |
           python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8080 &
-          sleep 2
-          GOFER_ONNX_URL=http://127.0.0.1:8080 go test -tags=onnx_integration ./cmd/gofer/ -count=1
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8080/health
+          GOFER_ONNX_URL=http://127.0.0.1:8080 go test -tags=onnx_integration ./cmd/gofer/ -count=1 -run TestSidecarLive
       - name: Arena smoke
         run: go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval uniform -seed 0 -arena-enhanced none
-      - name: Arena ONNX smoke
-        continue-on-error: true
+      - name: Arena ONNX smoke (sidecar)
         run: |
           python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8081 &
-          sleep 2
-          go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 -black-eval heuristic -white-eval onnx -onnx-url http://127.0.0.1:8081 -seed 0 -arena-enhanced none
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8081/health >/dev/null && break
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8081/health
+          go run ./cmd/gofer -arena -games 20 -size 9 -playouts 30 \
+            -black-eval heuristic -white-eval onnx \
+            -eval-backend sidecar -onnx-url http://127.0.0.1:8081 \
+            -seed 0 -arena-enhanced none

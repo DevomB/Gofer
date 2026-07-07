@@ -84,6 +84,7 @@ func TestSelfplayMixModeAlternates(t *testing.T) {
 
 func setTestEvalConfig(url string) {
 	SetEvalConfig(EvalConfig{
+		Backend:     "sidecar",
 		ONNXURL:     url,
 		BatchSize:   1,
 		EvalTimeout: 2 * time.Second,

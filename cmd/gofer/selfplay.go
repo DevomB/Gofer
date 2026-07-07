@@ -37,7 +37,7 @@ func DefaultSelfplayConfig() SelfplayConfig {
 		Seed:             1,
 		RulesRandomize:   false,
 		FullOnlyExport:   true,
-		EvalMode:         "mix",
+		EvalMode:         "heuristic",
 		ONNXFraction:     0.7,
 		Parallel:         1,
 		TemperatureMoves: 0,
