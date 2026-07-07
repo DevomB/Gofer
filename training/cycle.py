@@ -69,6 +69,7 @@ def record_cycle(
     promote_win: float,
     history_dir: Path,
     seed_champion: bool = False,
+    gating_mode: str = "normal",
 ) -> tuple[bool, dict]:
     arena = json.loads(report_path.read_text(encoding="utf-8"))
     rate = float(arena.get("win_rate_challenger", 0))
@@ -77,7 +78,9 @@ def record_cycle(
     # seed_champion: the first network in the lineage is installed unconditionally
     # so self-play can start using the net. The arena still runs as a sanity check,
     # but there is no champion yet to gate against.
-    promote = seed_champion or should_promote(rate, ci_low, promote_win=promote_win)
+    would_promote = seed_champion or should_promote(rate, ci_low, promote_win=promote_win)
+    hold = gating_mode.strip().lower() == "hold"
+    promote = would_promote and not hold
 
     manifest["cycle"] = cycle
     manifest["replay_rows"] = count_lines(REPLAY_PATH)
@@ -88,6 +91,9 @@ def record_cycle(
         "wilson_ci_high": float(arena.get("wilson_ci_high", 0)),
         "promote_threshold": promote_win,
         "promoted": promote,
+        "gating_mode": gating_mode,
+        "would_promote": would_promote,
+        "gating_hold": hold,
         "arena": arena,
         "manifest_before": dict(manifest),
     }
@@ -124,6 +130,9 @@ def main() -> None:
     rec_p.add_argument("--history-dir", type=Path, default=Path(".tectonix/reports/training-history"))
     rec_p.add_argument("--seed-champion", action="store_true",
                        help="install this candidate as the first champion unconditionally (bootstrap cycle)")
+    rec_p.add_argument("--gating-mode", default="normal",
+                       choices=("normal", "hold"),
+                       help="hold: run arena but never promote (logs would_promote for later)")
 
     args = p.parse_args()
     if args.cmd == "init-cycle2":
@@ -132,14 +141,18 @@ def main() -> None:
     elif args.cmd == "append-replay":
         print(append_replay(args.samples, max_lines=args.max_lines))
     elif args.cmd == "record-cycle":
-        promote, _ = record_cycle(
+        promote, entry = record_cycle(
             args.cycle,
             args.report,
             promote_win=args.promote_win,
             history_dir=args.history_dir,
             seed_champion=args.seed_champion,
+            gating_mode=args.gating_mode,
         )
-        print("promote" if promote else "reject")
+        if entry.get("gating_hold"):
+            print("hold-would-promote" if entry.get("would_promote") else "hold-reject")
+        else:
+            print("promote" if promote else "reject")
 
 
 if __name__ == "__main__":

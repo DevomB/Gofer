@@ -221,11 +221,20 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
   # heuristic from bootstrap data; real gains come from net-vs-net self-play next).
   seed_flag=()
   [[ "$have_champion" == "0" ]] && seed_flag=(--seed-champion)
+  GATING_MODE="${GATING_MODE:-normal}"
   promote="$(python -m training.cycle record-cycle "$cycle" "$report" \
-    --promote-win "$PROMOTE_WIN" --history-dir "$HISTORY_DIR" "${seed_flag[@]}")"
+    --promote-win "$PROMOTE_WIN" --history-dir "$HISTORY_DIR" \
+    --gating-mode "$GATING_MODE" "${seed_flag[@]}")"
   rate="$(python3 -c "import json; print(json.load(open('$report')).get('win_rate_challenger',0))")"
+  would_promote="$(python3 -c "import json; print(json.load(open('${HISTORY_DIR}/cycle-${cycle}.json')).get('would_promote', False))")"
 
-  if [[ "$promote" == "promote" ]]; then
+  if [[ "$GATING_MODE" == "hold" ]]; then
+    log "HOLD cycle=$cycle rate=$rate would_promote=$would_promote gating_mode=hold (no champion swap)"
+    if [[ -f "${STATE_DIR}/best.pt.pre-cycle" ]]; then
+      cp "${STATE_DIR}/best.pt.pre-cycle" "$BEST_PT"
+      rm -f "${STATE_DIR}/best.pt.pre-cycle"
+    fi
+  elif [[ "$promote" == "promote" ]]; then
     if [[ "$have_champion" == "0" ]]; then
       log "SEED cycle=$cycle rate=$rate (first champion established; self-play now uses the net)"
     else

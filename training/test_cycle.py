@@ -37,6 +37,33 @@ def test_seed_champion_forces_promote(tmp_path: Path, monkeypatch) -> None:
     promote, _ = record_cycle(1, report, promote_win=0.55, history_dir=tmp_path / "h", seed_champion=True)
     assert promote
 
+def test_gating_hold_blocks_promote(tmp_path: Path, monkeypatch) -> None:
+    state = tmp_path / "state"
+    data = tmp_path / "data"
+    history = tmp_path / "history"
+    manifest = state / "manifest.json"
+    replay = data / "replay.jsonl"
+    state.mkdir(parents=True)
+    data.mkdir(parents=True)
+    manifest.write_text(
+        json.dumps({"version": 3, "cycle": 1, "best_win_rate": 0.58, "best_cycle": 2, "replay_rows": 1, "seed": "test"}),
+        encoding="utf-8",
+    )
+    replay.write_text('{"type":"header"}\n{}\n', encoding="utf-8")
+    monkeypatch.setattr("training.cycle.STATE_DIR", state)
+    monkeypatch.setattr("training.cycle.DATA_DIR", data)
+    monkeypatch.setattr("training.cycle.MANIFEST_PATH", manifest)
+    monkeypatch.setattr("training.cycle.REPLAY_PATH", replay)
+
+    report = tmp_path / "arena.json"
+    report.write_text(json.dumps({"win_rate_challenger": 0.85, "wilson_ci_low": 0.77, "wilson_ci_high": 0.91}))
+    promote, entry = record_cycle(4, report, promote_win=0.55, history_dir=history, gating_mode="hold")
+    assert not promote
+    assert entry["would_promote"]
+    assert entry["gating_hold"]
+    saved = json.loads(manifest.read_text(encoding="utf-8"))
+    assert saved.get("best_win_rate") == 0.58
+
 
 def test_record_cycle_writes_history(tmp_path: Path, monkeypatch) -> None:
     state = tmp_path / "state"
