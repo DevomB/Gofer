@@ -279,6 +279,65 @@ func TestCapRandomizeDistribution(t *testing.T) {
 	}
 }
 
+func TestSelfplayFixedPlayoutsWhenCapZero(t *testing.T) {
+	cfg := DefaultSelfplayConfig()
+	cfg.Playouts = 200
+	cfg.FastPlayouts = 50
+	cfg.FullPlayouts = 200
+	cfg.CapRandomizeP = 0
+	rng := rand.New(rand.NewSource(1))
+	for i := 0; i < 100; i++ {
+		p, full := selfplayMovePlayouts(cfg, rng)
+		if p != 200 || !full {
+			t.Fatalf("move %d: playouts=%d full=%v want 200 true", i, p, full)
+		}
+	}
+}
+
+func TestSelfplayGamesCompleteLegal(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cfg  SelfplayConfig
+	}{
+		{
+			name: "randomized_caps",
+			cfg: SelfplayConfig{
+				Games: 2, BoardSize: 9, Komi: 6.5, Playouts: 20,
+				FastPlayouts: 8, FullPlayouts: 20, CapRandomizeP: 0.25,
+				Seed: 11, EvalMode: "heuristic", FullOnlyExport: true, Parallel: 1,
+			},
+		},
+		{
+			name: "fixed_playouts",
+			cfg: SelfplayConfig{
+				Games: 2, BoardSize: 9, Komi: 6.5, Playouts: 20,
+				FastPlayouts: 20, FullPlayouts: 20, CapRandomizeP: 0,
+				Seed: 11, EvalMode: "heuristic", FullOnlyExport: true, Parallel: 1,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			samples, logs := RunSelfplayWithLogs(tc.cfg)
+			if len(logs) != tc.cfg.Games {
+				t.Fatalf("logs %d want %d", len(logs), tc.cfg.Games)
+			}
+			for i, log := range logs {
+				if len(log.Moves) == 0 {
+					t.Fatalf("game %d: no moves recorded", i)
+				}
+			}
+			for i, s := range samples {
+				if len(s.Policy) != 82 {
+					t.Fatalf("sample %d: policy len %d", i, len(s.Policy))
+				}
+				if tc.cfg.FullOnlyExport && !s.FullSearch {
+					t.Fatalf("sample %d: exported non-full position with full-only", i)
+				}
+			}
+		})
+	}
+}
+
 func TestFullOnlyExportFilters(t *testing.T) {
 	cfg := DefaultSelfplayConfig()
 	cfg.Games = 1
@@ -289,7 +348,8 @@ func TestFullOnlyExportFilters(t *testing.T) {
 	cfg.FullOnlyExport = true
 	all, _ := RunSelfplayWithLogs(SelfplayConfig{
 		Games: cfg.Games, BoardSize: cfg.BoardSize, Komi: cfg.Komi,
-		Playouts: cfg.Playouts, CapRandomizeP: 0, Seed: cfg.Seed, FullOnlyExport: false,
+		Playouts: cfg.Playouts, FastPlayouts: 4, FullPlayouts: 10,
+		CapRandomizeP: 0.5, Seed: cfg.Seed, FullOnlyExport: false,
 	})
 	filtered := RunSelfplay(cfg)
 	if len(filtered) > len(all) {

@@ -21,6 +21,9 @@ PROMOTE_WIN="${PROMOTE_WIN:-0.55}"
 ARENA_GAMES="${ARENA_GAMES:-200}"
 NEW_SELFPLAY_PER_CYCLE="${NEW_SELFPLAY_PER_CYCLE:-200}"
 SELFPLAY_PLAYOUTS="${SELFPLAY_PLAYOUTS:-200}"
+SELFPLAY_FULL_PLAYOUTS="${SELFPLAY_FULL_PLAYOUTS:-${SELFPLAY_PLAYOUTS}}"
+SELFPLAY_FAST_PLAYOUTS="${SELFPLAY_FAST_PLAYOUTS:-50}"
+SELFPLAY_CAP_RANDOMIZE_P="${SELFPLAY_CAP_RANDOMIZE_P:-0.20}"
 ARENA_PLAYOUTS="${ARENA_PLAYOUTS:-400}"
 SELFPLAY_TEMP_MOVES="${SELFPLAY_TEMP_MOVES:-16}"
 ARENA_OPENING_MOVES="${ARENA_OPENING_MOVES:-8}"
@@ -148,6 +151,9 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
     fi
     "./$GOFER_BIN" -selfplay -games "$NEW_SELFPLAY_PER_CYCLE" -size 9 \
       -playouts "$SELFPLAY_PLAYOUTS" -full-only=true -selfplay-eval mix \
+      -selfplay-fast-playouts "$SELFPLAY_FAST_PLAYOUTS" \
+      -selfplay-full-playouts "$SELFPLAY_FULL_PLAYOUTS" \
+      -selfplay-cap-randomize-p "$SELFPLAY_CAP_RANDOMIZE_P" \
       -selfplay-onnx-fraction 0.7 -selfplay-parallel "$PARALLEL" \
       -selfplay-temp-moves "$SELFPLAY_TEMP_MOVES" \
       -onnx-url "http://127.0.0.1:${CHAMP_PORT}" \
@@ -160,6 +166,9 @@ while [[ "$(date +%s)" -lt "$DEADLINE" ]]; do
     log "cycle $cycle selfplay=$NEW_SELFPLAY_PER_CYCLE (heuristic bootstrap) parallel=$PARALLEL"
     "./$GOFER_BIN" -selfplay -games "$NEW_SELFPLAY_PER_CYCLE" -size 9 \
       -playouts "$SELFPLAY_PLAYOUTS" -full-only=true -selfplay-eval heuristic \
+      -selfplay-fast-playouts "$SELFPLAY_FAST_PLAYOUTS" \
+      -selfplay-full-playouts "$SELFPLAY_FULL_PLAYOUTS" \
+      -selfplay-cap-randomize-p "$SELFPLAY_CAP_RANDOMIZE_P" \
       -selfplay-parallel "$PARALLEL" -selfplay-temp-moves "$SELFPLAY_TEMP_MOVES" \
       -o "$samples" -seed "$((42 + cycle))"
   fi

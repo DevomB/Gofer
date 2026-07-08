@@ -33,7 +33,7 @@ func DefaultSelfplayConfig() SelfplayConfig {
 		Playouts:         30,
 		FastPlayouts:     0,
 		FullPlayouts:     0,
-		CapRandomizeP:    0.25,
+		CapRandomizeP:    0.20,
 		Seed:             1,
 		RulesRandomize:   false,
 		FullOnlyExport:   true,
@@ -192,6 +192,10 @@ func selfplayRuleset(cfg SelfplayConfig, rng *rand.Rand) (Ruleset, int) {
 }
 
 func selfplayMovePlayouts(cfg SelfplayConfig, rng *rand.Rand) (playouts int, fullSearch bool) {
+	// CapRandomizeP<=0: fixed full cap every move (comparison control; not fast-only).
+	if cfg.CapRandomizeP <= 0 {
+		return cfg.FullPlayouts, true
+	}
 	fullSearch = rng.Float64() < cfg.CapRandomizeP
 	playouts = cfg.FastPlayouts
 	if fullSearch {

@@ -26,6 +26,10 @@ type cliFlags struct {
 	selfplayONNXFraction                       float64
 	selfplayParallel                           int
 	selfplayTempMoves                          int
+	selfplayFastPlayouts                       int
+	selfplayFullPlayouts                       int
+	selfplayCapRandomizeP                      float64
+	selfplayFixedPlayouts                      bool
 	seed                                       int64
 	sgfPath, setup                             string
 	modelPath, onnxURL, onnxURL2               string
@@ -69,6 +73,10 @@ func parseCLIFlags() cliFlags {
 	flag.Float64Var(&f.selfplayONNXFraction, "selfplay-onnx-fraction", 0.7, "fraction of mix-mode games using ONNX (odd games use ONNX)")
 	flag.IntVar(&f.selfplayParallel, "selfplay-parallel", 8, "concurrent self-play games (feeds real batches to the ONNX sidecar)")
 	flag.IntVar(&f.selfplayTempMoves, "selfplay-temp-moves", 16, "opening plies sampled from the visit distribution for game diversity (0 = always argmax)")
+	flag.IntVar(&f.selfplayFastPlayouts, "selfplay-fast-playouts", 0, "self-play fast search cap per move (0 = full/4)")
+	flag.IntVar(&f.selfplayFullPlayouts, "selfplay-full-playouts", 0, "self-play full search cap per move (0 = -playouts)")
+	flag.Float64Var(&f.selfplayCapRandomizeP, "selfplay-cap-randomize-p", 0.20, "fraction of self-play moves that use the full cap (0 = fixed full cap every move)")
+	flag.BoolVar(&f.selfplayFixedPlayouts, "selfplay-fixed-playouts", false, "disable cap randomization: every move uses -playouts (sets fast=full and cap-randomize-p=0)")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar or in-process primary)")
 	flag.StringVar(&f.modelPath2, "model-2", "models/gofer-9x9-candidate.onnx", "second ONNX model for -white-eval onnx2 / champion-vs-challenger")
@@ -260,6 +268,15 @@ func runSelfplayCLI(f cliFlags) {
 	cfg.Seed = f.seed
 	cfg.Parallel = f.selfplayParallel
 	cfg.TemperatureMoves = f.selfplayTempMoves
+	if f.selfplayFixedPlayouts {
+		cfg.FastPlayouts = playouts
+		cfg.FullPlayouts = playouts
+		cfg.CapRandomizeP = 0
+	} else {
+		cfg.FastPlayouts = f.selfplayFastPlayouts
+		cfg.FullPlayouts = f.selfplayFullPlayouts
+		cfg.CapRandomizeP = f.selfplayCapRandomizeP
+	}
 	samples, logs := RunSelfplayWithLogs(cfg)
 	if f.out != "" {
 		writeSelfplayJSON(f.out, samples)
