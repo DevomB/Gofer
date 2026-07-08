@@ -172,7 +172,7 @@ Initialize random weights → loop:
 | Mechanism | What | Why | Signal improved | Runtime / Training / Both | Difficulty | Dependencies |
 |-----------|------|-----|-----------------|---------------------------|------------|--------------|
 | **PUCT/MCTS** | UCT with policy prior | Focus search on plausible moves | Policy + value quality | Both | Medium | Board, legal moves, eval |
-| **Playout cap randomization** | Full search p=25% of moves, fast otherwise | More games for value; quality policy on full moves | Value + policy balance | Training | Medium | Search, self-play scheduler |
+| **Playout cap randomization** | Full search p=20% of moves (fast=50, full=200 via `gating.env`), fast otherwise | More games for value; quality policy on full moves | Value + policy balance | Training | Medium | Search, self-play scheduler |
 | **Forced playouts** | Minimum root visits per child | Discover noise-suggested moves | Exploration | Training (search runtime) | Medium | Root PUCT override |
 | **Policy target pruning** | Remove forced visits from training π | Decouple π from exploration noise | Policy convergence | Training | Medium | Visit stats at root |
 | **Global pooling** | Mean/size-scaled mean/max → channel bias | Non-local context (ko, global strategy) | NN representation | Training (+ inference) | Hard | Conv net training code |

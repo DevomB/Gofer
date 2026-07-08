@@ -43,7 +43,7 @@ Epics for `cmd/gofer` search (`mcts.go`, `arena.go`, `tt.go`), MCTS/PUCT, paper 
 
 | ID | Task | Deps | Acceptance |
 |----|------|------|------------|
-| SE-4.1 | Playout cap randomization | SE-3, selfplay | p=0.25 full, fast otherwise |
+| SE-4.1 | Playout cap randomization | SE-3, selfplay | p=0.20 full (gating.env), fast otherwise; `-full-only` exports full-cap positions only |
 | SE-4.2 | Forced root playouts | SE-3 | k=2, sqrt formula |
 | SE-4.3 | Policy target pruning | SE-4.2 | Pruned π export |
 | SE-4.4 | Tree reuse on same position | SE-3, gtp | GTP genmove retains tree |
