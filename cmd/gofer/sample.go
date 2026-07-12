@@ -18,7 +18,7 @@ type Sample struct {
 	FeaturesSpatial []float32 `json:"features_spatial,omitempty"`
 	FeaturesGlobal  []float32 `json:"features_global,omitempty"`
 	ToPlay     Color     `json:"to_play"`
-	Value      float32   `json:"value,omitempty"`
+	Value      float32   `json:"value"`
 	Komi       float64   `json:"komi,omitempty"`
 	Ownership  []float32 `json:"ownership,omitempty"`
 	FullSearch bool      `json:"full_search,omitempty"`

@@ -94,6 +94,14 @@ func (g *SGFGame) collectMainLine(n *SGFNode, moves *[]SGFMove) error {
 	return nil
 }
 
+// sgfMoveToPlay maps an SGF move to an engine Move (pass when Point is nil).
+func sgfMoveToPlay(m SGFMove) Move {
+	if m.Point == nil {
+		return PassMove
+	}
+	return StoneMove(*m.Point)
+}
+
 func appendSGFMoveProps(size int, props map[string][]string, moves *[]SGFMove) error {
 	for tag, vals := range props {
 		if tag != "B" && tag != "W" {

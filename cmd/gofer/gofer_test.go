@@ -161,13 +161,6 @@ func play(t *testing.T, r Ruleset, b *Board, x, y int) {
 	}
 }
 
-func sgfMoveToPlay(m SGFMove) Move {
-	if m.Point == nil {
-		return PassMove
-	}
-	return StoneMove(*m.Point)
-}
-
 func replaySGF(t *testing.T, path string, rules Ruleset, check func(t *testing.T, r Ruleset, b *Board)) {
 	t.Helper()
 	data, err := os.ReadFile(path)

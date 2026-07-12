@@ -11,7 +11,9 @@ import (
 )
 
 type cliFlags struct {
-	gtp, play, analyze, selfplay, watch, arena bool
+	gtp, play, analyze, selfplay, watch, arena, convertSGF, verifyJSONL bool
+	convertMaxRows                                         int
+	convertEpsilon                                         float64
 	games                                      int
 	size                                       int
 	komi                                       float64
@@ -50,6 +52,10 @@ func parseCLIFlags() cliFlags {
 	flag.BoolVar(&f.selfplay, "selfplay", false, "run self-play and emit training samples")
 	flag.BoolVar(&f.watch, "watch", false, "engine vs engine demo (mutually exclusive with other modes)")
 	flag.BoolVar(&f.arena, "arena", false, "run arena match (baseline vs challenger)")
+	flag.BoolVar(&f.convertSGF, "convert-sgf", false, "convert SGF archives to supervised JSONL (pass input dirs as args)")
+	flag.BoolVar(&f.verifyJSONL, "verify-jsonl", false, "verify converted JSONL sample schema (-o path)")
+	flag.IntVar(&f.convertMaxRows, "convert-max-rows", 0, "max training rows for -convert-sgf (0 = unlimited)")
+	flag.Float64Var(&f.convertEpsilon, "convert-epsilon", defaultPolicyEpsilon, "label-smoothing epsilon for -convert-sgf policy targets")
 	flag.IntVar(&f.games, "games", 1, "number of games (with -selfplay or -arena)")
 	flag.IntVar(&f.size, "size", 9, "board size")
 	flag.Float64Var(&f.komi, "komi", 6.5, "komi")
@@ -105,13 +111,13 @@ func parseCLIFlags() cliFlags {
 
 func runMode(f cliFlags) bool {
 	n := 0
-	for _, on := range []bool{f.gtp, f.play, f.analyze, f.selfplay, f.watch, f.arena} {
+	for _, on := range []bool{f.gtp, f.play, f.analyze, f.selfplay, f.watch, f.arena, f.convertSGF, f.verifyJSONL} {
 		if on {
 			n++
 		}
 	}
 	if n > 1 {
-		fmt.Fprintln(os.Stderr, "only one mode flag allowed (-gtp, -play, -analyze, -selfplay, -watch, -arena)")
+		fmt.Fprintln(os.Stderr, "only one mode flag allowed (-gtp, -play, -analyze, -selfplay, -watch, -arena, -convert-sgf, -verify-jsonl)")
 		os.Exit(1)
 	}
 	switch {
@@ -139,6 +145,14 @@ func runMode(f cliFlags) bool {
 		runWatch(f.size, f.komi, p, f.think, f.eval)
 	case f.arena:
 		runArenaCLI(f)
+	case f.convertSGF:
+		if f.out == "" {
+			fmt.Fprintln(os.Stderr, "-convert-sgf requires -o output.jsonl")
+			os.Exit(1)
+		}
+		runSGFConvertCLI(f, flag.Args())
+	case f.verifyJSONL:
+		runVerifyJSONLCLI(f.out, 5)
 	default:
 		return false
 	}
@@ -169,6 +183,7 @@ func printUsage(size int, komi float64) {
 	fmt.Println("  gofer -watch              engine vs engine demo")
 	fmt.Println("  gofer -selfplay           generate training games")
 	fmt.Println("  gofer -arena              baseline vs challenger match")
+	fmt.Println("  gofer -convert-sgf        SGF dirs → supervised JSONL (-o required)")
 	fmt.Println("  gofer -sgf game.sgf       replay SGF")
 }
 
