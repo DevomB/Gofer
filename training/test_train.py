@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader, Subset
 
 from dataset import SampleDataset
 from model import GoferBootstrapNet
-from train_bootstrap import TrainJob, TrainOptions, load_weights, run_epoch, split_indices, train
+from train_bootstrap import TrainJob, TrainOptions, load_weights, run_epoch, split_indices, train, training_device
 
 ROOT = Path(__file__).resolve().parent
 FIXTURE = ROOT / "testdata" / "fixture_samples.jsonl"
@@ -55,14 +55,16 @@ def test_resume_continues_from_prior_weights(tmp_path: Path) -> None:
     saved = torch.load(out / "best.pt", map_location="cpu", weights_only=True)
 
     net = GoferBootstrapNet()
+    device = training_device()
     load_weights(net, out / "best.pt")
+    net = net.to(device)
     for key, tensor in saved.items():
-        assert torch.allclose(net.state_dict()[key], tensor)
+        assert torch.allclose(net.state_dict()[key].cpu(), tensor)
 
     ds = SampleDataset(FIXTURE)
     _, val_idx = split_indices(len(ds), 0.2)
     val_loader = DataLoader(Subset(ds, val_idx), batch_size=min(64, len(val_idx)), shuffle=False)
-    val_before = run_epoch(net, val_loader, None, train=False)
+    val_before = run_epoch(net, val_loader, None, train=False, device=device)
     assert abs(val_before - last1["val_loss"]) < 0.05
 
 

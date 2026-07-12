@@ -20,6 +20,13 @@ SPLIT_SEED = 42
 OWNERSHIP_LOSS_WEIGHT = 0.15
 
 
+def training_device() -> torch.device:
+    """CUDA-compatible device when available (ROCm reports via torch.cuda)."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    return torch.device("cpu")
+
+
 @dataclass
 class TrainOptions:
     resume: Path | None = None
@@ -64,13 +71,13 @@ def make_loaders(ds: SampleDataset, val_split: float) -> tuple[DataLoader, DataL
     return train_loader, val_loader
 
 
-def make_net(options: TrainOptions) -> GoferBootstrapNet:
+def make_net(options: TrainOptions, device: torch.device) -> GoferBootstrapNet:
     net = GoferBootstrapNet()
     if options.resume and options.resume.exists():
         load_weights(net, options.resume)
     elif options.init_from and options.init_from.exists():
         load_weights(net, options.init_from)
-    return net
+    return net.to(device)
 
 
 def save_last(path: Path, state: dict) -> None:
@@ -83,6 +90,7 @@ def run_epoch(
     opt: torch.optim.Optimizer | None,
     *,
     train: bool,
+    device: torch.device,
 ) -> float:
     if train:
         net.train()
@@ -93,6 +101,11 @@ def run_epoch(
     grad_ctx = nullcontext() if train else torch.no_grad()
     with grad_ctx:
         for spatial, globals_, policy, value, ownership in loader:
+            spatial = spatial.to(device)
+            globals_ = globals_.to(device)
+            policy = policy.to(device)
+            value = value.to(device)
+            ownership = ownership.to(device)
             if train and opt is not None:
                 opt.zero_grad()
             logits, pred_v, pred_own = net(spatial, globals_)
@@ -110,9 +123,12 @@ def run_epoch(
 
 
 def train(job: TrainJob) -> Path:
+    device = training_device()
+    print(f"device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if device.type == "cuda" else ""))
+
     ds = SampleDataset(job.data)
     train_loader, val_loader = make_loaders(ds, job.options.val_split)
-    net = make_net(job.options)
+    net = make_net(job.options, device)
 
     opt = torch.optim.SGD(net.parameters(), lr=job.lr, momentum=0.9)
     job.out_dir.mkdir(parents=True, exist_ok=True)
@@ -124,8 +140,12 @@ def train(job: TrainJob) -> Path:
     stale = 0
 
     for epoch in range(job.epochs):
-        train_loss = run_epoch(net, train_loader, opt, train=True)
-        val_loss = run_epoch(net, val_loader, None, train=False) if val_loader else train_loss
+        train_loss = run_epoch(net, train_loader, opt, train=True, device=device)
+        val_loss = (
+            run_epoch(net, val_loader, None, train=False, device=device)
+            if val_loader
+            else train_loss
+        )
         print(
             f"epoch {epoch + 1}/{job.epochs} train_loss={train_loss:.4f} val_loss={val_loss:.4f}"
         )
