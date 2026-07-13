@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-07-07T05:41:00Z",
+  "timestamp": "2026-07-12T00:30:00Z",
   "results": [
     {
       "name": "BenchmarkApplyStone",
@@ -99,7 +99,7 @@
     },
     {
       "name": "BenchmarkEvalBatch",
-      "ns_per_op": 4805,
+      "ns_per_op": 5540,
       "bytes_per_op": 12672,
       "allocs_per_op": 33
     },
