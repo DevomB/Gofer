@@ -3,8 +3,15 @@ bin/
 *.exe
 .tectonix/session-baseline.json
 training/checkpoints/
-training/data/*.jsonl
+training/data/**/*.jsonl
 **/__pycache__/
+
+# Local training data / experiment artifacts (huge, never commit)
+training/experiments/
+
+# Rotating local model artifacts (bootstrap reference model stays tracked)
+models/*.onnx
+!models/gofer-9x9-bootstrap.onnx
 
 # Secrets / local AWS (never commit)
 .tectonix/*.pem
@@ -13,10 +20,6 @@ training/data/*.jsonl
 *.pem
 
 # Local reports / profiles (not release artifacts)
-.tectonix/reports/*.prof
-.tectonix/reports/*.log
-.tectonix/reports/lightsail-run.log
-.tectonix/reports/arena-cycle-*.json
-.tectonix/reports/arena-9x9-*.json
-.tectonix/reports/training-history/
+.tectonix/reports/*
+!.tectonix/reports/bench-regression.json
 train-v3.log
