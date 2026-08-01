@@ -1,0 +1,1156 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gofer — a Go engine that teaches itself</title>
+<meta name="description" content="A complete Go engine in ~6,000 lines of Go: Chinese rules, PUCT Monte-Carlo tree search, GTP, in-process ONNX inference, and a self-play training loop with arena-gated promotion.">
+<meta property="og:title" content="Gofer — a Go engine that teaches itself">
+<meta property="og:description" content="Four thousand years of Go. Six thousand lines of Go. PUCT search, GTP, bit-exact ONNX inference, and an arena that only promotes networks that win.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#07070D">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        bg:       '#07070D',
+        surface:  '#0D0F19',
+        surface2: '#151827',
+        line:     'rgba(139,124,246,0.14)',
+        ink:      { DEFAULT: '#EAEAF4', dim: '#9DA2BC', mute: '#636880' },
+        violet:   { DEFAULT: '#8B7CF6', bright: '#A99CFF', deep: '#5B4FC0' },
+        gold:     { DEFAULT: '#D6A85C', bright: '#E8C285', deep: '#8A6A38' },
+      },
+      fontFamily: {
+        display: ['Fraunces', 'Georgia', 'serif'],
+        sans: ['Inter', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
+    }
+  }
+}
+</script>
+<style>
+  ::selection { background: #8B7CF6; color: #07070D; }
+  html { background: #07070D; }
+  body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+
+  /* thin scrollbar */
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: #07070D; }
+  ::-webkit-scrollbar-thumb { background: #232741; border-radius: 5px; }
+  ::-webkit-scrollbar-thumb:hover { background: #5B4FC0; }
+
+  /* scroll reveal */
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
+  .rv.on { opacity: 1; transform: none; }
+
+  /* section eyebrow */
+  .eyebrow { font-family: "JetBrains Mono", monospace; font-size: .72rem; letter-spacing: .28em; text-transform: uppercase; color: #8B7CF6; }
+
+  /* faint grid behind hero */
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(139,124,246,.055) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139,124,246,.055) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 85% 60% at 50% 12%, black 25%, transparent 72%);
+    -webkit-mask-image: radial-gradient(ellipse 85% 60% at 50% 12%, black 25%, transparent 72%);
+  }
+
+  /* terminal caret */
+  .caret::after { content: "▋"; margin-left: 2px; color: #8B7CF6; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* orbiting dot on the loop diagram */
+  .loop-ring { stroke-dasharray: 6 10; animation: ringspin 40s linear infinite; }
+  @keyframes ringspin { to { stroke-dashoffset: -1000; } }
+
+  /* stat tile value */
+  .stat-value { font-variant-numeric: normal; }
+
+  .copy-ok { color: #8B7CF6 !important; }
+
+  input[type="range"].scrub { -webkit-appearance: none; appearance: none; height: 3px; border-radius: 2px; background: #232741; outline: none; }
+  input[type="range"].scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #8B7CF6; cursor: pointer; border: 2px solid #07070D; }
+  input[type="range"].scrub::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #8B7CF6; cursor: pointer; border: 2px solid #07070D; }
+
+  .btn-ctl { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: .5rem; color: #9DA2BC; transition: all .15s; }
+  .btn-ctl:hover { color: #EAEAF4; background: #151827; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .rv { transition: none; opacity: 1; transform: none; }
+    .loop-ring, .caret::after { animation: none; }
+    html { scroll-behavior: auto; }
+  }
+</style>
+</head>
+
+<body class="bg-bg text-ink font-sans antialiased overflow-x-hidden">
+
+<!-- ======================= NAV ======================= -->
+<header class="fixed top-0 inset-x-0 z-50 border-b border-line bg-bg/80 backdrop-blur-md">
+  <nav class="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
+    <a href="#top" class="flex items-center gap-3 group">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <rect width="26" height="26" rx="6" fill="#151827"/>
+        <path d="M6.5 6.5h13M6.5 13h13M6.5 19.5h13M6.5 6.5v13M13 6.5v13M19.5 6.5v13" stroke="#5B4FC0" stroke-width="1" fill="none"/>
+        <circle cx="13" cy="13" r="3.4" fill="#07070D" stroke="#2A2D45" stroke-width=".5"/>
+        <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
+      </svg>
+      <span class="font-display text-lg tracking-wide">Gofer</span>
+      <span class="hidden sm:inline font-mono text-[.65rem] text-ink-mute border border-line rounded px-1.5 py-0.5 mt-0.5">v2.7.1</span>
+    </a>
+    <div class="hidden md:flex items-center gap-7 text-sm text-ink-dim">
+      <a href="#engine" class="hover:text-ink transition-colors">Engine</a>
+      <a href="#loop" class="hover:text-ink transition-colors">The Loop</a>
+      <a href="#terminal" class="hover:text-ink transition-colors">Terminal</a>
+      <a href="#bench" class="hover:text-ink transition-colors">Benchmarks</a>
+      <a href="#quickstart" class="hover:text-ink transition-colors">Quickstart</a>
+    </div>
+    <a href="https://github.com/DevomB/Gofer" class="flex items-center gap-2 text-sm bg-surface2 text-ink border border-line rounded-lg px-3.5 py-1.5 hover:border-violet/50 hover:text-violet-bright transition-all">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+      GitHub
+    </a>
+  </nav>
+</header>
+
+<!-- ======================= HERO ======================= -->
+<section id="top" class="relative pt-28 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
+  <div class="absolute inset-0 hero-grid" aria-hidden="true"></div>
+  <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-32 w-[42rem] h-[42rem] rounded-full bg-violet/[.09] blur-[130px]"></div>
+  <div aria-hidden="true" class="pointer-events-none absolute top-24 -right-40 w-[36rem] h-[36rem] rounded-full bg-gold/[.06] blur-[130px]"></div>
+
+  <div class="relative mx-auto max-w-6xl px-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-14 lg:gap-10 items-center">
+    <div class="min-w-0">
+      <p class="eyebrow mb-6 rv">MCTS &nbsp;·&nbsp; GTP &nbsp;·&nbsp; ONNX &nbsp;·&nbsp; self-play</p>
+      <h1 class="rv font-display font-light text-[2.6rem] leading-[1.08] sm:text-6xl lg:text-[4.2rem] tracking-tight max-w-[13ch]">
+        Four thousand years of Go. <em class="italic bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Six thousand lines</em> of&nbsp;Go.
+      </h1>
+      <p class="rv mt-7 text-lg text-ink-dim leading-relaxed max-w-xl">
+        Gofer is a complete Go engine — Chinese rules, PUCT Monte-Carlo search, GTP, and a
+        self-play loop where every new network must <span class="text-ink">beat the reigning champion</span>
+        to earn promotion. No hand-waving: Wilson confidence intervals, bit-exact ONNX parity,
+        and a benchmark gate in CI.
+      </p>
+      <div class="rv mt-9 flex flex-wrap items-center gap-3">
+        <button data-copy="git clone https://github.com/DevomB/Gofer.git" class="copy-btn group flex items-center gap-3 font-mono text-sm bg-surface border border-line rounded-lg pl-4 pr-3 py-2.5 hover:border-violet/50 transition-all text-left">
+          <span class="text-violet select-none">$</span>
+          <span class="text-ink-dim group-hover:text-ink transition-colors">git clone DevomB/Gofer.git</span>
+          <svg class="copy-icon w-4 h-4 text-ink-mute group-hover:text-violet transition-colors shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
+        </button>
+        <a href="#quickstart" class="text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-5 py-2.5 hover:brightness-110 shadow-lg shadow-violet/20 transition-all">Quickstart →</a>
+      </div>
+      <p class="rv mt-6 font-mono text-xs text-ink-mute">make build → bin/gofer &nbsp;·&nbsp; the heuristic engine needs nothing but Go</p>
+    </div>
+
+    <!-- goban card -->
+    <div class="rv relative min-w-0">
+      <div class="absolute -inset-6 bg-violet/[.08] blur-3xl rounded-full" aria-hidden="true"></div>
+      <div class="absolute -inset-2 translate-x-10 translate-y-10 bg-gold/[.06] blur-3xl rounded-full" aria-hidden="true"></div>
+      <div class="relative bg-surface border border-line rounded-2xl overflow-hidden shadow-2xl shadow-black/60">
+        <div class="flex items-center justify-between px-4 py-3 border-b border-line">
+          <div class="flex items-center gap-2 font-mono text-[.7rem]">
+            <button id="mode-watch" class="mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40">WATCH</button>
+            <button id="mode-play" class="mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim">PLAY</button>
+          </div>
+          <div id="board-label" class="font-mono text-[.68rem] text-ink-mute">self-play · 1,500 playouts/move</div>
+        </div>
+
+        <div class="p-4 sm:p-5">
+          <div class="relative">
+            <canvas id="goban" class="w-full rounded-lg block" aria-label="9 by 9 Go board replaying a self-play game generated by Gofer"></canvas>
+            <noscript><p class="text-center text-sm text-ink-mute py-20">Enable JavaScript to watch Gofer replay one of its own self-play games here.</p></noscript>
+          </div>
+
+          <!-- watch controls -->
+          <div id="watch-ctl" class="mt-4">
+            <div class="flex items-center gap-1.5">
+              <button id="rp-start" class="btn-ctl" title="Restart" aria-label="Restart replay"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 2h1.6v10H3zM12 2 5.5 7 12 12z"/></svg></button>
+              <button id="rp-back" class="btn-ctl" title="Back one move" aria-label="Back one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M10.5 2 4 7l6.5 5z"/></svg></button>
+              <button id="rp-play" class="btn-ctl !w-9 !h-9 !bg-surface2 border border-line hover:border-violet/50" title="Play / pause" aria-label="Play or pause replay"></button>
+              <button id="rp-fwd" class="btn-ctl" title="Forward one move" aria-label="Forward one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3.5 2 10 7l-6.5 5z"/></svg></button>
+              <button id="rp-speed" class="btn-ctl !w-auto px-2 font-mono text-[.7rem]" title="Playback speed">×1</button>
+              <input id="rp-scrub" type="range" class="scrub flex-1 mx-2" min="0" max="83" value="0" aria-label="Scrub through game moves">
+              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums w-14 text-right">0 / 83</span>
+            </div>
+          </div>
+
+          <!-- play controls -->
+          <div id="play-ctl" class="mt-4 hidden">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="flex items-center gap-2 font-mono text-[.7rem] text-ink-dim mr-1"><span id="turn-dot" class="inline-block w-3 h-3 rounded-full bg-black border border-white/30"></span><span id="turn-label">Black to play</span></span>
+              <button id="fp-pass" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">pass</button>
+              <button id="fp-undo" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">undo</button>
+              <button id="fp-clear" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">clear</button>
+              <span id="fp-msg" class="font-mono text-[.7rem] text-violet ml-auto" role="status"></span>
+            </div>
+          </div>
+
+          <div class="mt-3 flex items-center justify-between font-mono text-[.68rem] text-ink-mute">
+            <span id="board-status">&nbsp;</span>
+            <span id="board-caps">captures — B 0 · W 0</span>
+          </div>
+        </div>
+      </div>
+      <p class="mt-4 text-center font-mono text-[.68rem] text-ink-mute leading-relaxed">
+        <span id="board-caption">A real game Gofer played against itself — <span class="text-ink-dim">bin/gofer -selfplay</span>, gofer-9x9-best.onnx, komi 6.5</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= STAT BAND ======================= -->
+<section class="border-y border-line bg-surface/40">
+  <div class="mx-auto max-w-6xl px-5 py-12 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-10">
+    <div class="rv">
+      <div class="stat-value font-display text-4xl lg:text-[2.75rem] text-ink">3.52<span class="text-xl text-ink-dim ml-1">ns</span></div>
+      <div class="mt-2 text-sm text-ink-dim">to apply a stone</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">0 allocs/op · BenchmarkApplyStone</div>
+    </div>
+    <div class="rv" style="transition-delay:.07s">
+      <div class="stat-value font-display text-4xl lg:text-[2.75rem] text-ink">7 <span class="text-xl text-ink-dim">allocs</span></div>
+      <div class="mt-2 text-sm text-ink-dim">per legal-move gen <span class="text-violet font-medium">— was 1,158</span></div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">scratch buffers, undo over clone</div>
+    </div>
+    <div class="rv" style="transition-delay:.14s">
+      <div class="stat-value font-display text-4xl lg:text-[2.75rem] text-ink">1,721</div>
+      <div class="mt-2 text-sm text-ink-dim">positions bit-exact vs PyTorch</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">Go ORT ↔ Python parity harness</div>
+    </div>
+    <div class="rv" style="transition-delay:.21s">
+      <div class="stat-value font-display text-4xl lg:text-[2.75rem] text-ink">45,243</div>
+      <div class="mt-2 text-sm text-ink-dim">positions in the replay buffer</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">training cycle 7 · runs on a 2 GiB box</div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= ENGINE ======================= -->
+<section id="engine" class="mx-auto max-w-6xl px-5 pt-24 pb-8">
+  <p class="eyebrow rv">Inside the engine</p>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Everything a Go engine needs. <em class="italic text-gold-bright">Nothing it doesn't.</em></h2>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">One binary plays, analyzes, referees, generates training data, and gates its own successors. The design choices are written down — every major one has an ADR.</p>
+
+  <div class="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="4" y="4" width="20" height="20" rx="2"/><path d="M4 11h20M4 18h20M11 4v20M18 4v20"/></svg>
+      <h3 class="mt-4 font-medium text-lg">Rules that hold up</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chinese area scoring and Tromp-Taylor, positional superko, suicide ban, SGF import and export. Scoring symmetry and arena-bias invariants are tested, not assumed.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">chinese_scoring_test.go · score_symmetry_test.go</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="14" cy="5" r="2.5"/><circle cx="7" cy="14" r="2.5"/><circle cx="21" cy="14" r="2.5"/><circle cx="4" cy="23" r="2.5"/><circle cx="10" cy="23" r="2.5"/><path d="m12.5 6.8-4 4.7M15.5 6.8l4 4.7M6 16.4l-1.3 4.2M8 16.4l1.3 4.2"/></svg>
+      <h3 class="mt-4 font-medium text-lg">PUCT search</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Monte-Carlo tree search with policy priors, a transposition table, tree reuse between moves, root-parallel playouts — plus forced root playouts and policy-target pruning from the KataGo paper.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">AdvanceTree · playout-cap randomization</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="7" y="7" width="14" height="14" rx="2"/><path d="M11 7V3.5M17 7V3.5M11 24.5V21M17 24.5V21M7 11H3.5M7 17H3.5M24.5 11H21M24.5 17H21"/></svg>
+      <h3 class="mt-4 font-medium text-lg">Two brains</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">A hand-tuned heuristic evaluator — stones, liberties, territory, move priors — and a 6-block residual net running through in-process ONNX Runtime at ~0.9 ms per position. HTTP sidecar as fallback.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-eval heuristic|onnx · 1.2M params · 4.6 MB</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 8h12M4 14h20M4 20h16"/><path d="m20 5 3 3-3 3M18 17l3 3-3 3"/></svg>
+      <h3 class="mt-4 font-medium text-lg">Speaks GTP</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Drop it into Sabaki or Lizzie as an engine. Think-time or fixed-playout budgets, <span class="font-mono text-[.8em]">time_left</span> handling, and an SGF of the game written on quit.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-gtp -size 9 -think-time 5s -o game.sgf</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 4h13l5 5v15H5z"/><path d="M18 4v5h5M9 14h10M9 18h10M9 10h4"/></svg>
+      <h3 class="mt-4 font-medium text-lg">A data factory</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play exports JSONL rows the trainer consumes directly: visit-count policy targets, opponent policy, ownership labels, 8 spatial feature planes and 4 globals per position.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">policy · policy_opp · ownership · full_search</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
+      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M14 4v20M6 24h16"/><path d="M14 7 7 12h14zM4 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3zM18 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3z"/></svg>
+      <h3 class="mt-4 font-medium text-lg">A merciless arena</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Champion versus challenger under identical configs. Wilson confidence intervals, early rejection when the gate is mathematically out of reach, and a config hash stamped on every report.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">promote only if win rate clears 0.55</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= THE LOOP ======================= -->
+<section id="loop" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
+  <p class="eyebrow rv">The training loop</p>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Nothing gets promoted <em class="italic text-gold-bright">without a fight.</em></h2>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle: the champion plays itself, a network trains on the games, and the result walks into an arena against the very champion that generated its data. Lose, and it's discarded. Win past the Wilson gate, and it takes the throne — after the old champion is archived.</p>
+
+  <!-- circular loop (desktop) -->
+  <div class="rv mt-10 hidden md:block">
+    <svg viewBox="0 0 760 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay buffer, train, export ONNX, arena gate, promote, and back to self-play">
+      <!-- ring -->
+      <circle cx="380" cy="280" r="185" fill="none" stroke="#232741" stroke-width="1.5"/>
+      <circle class="loop-ring" cx="380" cy="280" r="185" fill="none" stroke="#8B7CF6" stroke-width="1.5" opacity=".6"/>
+      <!-- clockwise direction arrows at segment midpoints -->
+      <g fill="#4E4599" opacity=".95">
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(472.5 119.8) rotate(30)"/>
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(565 280) rotate(90)"/>
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(472.5 440.2) rotate(150)"/>
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(287.5 440.2) rotate(210)"/>
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(195 280) rotate(270)"/>
+        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(287.5 119.8) rotate(330)"/>
+      </g>
+
+      <!-- center -->
+      <text x="380" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#8B7CF6">THE LOOP</text>
+      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">cycle 7</text>
+      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">45,243 positions and counting</text>
+
+      <!-- nodes: angles -90,-30,30,90,150,210 on r=185 around (380,280) -->
+      <g font-family="Inter, sans-serif">
+        <!-- SELF-PLAY (top) -->
+        <g>
+          <circle cx="380" cy="95" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
+          <text x="380" y="66" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Self-play</text>
+          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">champion vs champion → JSONL</text>
+        </g>
+        <!-- REPLAY BUFFER (upper right) -->
+        <g>
+          <circle cx="540.2" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
+          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay buffer</text>
+          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">persistent · capped 50k rows</text>
+        </g>
+        <!-- TRAIN (lower right) -->
+        <g>
+          <circle cx="540.2" cy="372.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
+          <text x="562" y="368" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Train</text>
+          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · resume from best.pt</text>
+        </g>
+        <!-- EXPORT (bottom) -->
+        <g>
+          <circle cx="380" cy="465" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
+          <text x="380" y="497" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Export ONNX</text>
+          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · 4.6 MB · bit-exact parity</text>
+        </g>
+        <!-- ARENA (lower left) — the gate, emphasized -->
+        <g>
+          <circle cx="219.8" cy="372.5" r="10" fill="#D6A85C"/>
+          <circle cx="219.8" cy="372.5" r="15" fill="none" stroke="#D6A85C" stroke-width="1" opacity=".35"/>
+          <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Arena gate</text>
+          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">200 games vs champion · Wilson CI</text>
+        </g>
+        <!-- PROMOTE (upper left) -->
+        <g>
+          <circle cx="219.8" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
+          <text x="198" y="180" text-anchor="end" font-size="13.5" font-weight="600" fill="#EAEAF4">Promote</text>
+          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">old champion archived first</text>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- stacked loop (mobile) -->
+  <div class="rv mt-10 md:hidden space-y-0">
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">champion vs champion → JSONL</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay buffer</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">persistent · capped 50k rows</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · resume from best.pt</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 4.6 MB</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">200 games vs champion · Wilson CI</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Promote — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">old champion archived first</div></div></div>
+  </div>
+
+  <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
+    <div class="rv bg-surface border border-line rounded-xl p-6">
+      <p class="eyebrow !text-[.62rem]">The gate</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger needs a <span class="text-ink">win rate whose Wilson interval clears 0.55</span> over up to 200 equal-config games — minimum 100 before promotion, early rejection the moment the bound becomes unreachable.</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
+      <p class="eyebrow !text-[.62rem]">The proof</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Training runs in PyTorch; play runs in Go. A parity harness holds them together: <span class="text-ink">1,721 positions, bit-exact</span> between Go ONNX Runtime and the Python reference session.</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.14s">
+      <p class="eyebrow !text-[.62rem]">The honest part</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">The net is young. The current champion took the title in cycle 3; challengers since have peaked at a 30.5% arena win rate. <span class="text-ink">The loop is the point</span> — the strength is earned, cycle by cycle, on a 2 GiB cloud box.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= TERMINAL ======================= -->
+<section id="terminal" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
+  <div class="grid grid-cols-1 lg:grid-cols-[.9fr_1.1fr] gap-12 items-start">
+    <div class="lg:sticky lg:top-28 min-w-0">
+      <p class="eyebrow rv">One binary</p>
+      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Meet it in the <em class="italic text-gold-bright">terminal.</em></h2>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or read the loop's ledger. Every session below is real, captured output — including the engine's questionable taste in opening moves. It's cycle 7. It will learn.</p>
+      <div class="rv mt-8 flex flex-wrap gap-2 font-mono text-[.7rem]">
+        <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">-play</button>
+        <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-gtp</button>
+        <button data-tab="selfplay" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-selfplay</button>
+        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">the loop</button>
+      </div>
+    </div>
+
+    <div class="rv min-w-0">
+      <div class="bg-[#0B0C15] border border-line rounded-xl overflow-hidden shadow-2xl shadow-black/60">
+        <div class="flex items-center gap-2 px-4 py-3 border-b border-line bg-surface">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
+          <span id="term-title" class="ml-3 font-mono text-[.68rem] text-ink-mute">bin/gofer -play -size 9 -color b</span>
+        </div>
+        <pre id="term-body" class="p-5 font-mono text-[.78rem] leading-[1.55] text-ink-dim overflow-x-auto min-h-[26rem] max-h-[26rem] overflow-y-auto whitespace-pre" aria-live="off"></pre>
+      </div>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer v2.7.1 — not a mock-up</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= BENCH ======================= -->
+<section id="bench" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+    <div class="min-w-0">
+      <p class="eyebrow rv">Hot path discipline</p>
+      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">The board <em class="italic text-gold-bright">never allocates.</em></h2>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">MCTS lives and dies by the inner loop. Gofer mutates one board and undoes, instead of cloning per playout — a measured decision (undo: 23 ns, clone: 130 ns), recorded in <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0002-legal-moves-repr.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADR 0002</a>. Legal-move generation dropped from 1,158 heap allocations to 7 with reusable scratch buffers.</p>
+      <p class="rv mt-4 text-ink-dim leading-relaxed">And it stays that way: <span class="font-mono text-[.85em] text-ink">make bench-check</span> compares every run against a committed baseline, in CI, on every push.</p>
+    </div>
+    <div class="rv min-w-0">
+      <div class="bg-surface border border-line rounded-xl overflow-x-auto">
+        <table class="w-full text-sm min-w-[26rem]">
+          <thead>
+            <tr class="border-b border-line font-mono text-[.66rem] uppercase tracking-wider text-ink-mute">
+              <th class="text-left font-medium px-5 py-3">benchmark</th>
+              <th class="text-right font-medium px-3 py-3">ns/op</th>
+              <th class="text-right font-medium px-5 py-3">allocs/op</th>
+            </tr>
+          </thead>
+          <tbody class="font-mono text-[.8rem] [font-variant-numeric:tabular-nums]">
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">ApplyStone</td><td class="px-3 py-3 text-right text-ink-dim">3.52</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">HashUpdate</td><td class="px-3 py-3 text-right text-ink-dim">3.44</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Undo</td><td class="px-3 py-3 text-right text-ink-dim">23.4</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Clone <span class="text-ink-mute">(the road not taken)</span></td><td class="px-3 py-3 text-right text-ink-dim">129.5</td><td class="px-5 py-3 text-right text-ink-dim">1</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">LegalMoves</td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">7 <span class="text-violet text-[.7rem]">▼ from 1,158</span></td></tr>
+            <tr><td class="px-5 py-3 text-ink">SGFReplay <span class="text-ink-mute">(full game)</span></td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">45</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">from .tectonix/reports/bench-regression.json — the file CI gates against</p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= QUICKSTART ======================= -->
+<section id="quickstart" class="mx-auto max-w-6xl px-5 pt-24 pb-24">
+  <p class="eyebrow rv">Quickstart</p>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">two minutes.</em></h2>
+
+  <div class="mt-12 grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-10 items-start">
+    <ol class="space-y-4 min-w-0">
+      <li class="rv flex gap-4">
+        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">1</span>
+        <div class="flex-1 min-w-0">
+          <div class="qs-block group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> git clone https://github.com/DevomB/Gofer.git &amp;&amp; cd Gofer</pre>
+            <button data-copy="git clone https://github.com/DevomB/Gofer.git && cd Gofer" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+        </div>
+      </li>
+      <li class="rv flex gap-4">
+        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">2</span>
+        <div class="flex-1 min-w-0">
+          <div class="qs-block group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> make build &amp;&amp; make test</pre>
+            <button data-copy="make build && make test" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">pure Go — no CGO, no Python, no GPU required</p>
+        </div>
+      </li>
+      <li class="rv flex gap-4">
+        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">3</span>
+        <div class="flex-1 min-w-0">
+          <div class="qs-block group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -play -size 9 -color b -o game.sgf</pre>
+            <button data-copy="bin/gofer -play -size 9 -color b -o game.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">you're Black — beat it while you still can</p>
+        </div>
+      </li>
+      <li class="rv flex gap-4">
+        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">4</span>
+        <div class="flex-1 min-w-0">
+          <div class="qs-block group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf</pre>
+            <button data-copy="bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">register as an engine in Sabaki or Lizzie</p>
+        </div>
+      </li>
+      <li class="rv flex gap-4">
+        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
+        <div class="flex-1 min-w-0">
+          <div class="qs-block group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bash scripts/train-loop-v3.sh</pre>
+            <button data-copy="bash scripts/train-loop-v3.sh" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop: self-play → train → export → arena → gate</p>
+        </div>
+      </li>
+    </ol>
+
+    <div class="rv bg-surface border border-line rounded-xl p-6 lg:sticky lg:top-28 min-w-0">
+      <p class="eyebrow !text-[.62rem]">What you need</p>
+      <ul class="mt-4 space-y-3 text-sm text-ink-dim">
+        <li class="flex gap-3"><span class="text-violet mt-0.5">●</span><span><span class="text-ink">Go 1.26+</span> — that's it, for the engine</span></li>
+        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">Python + PyTorch</span> — only to train networks</span></li>
+        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">CGO + <span class="font-mono text-[.85em]">make build-onnx</span></span> — only for in-process neural inference (ORT 1.26.0)</span></li>
+      </ul>
+      <div class="mt-6 pt-5 border-t border-line">
+        <p class="font-mono text-[.68rem] text-ink-mute leading-relaxed">Default playouts when <span class="text-ink-dim">-playouts 0</span>:</p>
+        <div class="mt-3 grid grid-cols-3 gap-2 text-center font-mono text-[.7rem]">
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">9×9</div><div class="text-ink-mute mt-0.5">400</div></div>
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">13×13</div><div class="text-ink-mute mt-0.5">800</div></div>
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">19×19</div><div class="text-ink-mute mt-0.5">1600</div></div>
+        </div>
+      </div>
+      <div class="mt-6 pt-5 border-t border-line">
+        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/implementation-blueprint.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">implementation blueprint</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/research-traceability.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">paper-to-code traceability map</a>, and five <a href="https://github.com/DevomB/Gofer/tree/main/docs/decisions" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADRs</a>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= FOOTER ======================= -->
+<footer class="border-t border-line bg-surface/40">
+  <div class="mx-auto max-w-6xl px-5 py-14">
+    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+      <div>
+        <div class="flex items-center gap-3">
+          <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true">
+            <rect width="26" height="26" rx="6" fill="#151827"/>
+            <path d="M6.5 6.5h13M6.5 13h13M6.5 19.5h13M6.5 6.5v13M13 6.5v13M19.5 6.5v13" stroke="#5B4FC0" stroke-width="1" fill="none"/>
+            <circle cx="13" cy="13" r="3.4" fill="#07070D" stroke="#2A2D45" stroke-width=".5"/>
+            <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
+          </svg>
+          <span class="font-display text-lg">Gofer</span>
+        </div>
+        <p class="mt-3 font-display italic text-ink-dim">Not KataGo. <span class="text-gold-bright">Yet.</span></p>
+        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">6,089 lines of Go · 103 tests · 18 benchmarks · built with Go 1.26, PyTorch &amp; ONNX Runtime</p>
+      </div>
+      <div class="flex flex-col gap-2.5 text-sm text-ink-dim font-mono text-[.78rem]">
+        <a href="https://github.com/DevomB/Gofer" class="hover:text-violet-bright transition-colors">github.com/DevomB/Gofer ↗</a>
+        <a href="https://github.com/DevomB/Gofer/blob/main/CHANGELOG.md" class="hover:text-violet-bright transition-colors">changelog ↗</a>
+        <a href="https://github.com/DevomB/Gofer/blob/main/docs/model-input-schema.md" class="hover:text-violet-bright transition-colors">model input schema ↗</a>
+        <a href="https://arxiv.org/abs/1902.10565" class="hover:text-violet-bright transition-colors">Wu et al. 2020 — the paper ↗</a>
+      </div>
+    </div>
+    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed report, a CI baseline, or a captured session — nothing is made up.</p>
+  </div>
+</footer>
+
+<script>
+/* ============================================================
+   Gofer site JS — goban rules + replay, terminal, UI sugar.
+   The rules engine below was validated in Node against 7 real
+   SGFs produced by bin/gofer before shipping.
+   ============================================================ */
+(function () {
+  'use strict';
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- scroll reveal ---------- */
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
+  }), { threshold: 0.12 });
+  document.querySelectorAll('.rv').forEach(el => io.observe(el));
+
+  /* ---------- copy buttons ---------- */
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard.writeText(btn.dataset.copy).then(() => {
+        const icon = btn.querySelector('.copy-icon');
+        if (icon) { icon.classList.add('copy-ok'); setTimeout(() => icon.classList.remove('copy-ok'), 1200); }
+      });
+    });
+  });
+
+  /* ============================================================
+     GO RULES CORE  (positional superko, suicide ban, captures)
+     ============================================================ */
+  const EMPTY = 0, BLACK = 1, WHITE = 2;
+  const SIZE = 9;
+
+  function makeGoban() {
+    const g = { grid: new Int8Array(SIZE * SIZE), keys: [''], prisoners: { 1: 0, 2: 0 } };
+    g.keys[0] = g.grid.join('');
+    return g;
+  }
+  function neighbors(i) {
+    const x = i % SIZE, y = (i / SIZE) | 0, out = [];
+    if (x > 0) out.push(i - 1);
+    if (x < SIZE - 1) out.push(i + 1);
+    if (y > 0) out.push(i - SIZE);
+    if (y < SIZE - 1) out.push(i + SIZE);
+    return out;
+  }
+  function groupAt(g, i) {
+    const color = g.grid[i], seen = new Set([i]), stack = [i], stones = [];
+    let libs = 0; const libSeen = new Set();
+    while (stack.length) {
+      const p = stack.pop(); stones.push(p);
+      for (const n of neighbors(p)) {
+        const v = g.grid[n];
+        if (v === EMPTY) { if (!libSeen.has(n)) { libSeen.add(n); libs++; } }
+        else if (v === color && !seen.has(n)) { seen.add(n); stack.push(n); }
+      }
+    }
+    return { stones, libs };
+  }
+  // strict=true → enforce suicide + positional superko (free play mode)
+  function play(g, i, color, strict) {
+    if (i === -1) { g.keys.push(g.grid.join('')); return { ok: true, captures: [] }; }
+    if (g.grid[i] !== EMPTY) return { ok: false, reason: 'occupied' };
+    const opp = color === BLACK ? WHITE : BLACK;
+    g.grid[i] = color;
+    let captures = []; const checked = new Set();
+    for (const n of neighbors(i)) {
+      if (g.grid[n] === opp && !checked.has(n)) {
+        const gr = groupAt(g, n);
+        gr.stones.forEach(s => checked.add(s));
+        if (gr.libs === 0) captures = captures.concat(gr.stones);
+      }
+    }
+    for (const c of captures) g.grid[c] = EMPTY;
+    if (groupAt(g, i).libs === 0) {
+      for (const c of captures) g.grid[c] = opp;
+      g.grid[i] = EMPTY;
+      return { ok: false, reason: 'suicide' };
+    }
+    const key = g.grid.join('');
+    if (strict && g.keys.includes(key)) {
+      for (const c of captures) g.grid[c] = opp;
+      g.grid[i] = EMPTY;
+      return { ok: false, reason: 'superko' };
+    }
+    g.keys.push(key);
+    g.prisoners[color] += captures.length;
+    return { ok: true, captures };
+  }
+
+  /* ---------- the hero game: real self-play SGF from bin/gofer ----------
+     bin/gofer-onnx -selfplay -games 3 -size 9 -playouts 1500
+       -selfplay-eval onnx -model models/gofer-9x9-best.onnx  → game-002 */
+  const HERO_SGF = '(;FF[4]SZ[9]KM[6.5];B[cc];W[bb];B[cd];W[ba];B[cb];W[bc];B[dc];W[ge];B[ca];W[gf];B[db];W[fe];B[ce];W[ac];B[eb];W[bd];B[ec];W[ab];B[da];W[aa];B[ea];W[ad];B[be];W[ff];B[dd];W[he];B[de];W[hf];B[ed];W[gd];B[ee];W[hd];B[fa];W[fd];B[fb];W[gc];B[cf];W[hc];B[df];W[fc];B[bf];W[hb];B[ef];W[gb];B[cg];W[gg];B[dg];W[hg];B[eg];W[fi];B[bg];W[fg];B[bh];W[fh];B[ch];W[gh];B[ic];W[if];B[id];W[hh];B[dh];W[ig];B[ci];W[];B[di];W[gi];B[bi];W[ih];B[eh];W[hi];B[ei];W[ii];B[];W[ga];B[];W[ae];B[ah];W[ha];B[ag];W[ia];B[ie];W[ib];B[ai])';
+
+  function parseSGF(text) {
+    const moves = [], re = /;([BW])\[([a-z]{0,2})\]/g;
+    let m;
+    while ((m = re.exec(text))) {
+      const color = m[1] === 'B' ? BLACK : WHITE;
+      if (m[2] === '') { moves.push({ color, i: -1 }); continue; }
+      const x = m[2].charCodeAt(0) - 97, y = m[2].charCodeAt(1) - 97;
+      moves.push({ color, i: y * SIZE + x, x, y });
+    }
+    return moves;
+  }
+  const heroMoves = parseSGF(HERO_SGF);
+
+  const COLS = 'ABCDEFGHJ';
+  function vertexName(i) { return COLS[i % SIZE] + (SIZE - ((i / SIZE) | 0)); }
+
+  /* ============================================================
+     CANVAS GOBAN
+     ============================================================ */
+  const canvas = document.getElementById('goban');
+  const ctx = canvas.getContext('2d');
+  let px = 0;          // canvas CSS size (square)
+  let cell = 0, pad = 0;
+  const anims = [];    // {i, color, type:'place'|'capture', t0}
+
+  function layout() {
+    const w = canvas.parentElement.clientWidth;
+    const dpr = window.devicePixelRatio || 1;
+    px = w;
+    canvas.style.height = w + 'px';
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(w * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pad = px * 0.075;
+    cell = (px - pad * 2) / (SIZE - 1);
+    draw();
+  }
+
+  function stoneXY(i) {
+    return [pad + (i % SIZE) * cell, pad + ((i / SIZE) | 0) * cell];
+  }
+
+  function drawWood() {
+    const g1 = ctx.createLinearGradient(0, 0, px, px);
+    g1.addColorStop(0, '#C89E5E');
+    g1.addColorStop(0.5, '#BC9152');
+    g1.addColorStop(1, '#A87E42');
+    ctx.fillStyle = g1;
+    ctx.fillRect(0, 0, px, px);
+    // grain: deterministic wavy lines
+    ctx.strokeStyle = 'rgba(90,62,30,0.09)';
+    ctx.lineWidth = 1;
+    for (let k = 0; k < 22; k++) {
+      const y0 = (k * 97 % 613) / 613 * px;
+      ctx.beginPath();
+      for (let x = 0; x <= px; x += 8) {
+        const y = y0 + Math.sin((x * 0.011) + k * 2.1) * 3.2 + Math.sin(x * 0.037 + k) * 1.1;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // vignette
+    const vg = ctx.createRadialGradient(px / 2, px / 2, px * 0.35, px / 2, px / 2, px * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(40,20,0,0.18)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, px, px);
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle = 'rgba(52,36,18,0.85)';
+    ctx.lineWidth = Math.max(1, px / 480);
+    for (let k = 0; k < SIZE; k++) {
+      const p = pad + k * cell;
+      ctx.beginPath(); ctx.moveTo(pad, p); ctx.lineTo(px - pad, p); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p, pad); ctx.lineTo(p, px - pad); ctx.stroke();
+    }
+    // hoshi
+    ctx.fillStyle = 'rgba(52,36,18,0.9)';
+    for (const [hx, hy] of [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]]) {
+      const [x, y] = stoneXY(hy * SIZE + hx);
+      ctx.beginPath(); ctx.arc(x, y, Math.max(2, px / 160), 0, 7); ctx.fill();
+    }
+    // coordinates
+    ctx.fillStyle = 'rgba(52,36,18,0.55)';
+    ctx.font = `${Math.max(8, px / 42)}px "JetBrains Mono", monospace`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let k = 0; k < SIZE; k++) {
+      ctx.fillText(COLS[k], pad + k * cell, px - pad * 0.35);
+      ctx.fillText(String(SIZE - k), pad * 0.35, pad + k * cell);
+    }
+  }
+
+  function drawStone(x, y, color, r, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = 'rgba(30,15,0,0.45)';
+    ctx.shadowBlur = r * 0.5;
+    ctx.shadowOffsetY = r * 0.18;
+    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.15, x, y, r * 1.05);
+    if (color === BLACK) {
+      g.addColorStop(0, '#4a4f55');
+      g.addColorStop(0.4, '#22252a');
+      g.addColorStop(1, '#0b0c0e');
+    } else {
+      g.addColorStop(0, '#FFFEF9');
+      g.addColorStop(0.55, '#F2EDE0');
+      g.addColorStop(1, '#C9C2B0');
+    }
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+    ctx.restore();
+  }
+
+  let hoverIdx = -1; // free-play ghost
+  function draw() {
+    if (!px) return;
+    const g = active();
+    drawWood(); drawGrid();
+    const r = cell * 0.47;
+    const now = performance.now();
+    // capture fade-outs
+    for (const a of anims) {
+      if (a.type !== 'capture') continue;
+      const t = (now - a.t0) / 320;
+      if (t >= 1) continue;
+      const [x, y] = stoneXY(a.i);
+      drawStone(x, y, a.color, r * (1 - t * 0.4), 1 - t);
+    }
+    // stones
+    for (let i = 0; i < SIZE * SIZE; i++) {
+      if (g.grid[i] === EMPTY) continue;
+      let rr = r, aa = 1;
+      const a = anims.find(a2 => a2.i === i && a2.type === 'place');
+      if (a) {
+        const t = Math.min(1, (now - a.t0) / 180);
+        rr = r * (0.6 + 0.4 * t); aa = t;
+      }
+      const [x, y] = stoneXY(i);
+      drawStone(x, y, g.grid[i], rr, aa);
+    }
+    // last move marker
+    const lm = mode === 'watch' ? lastReplayMove() : fpLast;
+    if (lm >= 0 && g.grid[lm] !== EMPTY) {
+      const [x, y] = stoneXY(lm);
+      ctx.strokeStyle = g.grid[lm] === BLACK ? 'rgba(232,194,133,0.95)' : 'rgba(90,60,20,0.8)';
+      ctx.lineWidth = Math.max(1.4, px / 300);
+      ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 7); ctx.stroke();
+    }
+    // ghost stone
+    if (mode === 'play' && hoverIdx >= 0 && g.grid[hoverIdx] === EMPTY) {
+      const [x, y] = stoneXY(hoverIdx);
+      drawStone(x, y, fpTurn, r, 0.45);
+    }
+  }
+
+  let rafOn = false;
+  function animate() {
+    if (rafOn) return;
+    rafOn = true;
+    (function tick() {
+      draw();
+      const now = performance.now();
+      for (let k = anims.length - 1; k >= 0; k--) {
+        if (now - anims[k].t0 > 400) anims.splice(k, 1);
+      }
+      if (anims.length) requestAnimationFrame(tick);
+      else { rafOn = false; draw(); }
+    })();
+  }
+
+  /* ---------- two board states: replay + free play ---------- */
+  let mode = 'watch';
+  let replayG = makeGoban(), replayN = 0, playing = false, timer = null;
+  const speeds = [900, 450, 200]; let speedIdx = 0;
+  const SHOWCASE = 48; let autoLoop = true, loopTimer = null;
+  let fpG = makeGoban(), fpTurn = BLACK, fpLast = -1, fpPasses = 0;
+  const fpStack = [];
+
+  function active() { return mode === 'watch' ? replayG : fpG; }
+  function lastReplayMove() {
+    for (let k = replayN - 1; k >= 0; k--) if (heroMoves[k].i >= 0) return heroMoves[k].i;
+    return -1;
+  }
+
+  const $ = id => document.getElementById(id);
+  const statusEl = $('board-status'), capsEl = $('board-caps'), scrub = $('rp-scrub'), countEl = $('rp-count');
+  scrub.max = heroMoves.length;
+
+  function replaySet(n, withAnim) {
+    n = Math.max(0, Math.min(heroMoves.length, n));
+    if (n < replayN) {           // rebuild from scratch (cheap at 9x9)
+      replayG = makeGoban(); replayN = 0;
+    }
+    while (replayN < n) {
+      const mv = heroMoves[replayN];
+      const res = play(replayG, mv.i, mv.color, false);
+      if (withAnim && replayN === n - 1) {
+        if (mv.i >= 0) anims.push({ i: mv.i, color: mv.color, type: 'place', t0: performance.now() });
+        for (const c of res.captures) anims.push({ i: c, color: mv.color === BLACK ? WHITE : BLACK, type: 'capture', t0: performance.now() });
+      }
+      replayN++;
+    }
+    scrub.value = replayN;
+    countEl.textContent = replayN + ' / ' + heroMoves.length;
+    capsEl.textContent = 'captures — B ' + replayG.prisoners[BLACK] + ' · W ' + replayG.prisoners[WHITE];
+    const mv = replayN > 0 ? heroMoves[replayN - 1] : null;
+    if (!mv) statusEl.innerHTML = '&nbsp;';
+    else statusEl.textContent = 'move ' + replayN + ' — ' + (mv.color === BLACK ? '● B ' : '○ W ') + (mv.i < 0 ? 'passes' : vertexName(mv.i));
+    if (replayN === heroMoves.length) {
+      $('board-caption').innerHTML = 'Game over. Every one of those moves came from a <span class="text-ink-dim">1,500-playout search</span> — replayed here by a rules engine in your browser.';
+    }
+    withAnim && !reduceMotion ? animate() : draw();
+  }
+
+  const playBtn = $('rp-play');
+  function setPlayIcon() {
+    playBtn.innerHTML = playing
+      ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="#8B7CF6" aria-hidden="true"><path d="M3 2h3v10H3zM8 2h3v10H8z"/></svg>'
+      : '<svg width="13" height="13" viewBox="0 0 14 14" fill="#8B7CF6" aria-hidden="true"><path d="M3.5 2 12 7l-8.5 5z"/></svg>';
+  }
+  function stop() { playing = false; clearInterval(timer); clearTimeout(loopTimer); setPlayIcon(); }
+  function start() {
+    if (replayN >= heroMoves.length) replaySet(0, false);
+    playing = true; setPlayIcon();
+    clearInterval(timer);
+    timer = setInterval(() => {
+      if (mode !== 'watch') return;
+      if (autoLoop && replayN >= SHOWCASE) {
+        stop();
+        statusEl.textContent = 'looping the opening — scrub for all ' + heroMoves.length + ' moves';
+        loopTimer = setTimeout(() => { if (autoLoop && mode === 'watch') { replaySet(0, false); start(); } }, 2000);
+        return;
+      }
+      if (replayN >= heroMoves.length) { stop(); return; }
+      replaySet(replayN + 1, true);
+    }, speeds[speedIdx]);
+  }
+  setPlayIcon();
+
+  playBtn.addEventListener('click', () => { autoLoop = false; playing ? stop() : start(); });
+  $('rp-start').addEventListener('click', () => { autoLoop = false; stop(); replaySet(0, false); });
+  $('rp-back').addEventListener('click', () => { autoLoop = false; stop(); replaySet(replayN - 1, false); });
+  $('rp-fwd').addEventListener('click', () => { autoLoop = false; stop(); replaySet(replayN + 1, true); });
+  $('rp-speed').addEventListener('click', e => {
+    speedIdx = (speedIdx + 1) % speeds.length;
+    e.currentTarget.textContent = '×' + [1, 2, 4][speedIdx];
+    if (playing) start();
+  });
+  scrub.addEventListener('input', () => { autoLoop = false; stop(); replaySet(+scrub.value, false); });
+
+  /* ---------- free play ---------- */
+  const fpMsg = $('fp-msg'), turnDot = $('turn-dot'), turnLabel = $('turn-label');
+  function fpUpdate(msg) {
+    turnDot.className = 'inline-block w-3 h-3 rounded-full border ' + (fpTurn === BLACK ? 'bg-black border-white/30' : 'bg-[#F2EDE0] border-black/30');
+    turnLabel.textContent = (fpTurn === BLACK ? 'Black' : 'White') + ' to play';
+    capsEl.textContent = 'captures — B ' + fpG.prisoners[BLACK] + ' · W ' + fpG.prisoners[WHITE];
+    fpMsg.textContent = msg || '';
+    statusEl.textContent = fpLast >= 0 ? 'last: ' + vertexName(fpLast) : 'click an intersection';
+  }
+  function boardIdxFromEvent(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left), y = (e.clientY - rect.top);
+    const cx = Math.round((x - pad) / cell), cy = Math.round((y - pad) / cell);
+    if (cx < 0 || cx >= SIZE || cy < 0 || cy >= SIZE) return -1;
+    const [sx, sy] = stoneXY(cy * SIZE + cx);
+    if (Math.hypot(sx - x, sy - y) > cell * 0.55) return -1;
+    return cy * SIZE + cx;
+  }
+  canvas.addEventListener('mousemove', e => {
+    if (mode !== 'play') return;
+    const i = boardIdxFromEvent(e);
+    if (i !== hoverIdx) { hoverIdx = i; draw(); }
+    canvas.style.cursor = i >= 0 && fpG.grid[i] === EMPTY ? 'pointer' : 'default';
+  });
+  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; draw(); });
+  canvas.addEventListener('click', e => {
+    if (mode !== 'play') return;
+    const i = boardIdxFromEvent(e);
+    if (i < 0) return;
+    fpStack.push({ grid: fpG.grid.slice(), keys: fpG.keys.slice(), pb: fpG.prisoners[1], pw: fpG.prisoners[2], turn: fpTurn, last: fpLast, passes: fpPasses });
+    const res = play(fpG, i, fpTurn, true);
+    if (!res.ok) {
+      fpStack.pop();
+      fpUpdate(res.reason === 'superko' ? 'illegal — positional superko' : res.reason === 'suicide' ? 'illegal — suicide' : 'occupied');
+      return;
+    }
+    if (!reduceMotion) {
+      anims.push({ i, color: fpTurn, type: 'place', t0: performance.now() });
+      for (const c of res.captures) anims.push({ i: c, color: fpTurn === BLACK ? WHITE : BLACK, type: 'capture', t0: performance.now() });
+    }
+    fpLast = i; fpPasses = 0;
+    fpTurn = fpTurn === BLACK ? WHITE : BLACK;
+    fpUpdate(res.captures.length ? 'captured ' + res.captures.length : '');
+    reduceMotion ? draw() : animate();
+  });
+  $('fp-pass').addEventListener('click', () => {
+    fpStack.push({ grid: fpG.grid.slice(), keys: fpG.keys.slice(), pb: fpG.prisoners[1], pw: fpG.prisoners[2], turn: fpTurn, last: fpLast, passes: fpPasses });
+    play(fpG, -1, fpTurn, true);
+    fpPasses++;
+    fpTurn = fpTurn === BLACK ? WHITE : BLACK;
+    fpUpdate(fpPasses >= 2 ? 'both passed — game over. scoring is bin/gofer’s job' : (fpTurn === BLACK ? 'White' : 'Black') + ' passes');
+  });
+  $('fp-undo').addEventListener('click', () => {
+    const s = fpStack.pop();
+    if (!s) return;
+    fpG.grid = Int8Array.from(s.grid); fpG.keys = s.keys;
+    fpG.prisoners[1] = s.pb; fpG.prisoners[2] = s.pw;
+    fpTurn = s.turn; fpLast = s.last; fpPasses = s.passes;
+    fpUpdate(''); draw();
+  });
+  $('fp-clear').addEventListener('click', () => {
+    fpG = makeGoban(); fpTurn = BLACK; fpLast = -1; fpPasses = 0; fpStack.length = 0;
+    fpUpdate(''); draw();
+  });
+
+  /* ---------- mode toggle ---------- */
+  const modeWatch = $('mode-watch'), modePlay = $('mode-play');
+  function setMode(m) {
+    mode = m;
+    const on = 'mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40';
+    const off = 'mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim';
+    modeWatch.className = m === 'watch' ? on : off;
+    modePlay.className = m === 'play' ? on : off;
+    $('watch-ctl').classList.toggle('hidden', m !== 'watch');
+    $('play-ctl').classList.toggle('hidden', m !== 'play');
+    if (m === 'play') {
+      autoLoop = false; stop();
+      $('board-label').textContent = 'full rules · runs in your browser';
+      $('board-caption').innerHTML = 'Captures, suicide and positional superko enforced — the same rules <span class="text-ink-dim">cmd/gofer</span> implements in Go. The engine itself lives in your terminal.';
+      fpUpdate('');
+    } else {
+      $('board-label').textContent = 'self-play · 1,500 playouts/move';
+      $('board-caption').innerHTML = 'A real game Gofer played against itself — <span class="text-ink-dim">bin/gofer -selfplay</span>, gofer-9x9-best.onnx, komi 6.5';
+      replaySet(replayN, false);
+    }
+    hoverIdx = -1;
+    draw();
+  }
+  modeWatch.addEventListener('click', () => setMode('watch'));
+  modePlay.addEventListener('click', () => setMode('play'));
+
+  /* ---------- boot ---------- */
+  layout();
+  new ResizeObserver(layout).observe(canvas.parentElement);
+  if (reduceMotion) {
+    replaySet(40, false);           // show a mid-game position, no autoplay
+  } else {
+    const heroIO = new IntersectionObserver(es => {
+      if (es.some(e => e.isIntersecting)) { heroIO.disconnect(); setTimeout(start, 600); }
+    }, { threshold: 0.35 });
+    heroIO.observe(canvas);
+  }
+
+  /* ============================================================
+     TERMINAL — real captured sessions
+     ============================================================ */
+  const B9 = [
+    '  A B C D E F G H J',
+    ' 9 . . . . . . . . .', ' 8 . . . . . . . . .', ' 7 . . . . . . . . .',
+    ' 6 . . . . . . . . .', ' 5 . . . . . . . . .', ' 4 . . . . . . . . .',
+    ' 3 . . . . . . . . .', ' 2 . . . . . . . . .', ' 1 . . . . . . . . .',
+  ];
+  const SESSIONS = {
+    play: {
+      title: 'bin/gofer -play -size 9 -color b',
+      lines: [
+        { t: 'cmd', s: 'bin/gofer -play -size 9 -color b' },
+        { t: 'out', s: 'Gofer 9x9 komi=6.5 — you are Black' },
+        { t: 'out', s: 'Commands: board | play <vertex> | genmove | analyze | score | undo | quit' },
+        ...B9.map(s => ({ t: 'dim', s })),
+        { t: 'out', s: 'Black to move' },
+        { t: 'out', s: '82 legal moves | your turn — play <vertex>' },
+        { t: 'in', s: 'play E5' },
+        { t: 'out', s: 'White to move' },
+        { t: 'out', s: '81 legal moves | engine turn — genmove' },
+        { t: 'in', s: 'genmove' },
+        { t: 'gold', s: '> engine A9' },
+        { t: 'dim', s: '  A B C D E F G H J' },
+        { t: 'dim', s: ' 9 O . . . . . . . .' },
+        { t: 'dim', s: ' 8 . . . . . . . . .' },
+        { t: 'dim', s: ' 7 . . . . . . . . .' },
+        { t: 'dim', s: ' 6 . . . . . . . . .' },
+        { t: 'dim', s: ' 5 . . . . X . . . .' },
+        { t: 'dim', s: ' 4 . . . . . . . . .' },
+        { t: 'dim', s: ' 3 . . . . . . . . .' },
+        { t: 'dim', s: ' 2 . . . . . . . . .' },
+        { t: 'dim', s: ' 1 . . . . . . . . .' },
+        { t: 'out', s: 'Black to move' },
+        { t: 'com', s: '# yes, it answered E5 with A9. cycle 7. it will learn.' },
+      ]
+    },
+    gtp: {
+      title: 'bin/gofer -gtp -size 9 -gtp-playouts 400',
+      lines: [
+        { t: 'cmd', s: 'bin/gofer -gtp -size 9 -gtp-playouts 400' },
+        { t: 'in', s: 'name' },
+        { t: 'gold', s: '= Gofer' },
+        { t: 'out', s: '' },
+        { t: 'in', s: 'version' },
+        { t: 'gold', s: '= 1.0' },
+        { t: 'out', s: '' },
+        { t: 'in', s: 'boardsize 9' },
+        { t: 'gold', s: '=' },
+        { t: 'out', s: '' },
+        { t: 'in', s: 'genmove b' },
+        { t: 'gold', s: '= A9' },
+        { t: 'out', s: '' },
+        { t: 'in', s: 'quit' },
+        { t: 'gold', s: '=' },
+        { t: 'com', s: '# same protocol Sabaki & Lizzie speak — add it as an engine' },
+      ]
+    },
+    selfplay: {
+      title: 'bin/gofer -selfplay',
+      lines: [
+        { t: 'cmd', s: 'bin/gofer -selfplay -games 3 -size 9 -playouts 1500 \\' },
+        { t: 'cmd2', s: '    -selfplay-eval onnx -sgf-dir games/ -o samples.jsonl' },
+        { t: 'out', s: 'wrote 3 SGF files to games/' },
+        { t: 'com', s: '# one of those three games is replaying at the top of this page' },
+        { t: 'cmd', s: 'head -2 samples.jsonl | tail -1 | jq keys' },
+        { t: 'out', s: '[' },
+        { t: 'out', s: '  "board_hash",       "features_global",' },
+        { t: 'out', s: '  "features_spatial", "full_search",' },
+        { t: 'out', s: '  "komi",             "move_num",' },
+        { t: 'out', s: '  "ownership",        "policy",' },
+        { t: 'out', s: '  "policy_opp",       "to_play",' },
+        { t: 'out', s: '  "value"' },
+        { t: 'out', s: ']' },
+        { t: 'com', s: '# visit-count policy targets, ownership labels,' },
+        { t: 'com', s: '# 8 spatial planes + 4 globals — straight into the trainer' },
+      ]
+    },
+    loop: {
+      title: 'scripts/train-loop-v3.sh',
+      lines: [
+        { t: 'cmd', s: 'bash scripts/train-loop-v3.sh' },
+        { t: 'com', s: '# self-play → replay buffer → train → export → arena → gate …' },
+        { t: 'cmd', s: 'cat .tectonix/manifest.json' },
+        { t: 'out', s: '{' },
+        { t: 'out', s: '  "version": 3,' },
+        { t: 'out', s: '  "cycle": 7,' },
+        { t: 'gold', s: '  "best_win_rate": 0.305,' },
+        { t: 'out', s: '  "best_cycle": 3,' },
+        { t: 'gold', s: '  "replay_rows": 45243,' },
+        { t: 'out', s: '  "last_promoted_at": "2026-07-02T20:46:46Z",' },
+        { t: 'out', s: '  "seed": "fresh"' },
+        { t: 'out', s: '}' },
+        { t: 'com', s: '# the champion still holds the gate. that’s the ledger —' },
+        { t: 'com', s: '# a challenger has to clear a 0.55 Wilson bound to rewrite it.' },
+      ]
+    }
+  };
+
+  const termBody = $('term-body'), termTitle = $('term-title');
+  let termToken = 0;
+  function lineSpan(l) {
+    const span = document.createElement('span');
+    if (l.t === 'cmd') { span.innerHTML = '<span style="color:#8B7CF6">$ </span>'; span.appendChild(document.createTextNode(l.s)); span.style.color = '#EAEAF4'; }
+    else if (l.t === 'cmd2') { span.textContent = l.s; span.style.color = '#EAEAF4'; }
+    else if (l.t === 'in') { span.innerHTML = '<span style="color:#8B7CF6">&gt; </span>'; span.appendChild(document.createTextNode(l.s)); span.style.color = '#EAEAF4'; }
+    else if (l.t === 'gold') { span.textContent = l.s; span.style.color = '#D6A85C'; }
+    else if (l.t === 'com') { span.textContent = l.s; span.style.color = '#636880'; }
+    else if (l.t === 'dim') { span.textContent = l.s; span.style.color = '#8F93AC'; }
+    else { span.textContent = l.s; }
+    return span;
+  }
+  async function typeSession(key) {
+    const my = ++termToken;
+    const ses = SESSIONS[key];
+    termTitle.textContent = ses.title;
+    termBody.textContent = '';
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    for (const l of ses.lines) {
+      if (my !== termToken) return;
+      const isTyped = (l.t === 'cmd' || l.t === 'in') && !reduceMotion;
+      if (isTyped) {
+        const prefix = document.createElement('span');
+        prefix.innerHTML = l.t === 'cmd' ? '<span style="color:#8B7CF6">$ </span>' : '<span style="color:#8B7CF6">&gt; </span>';
+        const body = document.createElement('span');
+        body.style.color = '#EAEAF4';
+        termBody.appendChild(prefix); termBody.appendChild(body);
+        body.classList.add('caret');
+        for (const ch of l.s) {
+          if (my !== termToken) return;
+          body.textContent += ch;
+          await sleep(16);
+        }
+        body.classList.remove('caret');
+        termBody.appendChild(document.createTextNode('\n'));
+        await sleep(140);
+      } else {
+        termBody.appendChild(lineSpan(l));
+        termBody.appendChild(document.createTextNode('\n'));
+        if (!reduceMotion) await sleep(26);
+      }
+      termBody.scrollTop = termBody.scrollHeight;
+    }
+  }
+  document.querySelectorAll('.term-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.term-tab').forEach(b => b.className = 'term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink');
+      btn.className = 'term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet';
+      typeSession(btn.dataset.tab);
+    });
+  });
+  const termIO = new IntersectionObserver(es => {
+    if (es.some(e => e.isIntersecting)) { termIO.disconnect(); typeSession('play'); }
+  }, { threshold: 0.25 });
+  termIO.observe(termBody);
+})();
+</script>
+</body>
+</html>
