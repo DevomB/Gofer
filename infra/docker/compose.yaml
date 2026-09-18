@@ -1,0 +1,36 @@
+# docker compose -f infra/docker/compose.yaml up gpu      # full loop on a local/rented NVIDIA box
+# docker compose -f infra/docker/compose.yaml up smoke    # 3-cycle CPU smoke test, no GPU needed
+# The run dir (state, shards, champions, report) lives on the host in ./runs, so
+# stopping and restarting a container resumes the run.
+services:
+  gpu:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+    image: gofer-train:gpu
+    command: ["run", "--config", "configs/pipeline-gpu.toml", "--no-build"]
+    volumes:
+      - ../../runs:/gofer/runs
+      - ../../models:/gofer/models
+    shm_size: 8gb            # DataLoader workers
+    stop_grace_period: 60s   # SIGTERM -> orchestrator stops cleanly at a stage boundary
+    restart: unless-stopped  # resume after crashes / host reboots
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  smoke:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      args:
+        BASE: python:3.11-slim
+        TORCH_INDEX: https://download.pytorch.org/whl/cpu
+    image: gofer-train:cpu
+    command: ["run", "--config", "configs/pipeline-smoke.toml", "--no-build"]
+    volumes:
+      - ../../runs:/gofer/runs

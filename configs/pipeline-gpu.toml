@@ -1,0 +1,40 @@
+# One rented GPU box (RTX 4090 / L4 / A10 class, 16+ vCPU), e.g. via
+# infra/cloud/skypilot.yaml. Self-play (CPU + GPU inference) overlaps training.
+#   python -m training.pipeline run --config configs/pipeline-gpu.toml
+# Spot instances: just rerun the same command after preemption; every stage resumes.
+
+[run]
+name = "gpu"
+deadline_hours = 72
+overlap_selfplay = true
+
+[engine]
+backend = "inprocess"
+
+[selfplay]
+games_per_cycle = 1000
+full_playouts = 400
+fast_playouts = 80
+eval = "onnx"
+parallel = 0                  # = vCPU count
+
+[replay]
+min_window_rows = 100000
+max_window_rows = 2000000
+min_rows_to_train = 20000
+
+[train]
+args = {config = "training/configs/train-gpu.toml"}
+
+[gating]
+playouts = 400
+batch_games = 50
+max_games = 400
+elo0 = 0
+elo1 = 30
+
+[publish]
+alias = "models/gofer-9x9-best.onnx"
+regression_games = 60
+regression_lookback = 3
+github_release = false        # set true (or --set publish.github_release=true) to push each best as a Release

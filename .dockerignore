@@ -1,0 +1,13 @@
+.git
+bin/
+runs/
+models/archive/
+models/champions/
+training/experiments/
+training/checkpoints/
+training/state/
+training/data/
+.tectonix/
+**/__pycache__/
+*.exe
+*.pdf

@@ -1,0 +1,46 @@
+# Zero-cost training on free GitHub Actions runners (public repo: 4 vCPU,
+# 16 GB, 6 h per job, no GPU). .github/workflows/train-free.yml runs this every
+# 6 hours, restoring and saving the run dir through the Actions cache. Each job
+# stops between cycles at the deadline and resumes next time. Every new best is
+# pushed as its own GitHub Release; older bests are never deleted.
+
+[run]
+name = "actions"
+deadline_hours = 4.75         # stop starting new cycles; the job hard-stops at 5.5 h
+overlap_selfplay = false      # one small CPU pool
+keep_train_dirs = 2           # keep the Actions cache small (champions are kept separately)
+keep_candidates = 2
+
+[engine]
+backend = "inprocess"         # Linux runner: CGO + downloaded ORT 1.26.0
+
+[selfplay]
+games_per_cycle = 120
+bootstrap_games = 240
+full_playouts = 160
+fast_playouts = 40
+parallel = 4
+
+[replay]
+min_window_rows = 15000
+max_window_rows = 200000
+min_rows_to_train = 3000
+archive_factor = 1.5
+
+[train]
+args = {config = "training/configs/train-cpu.toml"}
+
+[gating]
+playouts = 200
+batch_games = 24
+max_games = 192
+bootstrap_games = 24
+parallel = 4
+elo1 = 40
+
+[publish]
+registry = "runs/actions/champions"
+regression_games = 24
+regression_lookback = 2
+github_release = true
+release_prefix = "gofer-9x9-"

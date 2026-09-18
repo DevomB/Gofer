@@ -65,6 +65,17 @@ Nightly 200-game arena workflow: [`.github/workflows/arena-nightly.yml`](.github
 bin/gofer -watch -size 9 -playouts 50
 ```
 
+### Training pipeline
+
+One resumable loop, from one config: self-play shards, then train, export, SPRT gate, promote, and publish every new best. Old bests are never deleted, and `rollback` re-points to an earlier one.
+
+```bash
+python -m training.pipeline run --config configs/pipeline-smoke.toml   # ~3 min end-to-end on any machine
+python -m training.pipeline report --config configs/pipeline-smoke.toml
+```
+
+Runs on free GitHub Actions runners (opt-in schedule), in Docker, or on a rented spot GPU via SkyPilot. See [docs/pipeline.md](docs/pipeline.md), the learner in [training/README.md](training/README.md), and the data format in [docs/training-data-format.md](docs/training-data-format.md).
+
 ### ONNX inference (v2.5+)
 
 Default path is **in-process ORT** (no sidecar). Build with ONNX support:

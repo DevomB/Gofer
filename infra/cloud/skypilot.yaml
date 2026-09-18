@@ -1,0 +1,39 @@
+# SkyPilot task: one command launches the loop on the cheapest GPU across the
+# clouds you have credentials for (RunPod, Lambda, Vast, AWS, GCP, Azure, ...).
+#
+#   pip install "skypilot[runpod,lambda,aws]"      # whichever you use; `sky check`
+#   sky launch -c gofer infra/cloud/skypilot.yaml   # spot by default
+#   sky jobs launch infra/cloud/skypilot.yaml       # managed: auto-relaunch after preemption
+#   sky down gofer                                  # stop paying
+#
+# The run dir is a bucket mount, so a preempted spot VM loses nothing: the
+# relaunched job reruns the same command and the orchestrator resumes at the
+# first unfinished stage. Budget guard: run.deadline_hours in the config.
+
+name: gofer-train
+
+resources:
+  accelerators: {L4:1, A10G:1, RTX4090:1, RTX3090:1, A10:1}
+  cpus: 8+
+  memory: 32+
+  use_spot: true
+  disk_size: 100
+
+envs:
+  GOFER_CONFIG: configs/pipeline-gpu.toml
+  RUN_BUCKET: gofer-runs-CHANGE-ME        # globally unique bucket name
+
+workdir: .
+
+file_mounts:
+  ~/sky_workdir/runs:
+    name: ${RUN_BUCKET}
+    mode: MOUNT_CACHED                    # local-speed writes, synced to the bucket in the background
+
+setup: |
+  bash infra/cloud/bootstrap.sh
+
+run: |
+  source .gofer-env
+  python -m training.pipeline run --config "$GOFER_CONFIG" --no-build
+  python -m training.pipeline report --config "$GOFER_CONFIG"

@@ -23,6 +23,13 @@ type Sample struct {
 	Ownership  []float32 `json:"ownership,omitempty"`
 	FullSearch bool      `json:"full_search,omitempty"`
 	ScorePDF   []float64 `json:"score_pdf,omitempty"`
+	// GameID is the self-play game index within one run (groups rows by game).
+	GameID int `json:"game_id"`
+	// ScoreMargin is the final area-score margin (komi included) from ToPlay's view.
+	ScoreMargin float32 `json:"score_margin"`
+	// PolicyNext is the opponent's reply policy (the next ply's full-search target);
+	// empty when the next ply was a fast search or the game ended.
+	PolicyNext []float32 `json:"policy_next,omitempty"`
 	ScoreCDF   []float64 `json:"score_cdf,omitempty"`
 }
 

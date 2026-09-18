@@ -1,0 +1,35 @@
+# Free-tier / always-on CPU box (Lightsail small, old laptop, home server).
+# Slow but costs nothing extra; keeps the legacy-6x64 champion lineage.
+#   python -m training.pipeline run --config configs/pipeline-cpu.toml
+#   python -m training.pipeline estimate --config configs/pipeline-cpu.toml --cycles 100
+
+[run]
+name = "cpu"
+deadline_hours = 336          # two weeks, like the v3 loop
+overlap_selfplay = false      # one CPU pool: overlapping would just contend
+
+[engine]
+backend = "inprocess"
+
+[selfplay]
+games_per_cycle = 200
+full_playouts = 200
+fast_playouts = 50
+
+[replay]
+min_window_rows = 20000
+max_window_rows = 250000
+min_rows_to_train = 2000
+
+[train]
+args = {config = "training/configs/train-cpu.toml"}
+
+[gating]
+playouts = 400
+batch_games = 40
+max_games = 400
+
+[publish]
+alias = "models/gofer-9x9-best.onnx"
+regression_games = 40
+regression_lookback = 2

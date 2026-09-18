@@ -23,3 +23,11 @@ models/*.onnx
 .tectonix/reports/*
 !.tectonix/reports/bench-regression.json
 train-v3.log
+
+# Pipeline v4 run dirs (state, shards, checkpoints) and local champion registry
+# binaries; published bests live in GitHub Releases. index.json/cards stay trackable.
+runs/
+models/champions/*.onnx
+.gofer-env
+.venv/
+.tectonix/artifacts/

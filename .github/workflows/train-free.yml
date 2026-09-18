@@ -1,0 +1,94 @@
+name: Train (free runners)
+
+# Zero-cost continuous training: public repos get free, unlimited standard
+# runners (4 vCPU, 16 GB, 6 h/job). Every 6 hours this restores the run dir
+# from the Actions cache, trains until configs/pipeline-actions.toml's deadline,
+# saves the run dir back, and publishes each new best as its own GitHub Release
+# (older bests are never deleted).
+#
+# OPT-IN: scheduled runs only start after you set the repository variable
+#   gh variable set TRAIN_FREE_ENABLED --body true
+# Manual runs (Actions tab -> Run workflow) always work.
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      cycles:
+        description: "Max cycles for this job (0 = until the config deadline)"
+        default: "0"
+
+permissions:
+  contents: write   # gh release create (one release per new best)
+
+concurrency:
+  group: train-free
+  cancel-in-progress: false
+
+jobs:
+  train:
+    if: github.event_name == 'workflow_dispatch' || vars.TRAIN_FREE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install learner (CPU torch)
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -r training/requirements.txt
+
+      - name: Restore run state
+        uses: actions/cache/restore@v4
+        with:
+          path: runs/actions
+          key: train-free-${{ github.run_id }}
+          restore-keys: train-free-
+
+      - name: Train
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CYCLES: ${{ inputs.cycles || '0' }}
+        run: |
+          python -m training.pipeline status --config configs/pipeline-actions.toml || true
+          extra=()
+          if [ "$CYCLES" != "0" ]; then extra=(--cycles "$CYCLES"); fi
+          # Hard stop well before the 6 h job limit so the state is always saved.
+          # The orchestrator checkpoints every stage; the next job resumes.
+          code=0
+          timeout --signal=TERM --kill-after=120 320m \
+            python -m training.pipeline run --config configs/pipeline-actions.toml "${extra[@]}" || code=$?
+          if [ "$code" != 0 ] && [ "$code" != 124 ]; then exit "$code"; fi
+
+      - name: Report
+        if: always()
+        run: |
+          python -m training.pipeline status --config configs/pipeline-actions.toml || true
+          python -m training.pipeline publish --config configs/pipeline-actions.toml || true
+          python -m training.pipeline estimate --config configs/pipeline-actions.toml --cycles 50 || true
+          python -m training.pipeline report --config configs/pipeline-actions.toml || true
+
+      - name: Save run state
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: runs/actions
+          key: train-free-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: train-free-report-${{ github.run_id }}
+          path: |
+            runs/actions/report.html
+            runs/actions/state.json
+            runs/actions/history/
+            runs/actions/champions/index.json
+            runs/actions/logs/pipeline.log
+          retention-days: 30

@@ -1,0 +1,46 @@
+# Tiny end-to-end run: proves every stage works on any laptop or free CI runner
+# in a few minutes. Not meant to produce a strong net.
+#   python -m training.pipeline run --config configs/pipeline-smoke.toml --cycles 3
+# Sidecar backend so no CGO / ONNX Runtime C library is needed.
+
+[run]
+name = "smoke"
+root = "runs"
+max_cycles = 3
+overlap_selfplay = true
+
+[engine]
+backend = "sidecar"
+sidecar_base_port = 18080
+
+[selfplay]
+games_per_cycle = 8
+full_playouts = 24
+fast_playouts = 8
+cap_randomize_p = 0.25
+temp_moves = 8
+eval = "onnx"
+parallel = 4
+
+[replay]
+min_window_rows = 500
+max_window_rows = 20000
+min_rows_to_train = 200
+
+[train]
+epochs_fresh = 2
+epochs_resume = 1
+args = {batch-size = 64, quiet = true}
+
+[gating]
+playouts = 16
+batch_games = 10
+max_games = 20
+bootstrap_games = 10
+opening_moves = 4
+parallel = 4
+
+[publish]
+registry = "runs/smoke/champions"
+regression_games = 10
+regression_lookback = 1

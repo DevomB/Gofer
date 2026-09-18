@@ -1,0 +1,139 @@
+package main
+
+import (
+	"archive/zip"
+	"encoding/binary"
+	"encoding/json"
+	"io"
+	"math"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+func readShardEntries(t *testing.T, path string) map[string][]byte {
+	t.Helper()
+	zr, err := zip.OpenReader(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer zr.Close()
+	out := map[string][]byte{}
+	for _, f := range zr.File {
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := io.ReadAll(rc)
+		rc.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+		out[strings.TrimSuffix(f.Name, ".npy")] = b
+	}
+	return out
+}
+
+// npyPayload splits a .npy blob into header dict and data, checking alignment.
+func npyPayload(t *testing.T, blob []byte) (string, []byte) {
+	t.Helper()
+	if string(blob[:6]) != "\x93NUMPY" || blob[6] != 1 {
+		t.Fatalf("bad npy magic %q", blob[:8])
+	}
+	hlen := int(binary.LittleEndian.Uint16(blob[8:10]))
+	if (10+hlen)%64 != 0 {
+		t.Fatalf("npy header not 64-byte aligned: %d", 10+hlen)
+	}
+	return string(blob[10 : 10+hlen]), blob[10+hlen:]
+}
+
+func TestNPYHeaderShapes(t *testing.T) {
+	h := string(npyHeader("<f4", []int{7}))
+	if !strings.Contains(h, "'shape': (7,)") || !strings.HasSuffix(h, "\n") {
+		t.Fatalf("1-D header wrong: %q", h)
+	}
+	h = string(npyHeader("|u1", []int{3, 8, 9, 9}))
+	if !strings.Contains(h, "'shape': (3, 8, 9, 9)") {
+		t.Fatalf("4-D header wrong: %q", h)
+	}
+}
+
+func TestWriteSampleShardRoundTrip(t *testing.T) {
+	cfg := testSelfplayConfig("heuristic", 2)
+	cfg.CapRandomizeP = 0.5
+	samples, _ := RunSelfplayWithLogs(cfg)
+	if len(samples) == 0 {
+		t.Fatal("no samples")
+	}
+	path := filepath.Join(t.TempDir(), "s.npz")
+	if err := WriteSampleShard(path, samples, ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: "heuristic"}); err != nil {
+		t.Fatal(err)
+	}
+	entries := readShardEntries(t, path)
+	for _, name := range []string{"spatial", "globals", "policy", "policy_opp", "value", "score", "ownership", "full_search", "game_id", "move_num", "meta"} {
+		if _, ok := entries[name]; !ok {
+			t.Fatalf("missing array %s", name)
+		}
+	}
+	n := len(samples)
+
+	_, metaRaw := npyPayload(t, entries["meta"])
+	var meta ShardMeta
+	if err := json.Unmarshal(metaRaw, &meta); err != nil {
+		t.Fatal(err)
+	}
+	if meta.Format != ShardFormat || meta.Rows != n || meta.BoardSize != 9 || meta.Games != 2 {
+		t.Fatalf("meta mismatch: %+v", meta)
+	}
+
+	hdr, spatial := npyPayload(t, entries["spatial"])
+	if !strings.Contains(hdr, "'descr': '|u1'") || len(spatial) != n*8*81 {
+		t.Fatalf("spatial: %q len=%d", hdr, len(spatial))
+	}
+	_, own := npyPayload(t, entries["ownership"])
+	_, score := npyPayload(t, entries["score"])
+	for i, s := range samples {
+		if spatial[i*8*81] != byte(s.FeaturesSpatial[0]) {
+			t.Fatalf("row %d spatial mismatch", i)
+		}
+		// Side-to-move frame: sum(ownership) minus/plus komi is exactly the margin.
+		sum := 0.0
+		for p := 0; p < 81; p++ {
+			sum += float64(int8(own[i*81+p]))
+		}
+		komi := cfg.Komi
+		if s.ToPlay == White {
+			komi = -komi
+		}
+		got := math.Float32frombits(binary.LittleEndian.Uint32(score[i*4:]))
+		if float32(sum-komi) != got {
+			t.Fatalf("row %d: ownership sum %.1f komi %.1f != score %.1f", i, sum, komi, got)
+		}
+	}
+}
+
+func TestLabelGameSamplesPolicyNext(t *testing.T) {
+	game := []Sample{
+		{ToPlay: Black, Policy: []float32{1, 0}, FullSearch: true},
+		{ToPlay: White, Policy: []float32{0, 1}, FullSearch: true},
+		{ToPlay: Black, Policy: []float32{1, 0}, FullSearch: false},
+	}
+	labelGameSamples(game, 10, 5, nil)
+	if len(game[0].PolicyNext) != 2 || game[0].PolicyNext[1] != 1 {
+		t.Fatalf("row 0 policy_next should be row 1 policy: %v", game[0].PolicyNext)
+	}
+	if game[1].PolicyNext != nil {
+		t.Fatal("row 1 next ply is a fast search; policy_next must be empty")
+	}
+	if game[0].ScoreMargin != 5 || game[1].ScoreMargin != -5 {
+		t.Fatalf("score margin perspective wrong: %v %v", game[0].ScoreMargin, game[1].ScoreMargin)
+	}
+}
+
+func TestWriteSampleShardRejectsMixedSizes(t *testing.T) {
+	a := Sample{Policy: make([]float32, 82), FeaturesSpatial: make([]float32, 8*81), FeaturesGlobal: make([]float32, 4)}
+	b := Sample{Policy: make([]float32, 170), FeaturesSpatial: make([]float32, 8*169), FeaturesGlobal: make([]float32, 4)}
+	if err := WriteSampleShard(filepath.Join(t.TempDir(), "x.npz"), []Sample{a, b}, ShardMeta{}); err == nil {
+		t.Fatal("expected mixed-size error")
+	}
+}

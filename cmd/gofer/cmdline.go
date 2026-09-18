@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -292,8 +294,21 @@ func runSelfplayCLI(f cliFlags) {
 		cfg.FullPlayouts = f.selfplayFullPlayouts
 		cfg.CapRandomizeP = f.selfplayCapRandomizeP
 	}
+	shardOut := isShardPath(f.out)
+	if shardOut && !flagWasSet("full-only") {
+		// Shards keep fast-search rows (flagged full_search=0) so the trainer can
+		// use them for value/ownership while masking their policy loss.
+		cfg.FullOnlyExport = false
+	}
 	samples, logs := RunSelfplayWithLogs(cfg)
-	if f.out != "" {
+	if shardOut {
+		meta := ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: selfplayModelID(cfg.EvalMode, f.modelPath)}
+		if err := WriteSampleShard(f.out, samples, meta); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "wrote %d rows (%d games) to %s\n", len(samples), len(logs), f.out)
+	} else if f.out != "" {
 		writeSelfplayJSON(f.out, samples)
 	} else if f.sgfDir == "" {
 		data, _ := MarshalSampleExport(samples)
@@ -336,4 +351,28 @@ func writeSelfplaySGFs(dir string, logs []*GameLog) {
 		}
 	}
 	fmt.Printf("wrote %d SGF files to %s\n", len(logs), dir)
+}
+
+func flagWasSet(name string) bool {
+	set := false
+	flag.Visit(func(fl *flag.Flag) {
+		if fl.Name == name {
+			set = true
+		}
+	})
+	return set
+}
+
+// selfplayModelID tags shards with the generating network so the replay buffer
+// can tell which champion produced each row.
+func selfplayModelID(evalMode, modelPath string) string {
+	if strings.EqualFold(evalMode, "heuristic") {
+		return "heuristic"
+	}
+	data, err := os.ReadFile(modelPath)
+	if err != nil {
+		return "unknown"
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:8])
 }

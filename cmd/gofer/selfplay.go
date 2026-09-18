@@ -153,6 +153,9 @@ func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, pool evalPool) ([]
 	bl, wl := rs.Score(b)
 	ownership := OwnershipLabel(b)
 	labelGameSamples(game, bl, wl, ownership)
+	for i := range game {
+		game[i].GameID = gameIdx
+	}
 	return game, log
 }
 
@@ -258,8 +261,13 @@ func labelGameSamples(game []Sample, bl, wl float64, ownership []float32) {
 	for i := range game {
 		if game[i].ToPlay == Black {
 			game[i].Value = outcomeValue(diff)
+			game[i].ScoreMargin = float32(diff)
 		} else {
 			game[i].Value = outcomeValue(-diff)
+			game[i].ScoreMargin = float32(-diff)
+		}
+		if i+1 < len(game) && game[i+1].FullSearch {
+			game[i].PolicyNext = game[i+1].Policy
 		}
 		if len(ownership) > 0 {
 			game[i].Ownership = append([]float32(nil), ownership...)

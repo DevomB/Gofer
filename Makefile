@@ -1,4 +1,4 @@
-.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build build-onnx bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx
+.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build build-onnx bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx pipeline-test pipeline-smoke pipeline-gpu pipeline-cpu pipeline-status pipeline-report docker-train
 
 test:
 	go test ./...
@@ -61,3 +61,29 @@ reproduce-9x9-onnx-gate:
 	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
 	@test -f models/gofer-9x9-bootstrap.onnx || (echo "run: make export-onnx" && exit 1)
 	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-eval heuristic -white-eval onnx -seed 42 -arena-enhanced none -json .tectonix/reports/arena-9x9-onnx-v25.json
+
+# ---- training pipeline v4 (docs/pipeline.md) ----
+PIPELINE ?= python -m training.pipeline
+
+pipeline-test:
+	go test ./cmd/gofer/ -count=1 -run 'Shard|NPY|PolicyNext'
+	python -m pytest training -q
+
+pipeline-smoke:
+	$(PIPELINE) run --config configs/pipeline-smoke.toml
+	$(PIPELINE) report --config configs/pipeline-smoke.toml
+
+pipeline-cpu:
+	$(PIPELINE) run --config configs/pipeline-cpu.toml
+
+pipeline-gpu:
+	$(PIPELINE) run --config configs/pipeline-gpu.toml
+
+pipeline-status:
+	$(PIPELINE) status --config configs/pipeline-$(or $(RUN),gpu).toml
+
+pipeline-report:
+	$(PIPELINE) report --config configs/pipeline-$(or $(RUN),gpu).toml
+
+docker-train:
+	docker build -f infra/docker/Dockerfile -t gofer-train:gpu .
