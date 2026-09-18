@@ -1,0 +1,24 @@
+# One-off architecture migration: train a fresh gpool net that imitates the
+# current legacy champion (policy KL + value MSE) while also fitting the
+# replay targets. Avoids the ~4-5 day re-bootstrap cost noted in ADR 0005.
+#   python training/train_bootstrap.py --config training/configs/distill-gpool.toml \
+#       --teacher training/state/best.pt --data training/data/shards --out-dir training/state/distill
+[train]
+arch = "gpool-6x64"
+board_size = 9
+epochs = 40
+batch_size = 256
+lr = 0.02
+optimizer = "sgd"
+ema_decay = 0.999
+window_rows = 0
+patience = 6
+amp = "auto"
+
+[train.loss]
+policy = 1.0
+value = 1.5
+ownership = 0.15
+score = 0.05
+policy_opp = 0.15
+distill = 1.0

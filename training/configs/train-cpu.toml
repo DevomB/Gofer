@@ -1,0 +1,25 @@
+# Learner preset for a CPU box (Lightsail / laptop): keeps the champion's
+# legacy-6x64 lineage so --resume keeps working. CLI flags override any key.
+#   python training/train_bootstrap.py --config training/configs/train-cpu.toml \
+#       --data training/data/shards --out-dir training/state/run --resume training/state/best.pt
+[train]
+board_size = 9
+epochs = 15
+batch_size = 128
+lr = 0.005
+optimizer = "sgd"
+weight_decay = 1e-4
+ema_decay = 0.999
+augment = true
+val_split = 0.1
+window_rows = 150000  # standalone default; the orchestrator overrides it with its growing window
+window_decay = 1.5
+patience = 4
+amp = "off"
+
+[train.loss]
+policy = 1.0
+value = 1.5
+ownership = 0.15
+score = 0.05
+policy_opp = 0.15

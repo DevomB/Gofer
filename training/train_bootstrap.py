@@ -1,30 +1,40 @@
-"""Train bootstrap 9x9 net from self-play JSONL."""
+"""Train the Gofer net from self-play data (JSONL or GOFER shards).
+
+Backward compatible with the v3 loop's invocation::
+
+    python training/train_bootstrap.py --data training/data/replay.jsonl \
+        --epochs 15 --lr 0.001 --out-dir training/state/run --resume training/state/best.pt
+
+New capabilities (all optional; see training/README.md):
+
+    --data training/data/shards/ --window-rows 250000 --window-decay 2   # shard dir + recency window
+    --arch gpool-6x64 --teacher training/state/best.pt                   # new arch, distilled from champion
+    --config configs/train.toml --amp bf16 --compile --continue          # config file, perf, crash-resume
+"""
 
 from __future__ import annotations
 
 import argparse
-import random
-from contextlib import nullcontext
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, Subset
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from dataset import SampleDataset
-from model import GoferBootstrapNet
+import torch  # noqa: E402
+
+from gofer_train.data import split_by_game  # noqa: E402,F401  (re-export)
+from gofer_train.trainer import TrainConfig, Trainer, pick_device  # noqa: E402
 
 SPLIT_SEED = 42
-# Ownership is an auxiliary regularizer, not the objective; keep its weight modest.
-OWNERSHIP_LOSS_WEIGHT = 0.15
+OWNERSHIP_LOSS_WEIGHT = 0.15  # legacy constant (net_size_ablation.py); see LossWeights
 
 
 def training_device() -> torch.device:
-    """CUDA-compatible device when available (ROCm reports via torch.cuda)."""
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    return torch.device("cpu")
+    return pick_device("auto")
+
+
+# ---- legacy dataclass API (tests, net_size_ablation) ------------------------
 
 
 @dataclass
@@ -45,168 +55,106 @@ class TrainJob:
 
 
 def split_indices(n: int, val_split: float, seed: int = SPLIT_SEED) -> tuple[list[int], list[int]]:
+    """Row-level split kept for net_size_ablation.py reproducibility."""
+    import random
+
     idx = list(range(n))
-    rng = random.Random(seed)
-    rng.shuffle(idx)
+    random.Random(seed).shuffle(idx)
     if n < 2:
         return idx, []
-    n_val = max(1, int(round(n * val_split)))
-    n_val = min(n_val, n - 1)
+    n_val = min(max(1, int(round(n * val_split))), n - 1)
     return idx[n_val:], idx[:n_val]
 
 
-def load_weights(net: GoferBootstrapNet, path: Path) -> None:
-    state = torch.load(path, map_location="cpu", weights_only=True)
-    if isinstance(state, dict) and "state_dict" in state:
-        state = state["state_dict"]
-    net.load_state_dict(state)
-
-
-def make_loaders(ds: SampleDataset, val_split: float) -> tuple[DataLoader, DataLoader | None]:
-    train_idx, val_idx = split_indices(len(ds), val_split)
-    train_loader = DataLoader(Subset(ds, train_idx), batch_size=min(64, len(train_idx)), shuffle=True)
-    if not val_idx:
-        return train_loader, None
-    val_loader = DataLoader(Subset(ds, val_idx), batch_size=min(64, len(val_idx)), shuffle=False)
-    return train_loader, val_loader
-
-
-def make_net(options: TrainOptions, device: torch.device) -> GoferBootstrapNet:
-    net = GoferBootstrapNet()
-    if options.resume and options.resume.exists():
-        load_weights(net, options.resume)
-    elif options.init_from and options.init_from.exists():
-        load_weights(net, options.init_from)
-    return net.to(device)
-
-
-def save_last(path: Path, state: dict) -> None:
-    torch.save(state, path)
-
-
-def run_epoch(
-    net: GoferBootstrapNet,
-    loader: DataLoader,
-    opt: torch.optim.Optimizer | None,
-    *,
-    train: bool,
-    device: torch.device,
-) -> float:
-    if train:
-        net.train()
-    else:
-        net.eval()
-    total = 0.0
-    n_batches = 0
-    grad_ctx = nullcontext() if train else torch.no_grad()
-    with grad_ctx:
-        for spatial, globals_, policy, value, ownership in loader:
-            spatial = spatial.to(device)
-            globals_ = globals_.to(device)
-            policy = policy.to(device)
-            value = value.to(device)
-            ownership = ownership.to(device)
-            if train and opt is not None:
-                opt.zero_grad()
-            logits, pred_v, pred_own = net(spatial, globals_)
-            target = policy / policy.sum(dim=1, keepdim=True).clamp(min=1e-8)
-            loss_p = -(target * torch.log_softmax(logits, dim=1)).sum(dim=1).mean()
-            loss_v = F.mse_loss(pred_v, value)
-            loss_own = F.mse_loss(pred_own, ownership)
-            loss = loss_p + loss_v + OWNERSHIP_LOSS_WEIGHT * loss_own
-            if train and opt is not None:
-                loss.backward()
-                opt.step()
-            total += loss.item()
-            n_batches += 1
-    return total / max(n_batches, 1)
-
-
-def train(job: TrainJob) -> Path:
-    device = training_device()
-    print(f"device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if device.type == "cuda" else ""))
-
-    ds = SampleDataset(job.data)
-    train_loader, val_loader = make_loaders(ds, job.options.val_split)
-    net = make_net(job.options, device)
-
-    opt = torch.optim.SGD(net.parameters(), lr=job.lr, momentum=0.9)
-    job.out_dir.mkdir(parents=True, exist_ok=True)
-    best_path = job.out_dir / "best.pt"
-    last_path = job.out_dir / "last.pt"
-
-    best_val = float("inf")
-    best_epoch = 0
-    stale = 0
-
-    for epoch in range(job.epochs):
-        train_loss = run_epoch(net, train_loader, opt, train=True, device=device)
-        val_loss = (
-            run_epoch(net, val_loader, None, train=False, device=device)
-            if val_loader
-            else train_loss
-        )
-        print(
-            f"epoch {epoch + 1}/{job.epochs} train_loss={train_loss:.4f} val_loss={val_loss:.4f}"
-        )
-
-        save_last(
-            last_path,
-            {
-                "state_dict": net.state_dict(),
-                "epoch": epoch + 1,
-                "train_loss": train_loss,
-                "val_loss": val_loss,
-            },
-        )
-
-        if val_loss < best_val:
-            best_val = val_loss
-            best_epoch = epoch + 1
-            stale = 0
-            torch.save(net.state_dict(), best_path)
-        else:
-            stale += 1
-            if stale >= job.options.patience:
-                print(f"early stop at epoch {epoch + 1} (patience={job.options.patience})")
-                break
-
-    if not best_path.exists():
-        torch.save(net.state_dict(), best_path)
-
-    print(f"best.pt epoch={best_epoch} val_loss={best_val:.4f}")
-    return best_path
-
-
-def main() -> None:
-    p = argparse.ArgumentParser()
-    p.add_argument("--data", default="training/data/samples.jsonl")
-    p.add_argument("--epochs", type=int, default=25)
-    p.add_argument("--lr", type=float, default=0.01)
-    p.add_argument("--out-dir", default="training/checkpoints")
-    p.add_argument("--resume", default="", help="load weights from checkpoint if exists")
-    p.add_argument("--init-from", default="", help="one-time seed weights (e.g. cycle2)")
-    p.add_argument("--val-split", type=float, default=0.1)
-    p.add_argument("--patience", type=int, default=5)
-    args = p.parse_args()
-
-    resume = Path(args.resume) if args.resume else None
-    init_from = Path(args.init_from) if args.init_from else None
-    best = train(
-        TrainJob(
-            data=Path(args.data),
-            epochs=args.epochs,
-            lr=args.lr,
-            out_dir=Path(args.out_dir),
-            options=TrainOptions(
-                resume=resume,
-                init_from=init_from,
-                val_split=args.val_split,
-                patience=args.patience,
-            ),
-        )
+def train(job: TrainJob, **overrides: object) -> Path:
+    init = job.options.resume if job.options.resume and job.options.resume.exists() else job.options.init_from
+    cfg = TrainConfig(
+        data=[str(job.data)],
+        out_dir=str(job.out_dir),
+        epochs=float(job.epochs),
+        lr=job.lr,
+        val_split=job.options.val_split,
+        patience=job.options.patience,
+        init_from=str(init) if init and Path(init).exists() else "",
     )
-    print(f"checkpoint: {best}")
+    for k, v in overrides.items():
+        setattr(cfg, k, v)
+    Trainer(cfg).run()
+    return job.out_dir / "best.pt"
+
+
+# ---- CLI --------------------------------------------------------------------
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--config", default="", help="TOML file ([train] table); CLI flags override it")
+    p.add_argument("--data", nargs="+", default=None, help="JSONL file(s), .npz shard(s) or shard dir(s)")
+    p.add_argument("--out-dir", default=None)
+    p.add_argument("--arch", default=None, help="preset (legacy-6x64, gpool-6x64, gpool-10x96, ...) or kind-BxC")
+    p.add_argument("--board-size", type=int, default=None)
+    g = p.add_argument_group("schedule")
+    g.add_argument("--epochs", type=float, default=None)
+    g.add_argument("--steps", type=int, default=None, help="total optimizer steps (overrides --epochs)")
+    g.add_argument("--batch-size", type=int, default=None)
+    g.add_argument("--lr", type=float, default=None)
+    g.add_argument("--warmup-steps", type=int, default=None)
+    g.add_argument("--optimizer", choices=("sgd", "adamw"), default=None)
+    g.add_argument("--weight-decay", type=float, default=None)
+    g.add_argument("--ema-decay", type=float, default=None, help="0 disables EMA")
+    g.add_argument("--no-augment", dest="augment", action="store_false", default=None)
+    d = p.add_argument_group("data")
+    d.add_argument("--val-split", type=float, default=None)
+    d.add_argument("--window-rows", type=int, default=None, help="train on the newest N rows (0 = all)")
+    d.add_argument("--window-decay", type=float, default=None, help="recency sampling: newest e^F x oldest")
+    d.add_argument("--patience", type=int, default=None, help="evals without improvement before stopping")
+    d.add_argument("--eval-every", type=int, default=None, help="steps between evals (0 = per epoch)")
+    i = p.add_argument_group("init")
+    i.add_argument("--resume", default="", help="warm-start weights (champion best.pt) if the file exists")
+    i.add_argument("--init-from", default="", help="one-time seed weights")
+    i.add_argument("--teacher", default=None, help="distill from this checkpoint (any arch)")
+    i.add_argument("--continue", dest="resume_run", action="store_true", default=None,
+                   help="continue an interrupted run from <out-dir>/last.pt (optimizer + step)")
+    i.add_argument("--ckpt-every", type=int, default=None, help="crash-safety save interval in steps")
+    f = p.add_argument_group("performance")
+    f.add_argument("--device", default=None, help="auto | cpu | cuda | cuda:1 | mps")
+    f.add_argument("--amp", choices=("auto", "bf16", "fp16", "off"), default=None)
+    f.add_argument("--compile", action="store_true", default=None)
+    f.add_argument("--channels-last", action="store_true", default=None)
+    f.add_argument("--seed", type=int, default=None)
+    f.add_argument("--tensorboard", action="store_true", default=None)
+    f.add_argument("--quiet", action="store_true", default=None)
+    return p
+
+
+def config_from_args(args: argparse.Namespace) -> TrainConfig:
+    over = {
+        k: getattr(args, k)
+        for k in (
+            "data", "out_dir", "arch", "board_size", "epochs", "steps", "batch_size", "lr",
+            "warmup_steps", "optimizer", "weight_decay", "ema_decay", "augment", "val_split",
+            "window_rows", "window_decay", "patience", "eval_every", "teacher", "resume_run",
+            "ckpt_every", "device", "amp", "compile", "channels_last", "seed", "tensorboard", "quiet",
+        )
+    }
+    cfg = TrainConfig.from_toml(Path(args.config), **over) if args.config else TrainConfig()
+    if not args.config:
+        for k, v in over.items():
+            if v is not None:
+                setattr(cfg, k, v)
+    # --resume keeps its v3 meaning: warm-start weights when the file exists.
+    if args.resume and Path(args.resume).exists():
+        cfg.init_from = args.resume
+    elif args.init_from and Path(args.init_from).exists():
+        cfg.init_from = args.init_from
+    return cfg
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_parser().parse_args(argv)
+    cfg = config_from_args(args)
+    summary = Trainer(cfg).run()
+    print(f"checkpoint: {summary['best_pt']}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,28 @@
+# Learner preset for one rented GPU (e.g. RTX 4090 / A10 / L4 spot instance).
+# Step-based schedule, bigger batches, bf16 autocast, frequent crash-safety
+# saves so a preempted spot box resumes with --continue.
+[train]
+arch = "gpool-10x96"
+board_size = 9
+steps = 20000
+batch_size = 1024
+lr = 0.02
+warmup_steps = 500
+optimizer = "sgd"
+weight_decay = 3e-5
+ema_decay = 0.9995
+window_rows = 1000000  # standalone default; the orchestrator overrides it with its growing window
+window_decay = 2.0
+eval_every = 1000
+patience = 6
+ckpt_every = 500
+amp = "auto"
+compile = true
+channels_last = true
+
+[train.loss]
+policy = 1.0
+value = 1.5
+ownership = 0.15
+score = 0.05
+policy_opp = 0.15

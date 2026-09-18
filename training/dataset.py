@@ -1,4 +1,4 @@
-"""Load self-play JSONL samples for bootstrap training."""
+"""Legacy row-level JSONL dataset (net_size_ablation.py only; the trainer uses gofer_train.shards)."""
 
 from __future__ import annotations
 
