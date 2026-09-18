@@ -10,7 +10,7 @@ The v3 loop (`train-loop-v3.sh`) proved the champion/challenger design, but its 
 
 - **Data path.** Self-play emitted JSONL with ~700 JSON floats per row, and every cycle rewrote the whole `replay.jsonl` to trim it. The trainer parsed JSON on every load. Fast-search rows from playout-cap randomization were thrown away.
 - **Label bugs in JSONL.** `ownership` was in the absolute frame (Black = +1) while `value` and the input planes are side-to-move. `policy_opp` held the *previous* ply's policy, not the opponent's reply.
-- **Gating cost.** Every gate paid for 200 games, even when the candidate was obviously better or worse.
+- **Gating errors.** The Go arena re-checked a Wilson bound after every game, so a candidate with no real gain was promoted about 8% of the time instead of the nominal 2.5%.
 - **Serial stages.** CPU self-play sat idle while the GPU trained, and the reverse.
 - **Fragile runs.** A crash or spot preemption restarted the cycle, and the state was spread across env vars, a manifest and fixed paths.
 - **Champion history.** `best.onnx` was overwritten in place; one archive copy was the only rollback.

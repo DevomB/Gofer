@@ -1,9 +1,11 @@
 """Gating statistics: SPRT on Elo, Wilson intervals, Elo estimates.
 
-Fixed 200-game arenas spend most of their games on candidates that are clearly
-better or clearly worse. A sequential probability ratio test (as used by Leela
-Zero / Fishtest) stops as soon as the evidence is decisive, typically cutting
-gating cost 2-4x while keeping the configured error rates.
+The v3 gate re-checked a Wilson bound after every game (inside the Go arena),
+which inflates the false-promotion rate (about 8% for a candidate with no real
+gain). A sequential probability ratio test (Wald 1945; as in Stockfish's
+Fishtest) keeps the configured error rates while still stopping early on clear
+results. It is not uniformly cheaper: near zero true gain it plays more games
+than v3. paper/analysis/gate_oc.py computes the exact trade-off.
 """
 
 from __future__ import annotations

@@ -30,7 +30,7 @@ python -m training.pipeline report --config configs/pipeline-smoke.toml  # runs/
 |---|---|---|
 | Self-play data | JSONL, full-search rows only | `.npz` shards (~40x smaller); fast rows kept for value/ownership |
 | Replay | one `replay.jsonl`, rewritten on every trim | immutable shards; window grows with total data (KataGo power law) |
-| Gating | fixed 200 games | SPRT in arena batches: stops as soon as the result is decisive |
+| Gating | Wilson bound re-checked after every game (~8% false promotions at zero gain) | SPRT in arena batches: ~2.7% false promotions and more power; longer gates near zero gain |
 | Throughput | stages strictly serial | next cycle's self-play overlaps training and gating |
 | Crash / preemption | restart the cycle | per-stage checkpoints; resumes mid-cycle; the trainer continues with `--continue` |
 | Champions | `best.onnx` overwritten, one archive copy | immutable numbered generations, Elo ladder, registry, rollback |

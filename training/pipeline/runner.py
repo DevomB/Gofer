@@ -3,8 +3,9 @@
 Differences from scripts/train-loop-v3.sh:
   * self-play writes compact .npz shards (no JSONL parse, ~40x smaller);
   * the replay buffer is a growing window over immutable shards (no rewrites);
-  * gating is a sequential test (SPRT) run in arena batches, so clear wins and
-    clear losses stop early instead of always paying for 200 games;
+  * gating is a sequential test (SPRT) run in arena batches: it controls the
+    false-promotion rate that v3's per-game Wilson checks inflated, and still
+    stops early on clear wins and clear losses;
   * the next cycle's self-play runs in the background while this cycle trains
     and gates (CPU self-play overlaps GPU training);
   * every stage is checkpointed in state.json, so a crash or preemption (spot
