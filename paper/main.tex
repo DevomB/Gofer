@@ -1,0 +1,81 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\usepackage{listings}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\hypersetup{colorlinks=true,linkcolor=blue!50!black,citecolor=green!35!black,urlcolor=blue!60!black}
+\lstset{basicstyle=\ttfamily\small,columns=fullflexible,breaklines=true,frame=single,framerule=0.3pt}
+
+\newcommand{\gofer}{Gofer}
+\newcommand{\katago}{KataGo}
+\newcommand{\code}[1]{\texttt{#1}}
+
+\title{Gofer v4: A Low-Budget, Resumable Self-Play Training Pipeline\\for $9\times9$ Go, Built on the \katago{} Recipe}
+\author{DevomB\\\small Gofer project}
+\date{September 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\katago{}~\citep{wu2019accelerating} showed that a handful of changes to the AlphaZero
+process---playout cap randomization, global pooling, auxiliary policy, ownership and score
+targets, and a growing replay window---cut the compute needed to learn Go by about
+$50\times$. Even so, that result needed tens of GPUs. This report describes version~4 of the
+training pipeline for \gofer{}, a small open-source Go engine. The goal is different: build
+the infrastructure so a \katago{}-style run can start on free CPU runners and move to a
+single rented, preemptible GPU without losing work.
+
+We describe the full loop. Go self-play writes compact binary shards. A new learner masks
+the policy loss to full-search positions, splits train and validation by game, augments
+with the eight board symmetries, keeps an exponential moving average of the weights, and
+can distill a new architecture from the current champion. An orchestrator adds sequential
+(SPRT) gating, stage-level resumability, and a registry of champions that is never pruned.
+
+Relative to the previous \gofer{} pipeline, we fix two labeling defects and a validation leak, and make the
+data about $40\times$ smaller. The loop was verified end to end on CPU, with a checked
+parity bound between PyTorch and ONNX Runtime. We report no playing-strength results:
+no training run at scale has been done. We state precisely which \katago{} techniques we
+adopt, which we change, and which are still missing, and we give the experiment protocol
+that would test the claims left open.
+\end{abstract}
+
+\input{sections/01-introduction}
+\input{sections/02-background}
+\input{sections/03-system-overview}
+\input{sections/04-selfplay-data}
+\input{sections/05-learner}
+\input{sections/06-orchestration}
+\input{sections/07-infrastructure}
+\input{sections/08-evaluation}
+\input{sections/09-limitations}
+\input{sections/10-conclusion}
+
+\section*{Acknowledgments}
+The v4 code and this report were written with substantial help from AI coding agents
+(Claude, Anthropic). Two agent sessions worked in parallel: one on the learner and one on
+self-play data and orchestration. All numbers reported here come from commands run on the
+hardware described in \cref{sec:eval}.
+
+\bibliographystyle{plainnat}
+\bibliography{references,references-pipeline}
+
+\end{document}

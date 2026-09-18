@@ -1,0 +1,255 @@
+\section{Orchestration}
+\label{sec:orchestration}
+
+The orchestrator (\code{python -m training.pipeline}) replaces the v3 shell loop. It
+reads one typed configuration file, runs the cycle of \cref{fig:overview-loop}, and keeps
+all run state in a single directory. This section covers the cycle and its checkpoints,
+the overlap between self-play and training, the replay window, the promotion gate, and
+how champions are published. \Cref{sec:infra} covers where the loop runs.
+
+\subsection{The cycle as a checkpointed state machine}
+\label{sec:orch-cycle}
+
+A cycle $N$ runs six stages in order:
+\begin{enumerate}
+  \item \textbf{self-play}: write shard $N$ with the current champion, or with the
+        heuristic evaluator before any network exists;
+  \item \textbf{train}: start from the champion's weights and train on the replay window
+        (\cref{sec:orch-replay});
+  \item \textbf{export}: write the candidate ONNX model and check it for parity
+        (\cref{sec:learner-export});
+  \item \textbf{gate}: play the candidate against the champion (\cref{sec:orch-gate});
+  \item \textbf{promote}: on acceptance, copy the candidate to a new immutable generation;
+  \item \textbf{publish}: register and release the new champion (\cref{sec:orch-publish}).
+\end{enumerate}
+If fewer than a configured number of rows exist (\code{min\_rows\_to\_train}), the cycle
+records the last five stages as skipped and only accumulates data. The first network is
+promoted unconditionally, after a short sanity match against the heuristic, because there
+is no champion to gate against.
+
+\subsection{Resumability}
+\label{sec:orch-resume}
+
+Cheap hardware gets interrupted: spot instances are reclaimed with a short
+warning~\citep{awsspot}, and free CI jobs have hard time limits (\cref{sec:infra-actions}).
+v3 restarted the whole cycle after any failure. In v4 a restart resumes at the first
+unfinished stage. Five invariants make this safe:
+\begin{enumerate}
+  \item \emph{Atomic state.} \code{state.json}, which holds the last completed cycle, the
+        stages done in the current cycle and the champion lineage, is written to a
+        temporary file and renamed into place. Shards (\cref{sec:selfplay-shards}) and
+        history records are written the same way.
+  \item \emph{Mark after success.} A stage is recorded as done only after it finishes.
+        Counters such as the lifetime row count change in the same write, so a crash
+        between the work and the write cannot count rows twice.
+  \item \emph{Idempotent gating.} Each arena batch writes its own report file. A resumed
+        gate reuses finished batches and replays nothing.
+  \item \emph{Mid-run training resume.} If a previous training attempt left a checkpoint,
+        the retry passes \code{--continue} so the learner restores optimizer and schedule
+        state (\cref{sec:learner-opt}).
+  \item \emph{Clean termination.} \code{SIGTERM}, sent by \code{docker stop}, preemption
+        notices and CI timeouts, is turned into an orderly shutdown that stops background
+        self-play and inference servers.
+\end{enumerate}
+A test injects a failure into the training stage, starts a new orchestrator process on
+the same directory, and checks that self-play is not repeated and that rows are counted
+once (\cref{sec:pipeline-eval}).
+
+\subsection{Overlapping self-play with training}
+\label{sec:orch-overlap}
+
+In \katago{} and in distributed reinforcement-learning systems, data generation runs
+continuously and apart from the learner~\citep{wu2019accelerating,espeholt2018impala,horgan2018distributed}.
+A single machine with a GPU is in the same situation on a small scale: self-play is mostly
+CPU work, training is mostly GPU work. With \code{overlap\_selfplay} enabled, the
+orchestrator starts cycle $N{+}1$'s self-play in the background as soon as cycle $N$'s
+self-play finishes, using the champion at that moment. The games are therefore at most one
+generation stale, and the stage-$N{+}1$ self-play step only waits for whatever is left.
+Overlap is off in the CPU-only configurations, because there both workloads compete for the
+same cores. Overlap has one side effect: if the background self-play finishes first, the
+trainer of cycle $N$ also sees the new shard. This is harmless, since it is newer data from
+the same champion, but it makes cycles less reproducible, so controlled experiments should
+turn it off.
+
+\subsection{Replay as a window over immutable shards}
+\label{sec:orch-replay}
+
+Experience replay reuses recent data across updates~\citep{lin1992self,mnih2015human}.
+v3 kept one JSONL file, capped at 50{,}000 rows, and rewrote the whole file whenever it
+trimmed it. v4 never rewrites data. The buffer is the newest shards whose rows fill the
+current window, and the learner receives the shard directory plus the window size in rows
+(\code{--window-rows}). The window follows \katago{}'s power law, \cref{eq:window}, applied
+to the lifetime row count $N_{\mathrm{total}}$. The anchor $c$ is \code{min\_window\_rows}:
+20{,}000 on CPU and 100{,}000 on a GPU, against \katago{}'s 250{,}000. The window is capped at
+\code{max\_window\_rows}. The orchestrator owns this value because only it knows the lifetime
+total, including shards that have left the live directory. Shards older than
+\code{archive\_factor} times the window move to \code{selfplay/archive/}, which keeps the
+directory, and therefore any CI cache (\cref{sec:infra-actions}), bounded.
+
+\subsection{Sequential gating}
+\label{sec:orch-gate}
+
+\paragraph{Model.}
+Under the Elo model~\citep{elo1978rating}, a candidate that is $\Delta$ Elo stronger than
+the champion scores
+\begin{equation}
+  p(\Delta) = \frac{1}{1 + 10^{-\Delta/400}}
+  \label{eq:elo-score}
+\end{equation}
+per game. On $9\times9$ with komi $6.5$ a game cannot be drawn, so a gate is a sequential
+test on Bernoulli trials. In what follows, $w$ and $\ell$ are the candidate's wins and losses
+so far.
+
+\paragraph{Previous gates.}
+\katago{} promotes a candidate that wins at least 100 of 200
+games~\citep[App.~E]{wu2019accelerating}. This is a non-regression check: its purpose is to
+keep a clearly worse network out of self-play, and at $\Delta=0$ it accepts about half the
+time. The v3 gate was stricter: a win rate of at least $0.55$ with a Wilson lower
+bound~\citep{wilson1927probable} above $0.5$. But the Go arena also \emph{stopped early}:
+after 20 games it rejects once $0.55$ is out of reach, and after 100 games it accepts as
+soon as both conditions hold. Checking a significance condition after every game inflates
+the false-positive rate; this is the repeated-significance-testing problem of
+\citet{armitage1969repeated}. \Cref{tab:orch-gate-oc} shows the effect: a v3 candidate with
+no real gain is promoted $8.0\%$ of the time, almost three times the $2.8\%$ of a single
+test at 200 games with the same bound.
+
+\paragraph{SPRT.}
+v4 uses Wald's sequential probability ratio test~\citep{wald1945sequential}, the procedure
+Stockfish's Fishtest uses to accept engine changes~\citep{fishtest}. It compares
+$H_0\colon \Delta=\Delta_0$ against $H_1\colon \Delta=\Delta_1$ using the log-likelihood
+ratio
+\begin{equation}
+  \Lambda(w,\ell) = w \log\frac{p_1}{p_0} + \ell \log\frac{1-p_1}{1-p_0},
+  \qquad p_i = p(\Delta_i),
+  \label{eq:llr}
+\end{equation}
+where draws, if there were any, count as half a win and half a loss. The test accepts
+$H_1$ when $\Lambda \ge \log\frac{1-\beta}{\alpha}$ and accepts $H_0$ when
+$\Lambda \le \log\frac{\beta}{1-\alpha}$. The defaults are $\Delta_0=0$, $\Delta_1=35$ and
+$\alpha=\beta=0.05$, which puts the bounds at $\pm 2.94$. Two practical details:
+\begin{itemize}
+  \item \emph{Batches.} The test is checked after arena batches of 40 games, not after
+        every game. A full batch has equal numbers of games with each colour, and the
+        engine can batch its network evaluations. Each batch is one Go arena call, so the arena's in-batch early reject
+        still applies. Stopping a batch early does not bias the likelihood ratio, because
+        the next batch simply continues the same sequence of games.
+  \item \emph{Cap.} The gate plays at most 400 games. If the test is still undecided
+        there, the v3 rule decides.
+\end{itemize}
+
+\paragraph{Exact operating characteristics.}
+We computed each gate's acceptance probability $P_{\mathrm{acc}}$ and expected number of
+games $E[n]$ exactly, by dynamic programming over (games played, wins). The computation
+calls the orchestrator's own decision code and mirrors the Go arena's stopping rule, so it
+describes the gates as they run (\code{paper/analysis/gate\_oc.py}). A 20{,}000-trial Monte
+Carlo simulation of the same procedures agrees within sampling error. The only modelling
+simplification is that games finish in order, whereas the real arena plays them in
+parallel. \Cref{tab:orch-gate-oc,fig:orch-gate-oc} show the results.
+
+\begin{table}[htbp]
+\centering
+\small
+\input{figures/gate_table}
+\caption{Exact acceptance probability and expected games for four gates as a function of
+the candidate's true advantage. v3 includes the Go arena's interim stops. The v4 columns
+use SPRT$(0,\Delta_1)$ with $\alpha=\beta=0.05$: the default configuration ($\Delta_1=35$,
+batches of 40, cap 400) and the free-runner configuration of \cref{sec:infra-actions}
+($\Delta_1=40$, batches of 24, cap 192).}
+\label{tab:orch-gate-oc}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+  group style={group size=2 by 1, horizontal sep=1.6cm},
+  width=0.47\textwidth, height=5.2cm,
+  xlabel={True advantage $\Delta$ (Elo)},
+  xmin=-150, xmax=250, grid=major, grid style={gray!20},
+  tick label style={font=\footnotesize}, label style={font=\small},
+  legend style={font=\footnotesize, draw=none, fill=none},
+  every axis plot/.append style={thick, mark size=1.4pt},
+]
+\nextgroupplot[ylabel={$P(\text{accept})$}, ymin=0, ymax=1.02,
+  legend to name=gatelegend, legend columns=4,
+  legend style={/tikz/every even column/.append style={column sep=0.5cm}}]
+\addplot[black, dashed] table[x=elo, y=katagoAcc, col sep=comma] {figures/gate_oc.csv};
+\addlegendentry{\katago{} 100/200}
+\addplot[orange!85!black, mark=square*, mark repeat=3] table[x=elo, y=vthreeAcc, col sep=comma] {figures/gate_oc.csv};
+\addlegendentry{\gofer{} v3}
+\addplot[blue!75!black, mark=*, mark repeat=3] table[x=elo, y=vfourAcc, col sep=comma] {figures/gate_oc.csv};
+\addlegendentry{v4 SPRT (default)}
+\addplot[teal!70!black, dotted, mark=triangle*, mark repeat=3] table[x=elo, y=actionsAcc, col sep=comma] {figures/gate_oc.csv};
+\addlegendentry{v4 SPRT (Actions)}
+\nextgroupplot[ylabel={$E[\text{games}]$}, ymin=0, ymax=420]
+\addplot[black, dashed] table[x=elo, y=katagoN, col sep=comma] {figures/gate_oc.csv};
+\addplot[orange!85!black, mark=square*, mark repeat=3] table[x=elo, y=vthreeN, col sep=comma] {figures/gate_oc.csv};
+\addplot[blue!75!black, mark=*, mark repeat=3] table[x=elo, y=vfourN, col sep=comma] {figures/gate_oc.csv};
+\addplot[teal!70!black, dotted, mark=triangle*, mark repeat=3] table[x=elo, y=actionsN, col sep=comma] {figures/gate_oc.csv};
+\end{groupplot}
+\end{tikzpicture}
+
+\vspace{2pt}
+\ref*{gatelegend}
+\caption{Operating characteristics of the four gates in \cref{tab:orch-gate-oc}: the
+probability of promotion (left) and the expected gate length (right), against the
+candidate's true advantage.}
+\label{fig:orch-gate-oc}
+\end{figure}
+
+\paragraph{What SPRT buys, and what it costs.}
+Three findings stand out.
+\begin{itemize}
+  \item \emph{Error control.} SPRT keeps the false-promotion rate close to its nominal
+        level: $2.7\%$ at $\Delta=0$, against v3's $8.0\%$. It also has more power for
+        real gains: at $\Delta=+50$ it promotes $82\%$ of candidates, against $67\%$.
+  \item \emph{Not uniformly cheaper.} Clearly worse candidates are rejected sooner than
+        in v3 (105 against 142 expected games at $-100$), and very strong ones are
+        accepted sooner at $+200$. But near the indifference region SPRT plays about twice
+        as many games (348 against 175 at $\Delta=0$). The v4 gate is an error-control
+        improvement, not a saving in games.
+  \item \emph{The cap matters.} With the default cap of 400 games, a candidate that is
+        truly $+35$ Elo stronger is promoted only $52\%$ of the time, far below the
+        nominal $1-\beta=0.95$, because many such tests reach the cap undecided. The
+        free-runner configuration's cap of 192 is weaker still ($28\%$ at $+35$). On a
+        small budget, that configuration can only reliably detect large gains. This is
+        acceptable early in a run, when each generation typically gains a lot, but it
+        should be revisited once gains become small.
+\end{itemize}
+\Cref{tab:orch-gate-oc} also shows what \katago{}'s gate is for. It accepts $23\%$ of
+candidates that are \emph{20 Elo worse}. That is consistent with its stated purpose: a
+cheap guard against large regressions in a run where most candidates improve.
+
+\subsection{Promotion, the Elo ladder and publishing}
+\label{sec:orch-publish}
+
+\paragraph{Generations.}
+A promoted candidate becomes generation $g$, stored as three immutable files: the ONNX
+model, the weights, and the full checkpoint. Nothing overwrites or deletes a
+generation. Numbers are never reused, even after a rollback. Each generation carries a
+\emph{ladder} Elo: the previous champion's value plus the gain measured at its gate, with
+generation~1 at~0. The ladder is only a progress indicator. It is biased upwards because a
+candidate is recorded only when its measured gain was large enough to pass the gate. It is
+also blind to intransitivity. A proper rating would fit all cross-generation games jointly,
+as \katago{} did with BayesElo~\citep{coulom2010bayeselo,wu2019accelerating}; we leave this
+for future work.
+
+\paragraph{Registry and releases.}
+The publish stage copies each new champion into a registry directory with a JSON card
+(gate statistics, ladder Elo, SHA-256) and appends it to an index. The index tracks the
+current \code{best} and the \code{previous\_best}. An optional \emph{alias}, a fixed
+path such as \code{models/gofer-9x9-best.onnx} that play and analysis commands can point
+at, is overwritten with each new best. The registry is where the history is kept. Optionally, each champion is also published as its
+own GitHub Release, so older champions remain downloadable. A failed upload is recorded and
+retried later; it never stops training.
+
+\paragraph{Guarding against a false best.}
+A gate can pass by chance ($2.7\%$ at $\Delta=0$ in \cref{tab:orch-gate-oc}), or a
+candidate can beat the current champion while losing to earlier ones. Before publishing, an
+optional \emph{regression match} plays the new champion against the champion
+\code{regression\_lookback} generations earlier. If the new champion scores below a
+threshold, it is recorded as \emph{held}: the alias and the latest release do not move. It
+can also be demoted, so that self-play falls back to the previous champion. A
+\code{rollback} command re-points \code{best}, the alias and the latest release to any
+earlier generation, and can optionally make that generation the training champion again.
+Tests cover all of these paths (\cref{sec:pipeline-eval}).

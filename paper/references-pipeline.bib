@@ -1,0 +1,201 @@
+% References for the self-play data, orchestration, infrastructure and
+% pipeline-evaluation sections (04, 06, 07, 08b). Shared Go/RL/deep-learning
+% references live in references.bib; do not redefine those keys here.
+
+% ---------------------------------------------------------------- statistics
+
+@article{wald1945sequential,
+  author  = {Wald, Abraham},
+  title   = {Sequential Tests of Statistical Hypotheses},
+  journal = {The Annals of Mathematical Statistics},
+  volume  = {16},
+  number  = {2},
+  pages   = {117--186},
+  year    = {1945},
+  doi     = {10.1214/aoms/1177731118}
+}
+
+@article{wilson1927probable,
+  author  = {Wilson, Edwin B.},
+  title   = {Probable Inference, the Law of Succession, and Statistical Inference},
+  journal = {Journal of the American Statistical Association},
+  volume  = {22},
+  number  = {158},
+  pages   = {209--212},
+  year    = {1927},
+  doi     = {10.1080/01621459.1927.10502953}
+}
+
+@article{armitage1969repeated,
+  author  = {Armitage, Peter and McPherson, C. K. and Rowe, B. C.},
+  title   = {Repeated Significance Tests on Accumulating Data},
+  journal = {Journal of the Royal Statistical Society. Series A (General)},
+  volume  = {132},
+  number  = {2},
+  pages   = {235--244},
+  year    = {1969},
+  doi     = {10.2307/2343787}
+}
+
+@book{elo1978rating,
+  author    = {Elo, Arpad E.},
+  title     = {The Rating of Chessplayers, Past and Present},
+  publisher = {Arco Publishing},
+  address   = {New York},
+  year      = {1978}
+}
+
+@misc{fishtest,
+  author       = {{The Stockfish developers}},
+  title        = {Fishtest: Distributed Testing Framework for the {Stockfish} Chess Engine},
+  howpublished = {\url{https://github.com/official-stockfish/fishtest}},
+  note         = {Accepts engine patches with a sequential probability ratio test on Elo. Accessed 2026-09-18},
+  year         = {2026}
+}
+
+% ----------------------------------------------------- replay / RL systems
+
+@article{lin1992self,
+  author  = {Lin, Long-Ji},
+  title   = {Self-Improving Reactive Agents Based on Reinforcement Learning, Planning and Teaching},
+  journal = {Machine Learning},
+  volume  = {8},
+  number  = {3--4},
+  pages   = {293--321},
+  year    = {1992},
+  doi     = {10.1007/BF00992699}
+}
+
+@article{mnih2015human,
+  author  = {Mnih, Volodymyr and Kavukcuoglu, Koray and Silver, David and Rusu, Andrei A. and Veness, Joel and Bellemare, Marc G. and Graves, Alex and Riedmiller, Martin and Fidjeland, Andreas K. and Ostrovski, Georg and Petersen, Stig and Beattie, Charles and Sadik, Amir and Antonoglou, Ioannis and King, Helen and Kumaran, Dharshan and Wierstra, Daan and Legg, Shane and Hassabis, Demis},
+  title   = {Human-Level Control through Deep Reinforcement Learning},
+  journal = {Nature},
+  volume  = {518},
+  number  = {7540},
+  pages   = {529--533},
+  year    = {2015},
+  doi     = {10.1038/nature14236}
+}
+
+@inproceedings{espeholt2018impala,
+  author    = {Espeholt, Lasse and Soyer, Hubert and Munos, R{\'e}mi and Simonyan, Karen and Mnih, Volodymyr and Ward, Tom and Doron, Yotam and Firoiu, Vlad and Harley, Tim and Dunning, Iain and Legg, Shane and Kavukcuoglu, Koray},
+  title     = {{IMPALA}: Scalable Distributed Deep-{RL} with Importance Weighted Actor-Learner Architectures},
+  booktitle = {Proceedings of the 35th International Conference on Machine Learning},
+  series    = {Proceedings of Machine Learning Research},
+  volume    = {80},
+  pages     = {1407--1416},
+  year      = {2018}
+}
+
+@inproceedings{horgan2018distributed,
+  author    = {Horgan, Dan and Quan, John and Budden, David and Barth-Maron, Gabriel and Hessel, Matteo and van Hasselt, Hado and Silver, David},
+  title     = {Distributed Prioritized Experience Replay},
+  booktitle = {International Conference on Learning Representations},
+  year      = {2018}
+}
+
+% --------------------------------------------------------- data formats
+
+@article{harris2020array,
+  author  = {Harris, Charles R. and Millman, K. Jarrod and van der Walt, St{\'e}fan J. and Gommers, Ralf and Virtanen, Pauli and Cournapeau, David and Wieser, Eric and Taylor, Julian and Berg, Sebastian and Smith, Nathaniel J. and Kern, Robert and Picus, Matti and Hoyer, Stephan and van Kerkwijk, Marten H. and Brett, Matthew and Haldane, Allan and del R{\'i}o, Jaime Fern{\'a}ndez and Wiebe, Mark and Peterson, Pearu and G{\'e}rard-Marchant, Pierre and Sheppard, Kevin and Reddy, Tyler and Weckesser, Warren and Abbasi, Hameer and Gohlke, Christoph and Oliphant, Travis E.},
+  title   = {Array Programming with {NumPy}},
+  journal = {Nature},
+  volume  = {585},
+  number  = {7825},
+  pages   = {357--362},
+  year    = {2020},
+  doi     = {10.1038/s41586-020-2649-2}
+}
+
+@misc{kern2007npy,
+  author       = {Kern, Robert},
+  title        = {{NEP} 1 --- A Simple File Format for {NumPy} Arrays},
+  howpublished = {\url{https://numpy.org/neps/nep-0001-npy-format.html}},
+  year         = {2007},
+  note         = {NumPy Enhancement Proposal}
+}
+
+@techreport{deutsch1996deflate,
+  author      = {Deutsch, L. Peter},
+  title       = {{DEFLATE} Compressed Data Format Specification Version 1.3},
+  institution = {Internet Engineering Task Force},
+  type        = {Request for Comments},
+  number      = {1951},
+  year        = {1996},
+  doi         = {10.17487/RFC1951}
+}
+
+@misc{pkware2022zip,
+  author       = {{PKWARE Inc.}},
+  title        = {{APPNOTE.TXT} --- .{ZIP} File Format Specification, Version 6.3.10},
+  howpublished = {\url{https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT}},
+  year         = {2022}
+}
+
+@techreport{bray2017json,
+  author      = {Bray, Tim},
+  title       = {The {JavaScript} Object Notation ({JSON}) Data Interchange Format},
+  institution = {Internet Engineering Task Force},
+  type        = {Request for Comments},
+  number      = {8259},
+  year        = {2017},
+  doi         = {10.17487/RFC8259}
+}
+
+% ------------------------------------------------------- infrastructure
+
+@book{donovan2015go,
+  author    = {Donovan, Alan A. A. and Kernighan, Brian W.},
+  title     = {The {Go} Programming Language},
+  publisher = {Addison-Wesley},
+  year      = {2015}
+}
+
+@article{merkel2014docker,
+  author  = {Merkel, Dirk},
+  title   = {Docker: Lightweight {Linux} Containers for Consistent Development and Deployment},
+  journal = {Linux Journal},
+  volume  = {2014},
+  number  = {239},
+  year    = {2014}
+}
+
+@inproceedings{yang2023skypilot,
+  author    = {Yang, Zongheng and Wu, Zhanghao and Luo, Michael and Chiang, Wei-Lin and Bhardwaj, Romil and Kwon, Woosuk and Zhuang, Siyuan and Luan, Frank Sifei and Mittal, Gautam and Shenker, Scott and Stoica, Ion},
+  title     = {{SkyPilot}: An Intercloud Broker for Sky Computing},
+  booktitle = {20th USENIX Symposium on Networked Systems Design and Implementation (NSDI 23)},
+  pages     = {437--455},
+  year      = {2023}
+}
+
+@misc{githubactionsbilling,
+  author       = {{GitHub, Inc.}},
+  title        = {About Billing for {GitHub Actions}},
+  howpublished = {\url{https://docs.github.com/en/billing/managing-billing-for-github-actions/about-billing-for-github-actions}},
+  note         = {Standard GitHub-hosted runners are free for public repositories. Accessed 2026-09-18},
+  year         = {2026}
+}
+
+@misc{githubrunners,
+  author       = {{GitHub, Inc.}},
+  title        = {About {GitHub}-Hosted Runners},
+  howpublished = {\url{https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners}},
+  note         = {Runner hardware and the 6-hour job execution limit. Accessed 2026-09-18},
+  year         = {2026}
+}
+
+@misc{githubactionscache,
+  author       = {{GitHub, Inc.}},
+  title        = {Caching Dependencies to Speed Up Workflows},
+  howpublished = {\url{https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows}},
+  note         = {Cache size limit and eviction of caches not accessed for 7 days. Accessed 2026-09-18},
+  year         = {2026}
+}
+
+@misc{awsspot,
+  author       = {{Amazon Web Services}},
+  title        = {Spot Instance Interruptions},
+  howpublished = {\url{https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/spot-interruptions.html}},
+  note         = {Amazon EC2 User Guide. Accessed 2026-09-18},
+  year         = {2026}
+}

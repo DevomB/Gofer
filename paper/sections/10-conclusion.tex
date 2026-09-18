@@ -1,0 +1,46 @@
+\section{Conclusion and Future Work}\label{sec:conclusion}
+
+\gofer{} v4 turns a shell-script training loop into a tested, resumable pipeline shaped
+by the \katago{} recipe~\citep{wu2019accelerating}:
+\begin{itemize}
+  \item \textbf{Data.} Self-play writes compact shards with correctly framed labels. The
+        learner trains on a growing window with game-level validation, symmetry
+        augmentation, masked multi-head losses and EMA weights.
+  \item \textbf{Architectures.} The learner supports a size-agnostic global-pooling network,
+        and it can move to a new architecture by distilling from the champion.
+  \item \textbf{Loop.} Candidates pass a parity-checked export and a sequential gate, and
+        every champion is kept.
+\end{itemize}
+Measured against v3, the gains we can defend today are correctness, data volume,
+robustness, and control of false promotions at the gate (which costs longer gates for
+near-neutral candidates). Measured against \katago{}, v4 is a partial adoption with
+different engineering priorities: it is built for a project with no compute budget.
+
+\paragraph{Experiment protocol.}
+The open questions are empirical, and the pipeline was built to answer them cheaply. We
+propose a protocol modelled on \citeauthor{wu2019accelerating}'s ablations: a main run,
+plus runs that each change one component, compared by Elo on the pipeline's champion
+ladder against cumulative self-play compute (network queries $\times$ blocks $\times$
+channels$^2$, as in \citet{wu2019accelerating}). In priority order:
+\begin{enumerate}
+  \item fast-search rows kept (masked policy) versus discarded;
+  \item \code{gpool}-6$\times$64 versus legacy-6$\times$64 at equal self-play compute;
+  \item a \code{gpool} student distilled from the v3 champion versus the same network
+        trained from scratch, measured in cycles to reach the champion's arena strength;
+  \item per-cycle fine-tuning versus continuous training;
+  \item EMA on versus off, and recency decay $\lambda\in\{0,2\}$.
+\end{enumerate}
+Each comparison should be repeated over several seeds. The pipeline's cost estimator
+projects the price of each run from measured stage timings, so runs can be sized to the
+available budget before any GPU is rented.
+
+\paragraph{Future engineering.}
+Following \katago{}, the next steps are:
+\begin{itemize}
+  \item \katago{}'s PUCT-based policy target pruning, replacing the visit threshold, and
+        noise-free fast searches;
+  \item a discretised score-belief head;
+  \item liberty and ladder input features (a feature-schema version bump);
+  \item board-size and komi randomisation in self-play, which the \code{gpool} trunk
+        already accommodates.
+\end{itemize}

@@ -1,0 +1,77 @@
+\section{Introduction}\label{sec:intro}
+
+AlphaGo Zero~\citep{silver2017mastering} and AlphaZero~\citep{silver2018general} learned
+superhuman Go from self-play alone. They did it with enormous compute: about 41 TPU-years
+for AlphaZero's main Go run, and about 74 GPU-years for the ELF OpenGo
+replication~\citep{tian2019elf}, by the estimates of \citet{wu2019accelerating}.
+\citeauthor{wu2019accelerating}'s \katago{} paper, the reference point throughout this
+report, closed much of that gap. It surpassed ELF's final model after 19~days on fewer
+than 30 V100 GPUs, a reduction of about $50\times$. It got there through a set of mostly
+general techniques: playout cap randomization, policy target pruning, global pooling, an
+auxiliary opponent-policy target, and auxiliary ownership and score targets.
+
+\gofer{} is a small Go engine written in Go. It uses Chinese area scoring, MCTS with a
+PUCT selection rule, a GTP interface, and ONNX neural evaluation. Its README cites
+\katago{} as its inspiration. Until this work, its learning loop (``v3'') was a shell
+script. The script generated self-play JSONL on a CPU cloud instance, fine-tuned a
+6-block, 64-channel residual network, and promoted a candidate after an arena of up to 200 games
+against the champion. Two constraints shape this report:
+\begin{enumerate}
+  \item \textbf{No compute budget.} The owner cannot rent a GPU today. The pipeline therefore has
+        to do something useful on free CPU resources, and it has to make a future rented
+        GPU, most likely a cheap preemptible instance, as productive as possible from the
+        first hour.
+  \item \textbf{No strength results yet.} Without a real training run, we cannot honestly claim
+        that the v4 pipeline produces a stronger engine than v3, let alone one comparable to
+        \katago{}. Every claim below is limited to what we measured or can derive, and
+        \cref{sec:limitations} lists what remains untested.
+\end{enumerate}
+
+\paragraph{What ``better'' means here.}
+The v4 pipeline improves on its predecessor in four concrete ways, and it differs from the
+\katago{} paper's recipe in several deliberate ways:
+\begin{itemize}
+  \item \textbf{Correct targets.} v3 stored ownership in absolute colour while every other
+        target is from the side to move. Its \code{policy\_opp} field held the
+        \emph{previous} move's policy rather than the opponent's reply. It split
+        validation by row, so near-identical positions from one game landed on both sides
+        of the split. All three are fixed, and tests cover each fix
+        (\cref{sec:selfplay,sec:learner}).
+  \item \textbf{Adoption of \katago{}'s general techniques at small scale.} We adopt
+        playout-cap-aware training, global-pooling bias blocks, the auxiliary
+        opponent-policy head, ownership and score heads, and the power-law replay window
+        (\cref{sec:learner,sec:orchestration}). One change is deliberate:
+        \katago{} \emph{discards} fast-search positions, while we keep them and mask only
+        the policy loss. \Cref{sec:learner-masking} discusses the correlation risk this
+        brings.
+  \item \textbf{Cheaper iteration.} The data is about $40\times$ smaller, with no JSON
+        parsing (\cref{sec:selfplay}), and self-play for the next cycle overlaps training.
+  \item \textbf{Controlled promotion errors.} Gating uses a sequential probability ratio
+        test~\citep{wald1945sequential}. It stops early on clearly worse or clearly better
+        candidates, and it cuts the false-promotion rate at zero true gain from 8.0\% for
+        v3 to 2.7\%. The price is \emph{longer} gates near zero gain
+        (\cref{sec:orchestration}), so this is an error-control gain, not a cost saving.
+  \item \textbf{Robustness to cheap hardware.} Every stage can resume after a crash or
+        preemption, the trainer can continue mid-run, and champions are immutable and
+        never pruned (\cref{sec:orchestration,sec:infra}). A distillation path lets the
+        project change network architecture without discarding the champion's knowledge
+        (\cref{sec:learner-distill}). That cost was the reason an earlier ablation kept the
+        6$\times$64 network.
+\end{itemize}
+
+\paragraph{Contributions.}
+(i)~A complete, tested description of a small-scale \katago{}-style pipeline for
+$9\times9$ Go, from Go self-play to a gated, published ONNX champion. (ii)~An explicit
+technique-by-technique comparison with \citet{wu2019accelerating}
+(\cref{tab:overview-compare}). (iii)~Measurements of what can be measured without a
+training run: data size, load time, parameter and compute budgets, CPU inference latency,
+export parity, expected gate length, and end-to-end cycle timings (\cref{sec:eval}).
+(iv)~An ablation protocol, modelled on \katago{}'s, for the experiments that would settle
+the open questions (\cref{sec:conclusion}).
+
+\paragraph{Organisation.}
+\Cref{sec:background} reviews AlphaZero-style training and the relevant parts of
+\katago{}. \Cref{sec:overview} gives the system overview and comparison tables.
+\Cref{sec:selfplay,sec:learner,sec:orchestration,sec:infra} describe self-play data, the
+learner, orchestration, and infrastructure in turn. \Cref{sec:eval} reports measurements,
+\cref{sec:limitations} lists limitations, and \cref{sec:conclusion} concludes.

@@ -1,0 +1,67 @@
+\section{Limitations}\label{sec:limitations}
+
+\paragraph{No strength results.}
+The most important limitation comes first. No v4 training run has been done at a scale
+that could measure playing strength. The end-to-end runs in \cref{sec:pipeline-eval}
+check that the machinery works; they say nothing about learning efficiency. Every
+difference from \katago{} marked $\sim$ or ``new'' in \cref{tab:overview-compare} could
+help, do nothing, or hurt. In particular, we make no claim that \gofer{} v4 learns faster
+than \gofer{} v3, or that it is comparable to \katago{}.
+
+\paragraph{Untested design choices.}
+Four choices are adopted on argument alone:
+\begin{itemize}
+  \item keeping fast-search rows for the value, ownership and score heads
+        (\cref{sec:learner-masking}), which carries a known risk of correlation and
+        overfitting;
+  \item recency-weighted sampling;
+  \item per-step EMA in place of snapshot averaging;
+  \item warm-start fine-tuning with a cosine schedule each cycle, in place of \katago{}'s
+        continuous training on one run.
+\end{itemize}
+The last choice has a structural cost: when a candidate is rejected, its training steps
+are thrown away, where a continuous learner would have kept improving. The v3 design made
+this choice, v4 inherits it, and it should be tested against continuous training with
+periodic snapshots.
+
+\paragraph{Missing \katago{} techniques.}
+v4 still lacks the following:
+\begin{itemize}
+  \item \katago{}'s exact policy target pruning, which subtracts forced playouts using the
+        PUCT formula (the engine only drops root children with fewer than two visits,
+        \cref{sec:selfplay-search});
+  \item disabling root noise on fast searches;
+  \item the score-belief distribution (pdf and cdf losses);
+  \item the board-width-scaled term in global pooling;
+  \item Go-specific input features (liberties, ladders, pass-alive areas);
+  \item randomisation of rules, komi and board size;
+  \item handicap and branching games;
+  \item growing the network during a run.
+\end{itemize}
+In \citet{wu2019accelerating}'s ablations, removing Go-specific features and optimisations
+cost a $1.55\times$ training-time factor, and removing forced playouts with pruning cost
+$1.25\times$. v4 has only a simplified form of the latter. The \code{gpool} network does not depend on
+board size, but the feature schema, the self-play generator and the ONNX export are all
+still $9\times9$ only.
+
+\paragraph{Performance.}
+On the CPU we measured, training throughput per step is unchanged from v3
+(\cref{sec:eval}). The workload is compute-bound, and augmentation and EMA add a little
+overhead. The GPU-oriented features (device residency, mixed precision, compile,
+channels-last) have been written but not benchmarked on a GPU. The \code{gpool}-6$\times$64
+network is smaller on disk but no faster to evaluate on CPU than legacy 6$\times$64.
+
+\paragraph{Validation loss is only a proxy.}
+The learner selects \code{best.pt} by validation loss on held-out games. Lower loss on
+self-play data from the current champion does not have to mean stronger play. The arena
+gate is the real test, and its power is limited by the number of games a free CPU runner
+can afford.
+
+\paragraph{Unverified quantisation.}
+The int8 export has passed only the structural checks: it loads and produces outputs of
+the right shape. Its effect on playing strength is unknown.
+
+\paragraph{Authorship and review.}
+The v4 code and this report were produced mostly by AI coding agents under the direction
+of the project owner, with tests as the main check. The report has not been externally
+peer-reviewed.

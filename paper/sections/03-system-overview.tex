@@ -1,0 +1,103 @@
+\section{System Overview}\label{sec:overview}
+
+\Cref{fig:overview-loop} shows one v4 cycle. Generation $k$ is the current champion,
+stored as immutable ONNX, PyTorch and checkpoint files. It plays self-play games in the Go
+engine, which writes one compressed shard per cycle (\cref{sec:selfplay}). The learner
+warm-starts from generation $k$'s weights and trains on a window over all shards
+(\cref{sec:learner}). It then exports a candidate, and that export must pass a numeric
+parity check. The orchestrator gates the candidate against generation $k$ with a
+sequential test. If it passes, the candidate becomes generation $k{+}1$ and is published
+to a champion registry (\cref{sec:orchestration}). Meanwhile, self-play for the next cycle
+is already running.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  node distance=5mm and 7mm,
+  box/.style={draw, rounded corners=2pt, align=center, font=\small, minimum height=9mm, inner sep=3pt},
+  data/.style={draw, align=center, font=\small, minimum height=7mm, inner sep=2pt, fill=gray!10},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+]
+\node[box] (sp) {Self-play\\\footnotesize Go, PUCT MCTS\\\footnotesize cap randomization};
+\node[data, right=of sp] (sh) {shard\\\footnotesize\code{cycle-N.npz}};
+\node[box, right=of sh] (tr) {Learner\\\footnotesize masked loss, D4,\\\footnotesize EMA, window};
+\node[box, right=of tr] (ex) {Export\\\footnotesize ONNX + parity};
+\node[box, below=9mm of ex] (ga) {Gate\\\footnotesize SPRT vs.\ gen $k$};
+\node[box, left=of ga] (pr) {Promote\\\footnotesize gen $k{+}1$};
+\node[box, left=of pr] (pu) {Publish\\\footnotesize registry, release,\\\footnotesize regression check};
+\node[data, below=9mm of sp] (ch) {champion\\\footnotesize gen $k$};
+\draw[arr] (sp) -- (sh);
+\draw[arr] (sh) -- (tr);
+\draw[arr] (tr) -- (ex);
+\draw[arr] (ex) -- (ga);
+\draw[arr] (ga) -- node[above, font=\footnotesize]{accept} (pr);
+\draw[arr] (pr) -- (pu);
+\draw[arr] (pu) -- (ch);
+\draw[arr] (ch) -- node[left, font=\footnotesize]{evaluator} (sp);
+\draw[arr, dashed] (ch.east) to[out=0, in=250] node[below right, font=\footnotesize, pos=0.35]{\code{--init-from}} (tr.south);
+\end{tikzpicture}
+\caption{One v4 training cycle. Every arrow is a resumable stage recorded in the run's
+state file. Self-play for cycle $N{+}1$ starts while cycle $N$ trains and gates.}
+\label{fig:overview-loop}
+\end{figure}
+
+\paragraph{Interfaces.}
+The three components meet at two narrow contracts. That let two developers (here, two
+agent sessions) build them in parallel and test them separately.
+\begin{enumerate}
+  \item \textbf{Data.} GOFER SHARD v1 is a \code{.npz} archive with a fixed set of typed
+        arrays (\cref{tab:selfplay-shard} in \cref{sec:selfplay}). The Go engine writes
+        it, and the learner's packer can also produce it from legacy JSONL.
+  \item \textbf{Learner command line.} The trainer takes \code{--data} (files or directories),
+        \code{--window-rows}, \code{--init-from} or \code{--continue}, and an optional
+        \code{--config} preset. It writes \code{best.pt}, a self-describing
+        \code{best.ckpt}, a full-state \code{last.pt}, and a \code{summary.json} with
+        fixed keys. The exporter takes a checkpoint and writes an ONNX file whose input and
+        output names match the engine's schema, exiting non-zero if parity fails.
+\end{enumerate}
+
+\paragraph{Comparison.}
+\Cref{tab:overview-compare} places v4 next to the v3 loop and the published \katago{}
+recipe~\citep{wu2019accelerating}, one technique per row. Four symbols are used:
+\checkmark{} means adopted as published, $\sim$ means adopted with a stated change,
+\texttimes{} means absent, and ``new'' means not in the \katago{} paper.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{5.5cm}@{}}
+\toprule
+Technique & \katago{} paper & \gofer{} v3 & \gofer{} v4 \\
+\midrule
+Playout cap randomization & $p{=}0.25$, fast turns discarded & $p{=}0.20$, discarded & $\sim$ $p{=}0.20$; fast turns kept, policy loss masked (\S\ref{sec:learner-masking}) \\
+Forced playouts + target pruning & \checkmark & $\sim$ simplified & $\sim$ unchanged: forced root visits; children with ${<}2$ visits dropped from target (\S\ref{sec:selfplay-search}) \\
+Global pooling bias & \checkmark{} (mean, scaled mean, max) & \texttimes & $\sim$ mean + max; \code{gpool} nets only \\
+Auxiliary opponent policy & \checkmark{} $w{=}0.15$ & \texttimes{} (label wrong) & \checkmark{} $w{=}0.15$, \code{gpool} nets \\
+Ownership target & \checkmark{} cross-entropy & $\sim$ MSE, absolute frame & $\sim$ MSE on $\tanh$, side-to-move frame \\
+Score target & pdf + cdf losses & \texttimes & $\sim$ Huber on margin$/20$ \\
+Go-specific input features & liberties, ladders, \dots & \texttimes & \texttimes{} (schema v2 unchanged) \\
+Rules / board-size randomization & \checkmark & \texttimes & \texttimes{} (net is size-agnostic) \\
+Symmetry augmentation & --- & \texttimes & new: per-sample D4 \\
+Replay window & power law, eq.~\eqref{eq:window} & FIFO 50k rows & \checkmark{} power law + recency weighting \\
+Validation split & --- & by row (leaks) & new: by game \\
+Weight averaging & EMA of snapshots & \texttimes & $\sim$ per-step EMA, $0.999$ \\
+LR schedule & fixed, reduced early/late & constant & $\sim$ warmup + cosine per cycle \\
+Architecture change & train next size in parallel & re-bootstrap & new: distillation from champion \\
+Gating & ${\ge}100/200$ wins & 0.55 + Wilson, ${\le}200$ games, interim stops & new: SPRT + Wilson fallback; fewer false promotions \\
+Preemption safety & --- & restart cycle & new: stage + step resume \\
+Data format & --- & JSONL & new: binary shards, ${\sim}40\times$ smaller \\
+\bottomrule
+\end{tabular}
+\caption{Technique-by-technique comparison. ``---'' means the \katago{} paper does not
+describe the item. The v4 column covers only what is implemented and tested. None of the
+v4 differences has been tested for playing strength (\cref{sec:limitations}).}
+\label{tab:overview-compare}
+\end{table}
+
+The table is deliberately balanced. On the core learning techniques, v4 is a
+\emph{subset} of \katago{} with a few simplifications. Policy target pruning is only a
+visit-threshold approximation, and the score-belief distribution, Go-specific features
+and rules randomization are all missing. The additions
+are mostly engineering: data format, resumability, sequential gating, distillation. These
+matter when compute is scarce and preemptible. They do not change what the network can
+learn in principle.

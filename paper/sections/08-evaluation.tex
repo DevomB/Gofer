@@ -1,0 +1,142 @@
+\section{Evaluation}\label{sec:eval}
+
+This section reports what can be measured without a training run at scale. It covers
+correctness (tests and export parity), data cost, model cost, learner throughput, and, in
+\cref{sec:pipeline-eval}, end-to-end cycles of the full pipeline. None of these numbers is
+a statement about playing strength.
+
+\paragraph{Setup.}
+Unless stated otherwise, measurements used one Windows~11 workstation:
+\begin{itemize}
+  \item Intel Core i7-1185G7 (4 cores, 8 logical processors), 16\,GB RAM, no GPU;
+  \item Python 3.13.7, PyTorch 2.12.1 (CPU build)~\citep{paszke2019pytorch}, ONNX Runtime
+        1.26.0~\citep{onnxruntime2021}.
+\end{itemize}
+A second agent session sometimes ran builds and tests on the same machine at the same
+time, so the timings carry noise. We report medians and treat differences under about
+20\% as noise.
+
+\subsection{Correctness}\label{sec:eval-correct}
+
+\paragraph{Tests.}
+The learner has 27 automated tests: 19 unit tests, 6 trainer and command-line tests, and
+2 export tests. They cover every change described in \cref{sec:learner}:
+\begin{itemize}
+  \item \textbf{Data.} Shard round-trips, including against the Go-written fixture, plus
+        window selection keeping exactly the newest rows.
+  \item \textbf{Labels.} The ownership frame of converted JSONL, the disjoint game-level
+        split, and alignment of board, policy and ownership under all eight symmetries.
+  \item \textbf{Loss.} The masked policy loss is zero on fast-search rows while the value
+        loss is not.
+  \item \textbf{Architectures.} Recovery from a bare state dict for every preset, the
+        \code{gpool} network running on $9\times9$, $13\times13$ and $19\times19$, and
+        tolerant loading of checkpoints without an ownership head.
+  \item \textbf{Training and export.} Warm-start weight equality, \code{--continue} resuming
+        at the saved step, distillation from a legacy teacher into a \code{gpool} student,
+        and export of a trained \code{gpool} checkpoint with metadata.
+\end{itemize}
+One test checks a property of the Go writer: in every row of the committed Go-written
+fixture shard, the side-to-move score equals the sum of the ownership map minus komi for
+Black to move, and plus komi for White. This holds exactly, which confirms that the Go
+writer and the Python reader agree on the side-to-move frame. The orchestrator and Go
+test counts are reported in \cref{sec:pipeline-eval}.
+
+\paragraph{Export parity.}
+Across 16 random positions, the largest absolute difference between PyTorch and ONNX
+Runtime outputs was $2.4\times10^{-7}$ for a trained \code{gpool} checkpoint and
+$2.9\times10^{-6}$ for a legacy 4$\times$32 checkpoint from the v3 era. Its architecture
+was inferred from tensor shapes, and it lacked an ownership head. Both are far below the
+$10^{-3}$ failure threshold. The int8 export loaded and ran, but it is not
+parity-checked, since quantisation changes outputs by design.
+
+\subsection{Data cost}\label{sec:eval-data}
+
+We packed the repository's committed self-play file (\code{training/data/samples.jsonl}:
+1{,}722 positions from heuristic self-play) into a compressed shard with the learner's
+packer:
+\begin{itemize}
+  \item \textbf{Size.} The file shrank from 4{,}459{,}476 bytes to 116{,}935 bytes, a
+        factor of $38.1\times$. The factor for Go-written shards is given in
+        \cref{sec:selfplay}.
+  \item \textbf{Loading.} The shard loaded in 0.04--0.07\,s over four runs. The v3 dataset loaded the JSONL in
+        0.29\,s, but it deferred tensor construction to every epoch. The v4 JSONL
+        converter takes 0.9\,s, because it also normalises labels and recovers game
+        boundaries.
+\end{itemize}
+At the v3 replay cap of 50{,}000 rows, the same ratio puts the replay at roughly 3.4\,MB
+instead of 130\,MB. That difference decides whether the replay fits in a free CI cache and
+syncs quickly off a preemptible instance.
+
+\subsection{Model cost}\label{sec:eval-model}
+
+\Cref{tab:eval-latency} gives single-threaded ONNX Runtime latency for each preset at
+batch sizes 1 and 16, using freshly initialised weights (latency does not depend on the
+weights). Three points stand out:
+\begin{itemize}
+  \item \code{gpool}-6$\times$64 is not faster than legacy 6$\times$64 despite having
+        $2.7\times$ fewer parameters, consistent with their near-equal MAC counts
+        (\cref{tab:learner-arch}). Its extra pooling and slicing operations cost a little
+        at batch 1.
+  \item legacy-4$\times$48 is about $2\times$ faster, matching ADR~0005's earlier
+        measurement.
+  \item \code{gpool}-10$\times$96 has $3.5\times$ the MACs of 6$\times$64 but only about
+        $1.5\times$ the batch-1 latency, which suggests fixed per-call overheads dominate
+        small networks on CPU.
+\end{itemize}
+Self-play throughput on CPU scales roughly with the inverse of these latencies. That is
+why the CPU preset keeps the legacy lineage and the \code{gpool}-10$\times$96 preset is
+reserved for GPU runs.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+& \multicolumn{2}{c}{batch 1 (ms)} & \multicolumn{2}{c}{batch 16 (ms)} \\
+\cmidrule(lr){2-3}\cmidrule(l){4-5}
+Preset & median & p10 & median & p10 \\
+\midrule
+legacy-6$\times$64 & 2.83 & 2.49 & 34.4 & 27.2 \\
+legacy-4$\times$48 & 1.30 & 0.87 & 15.2 & 12.1 \\
+\code{gpool}-6$\times$64 & 3.34 & 2.70 & 41.1 & 17.8 \\
+\code{gpool}-10$\times$96 & 4.18 & 3.61 & 65.1 & 57.6 \\
+\code{gpool}-15$\times$128 & 10.07 & 9.03 & 147.2 & 138.1 \\
+\bottomrule
+\end{tabular}
+\caption{ONNX Runtime CPU latency with one intra-op thread and one inter-op thread, over
+300 (batch 1) or 100 (batch 16) timed runs after 20 warm-up runs. The large spread for
+\code{gpool}-6$\times$64 at batch 16 reflects machine noise from concurrent jobs.}
+\label{tab:eval-latency}
+\end{table}
+
+\subsection{Learner throughput}\label{sec:eval-throughput}
+
+\code{python -m gofer\_train.bench} trains for 60 steps at batch 64 on the same data in
+two ways: the v3 loop (\code{DataLoader} over the JSONL dataset, legacy 6$\times$64) and
+the v4 trainer (device-resident data, augmentation, EMA, gradient clipping).
+\Cref{tab:eval-throughput} gives the median and range over three runs on a lightly loaded
+machine. On this CPU both are compute-bound at the same rate. The v4 trainer's 9\% edge on
+legacy 6$\times$64 is inside our noise threshold: earlier runs taken while the other
+session was busy measured both trainers at under half these rates. The v4 per-sample
+overheads (symmetry gather, EMA update) are therefore not visible. This is a parity
+result, not a speed-up. The design removes per-row Python work and
+host-to-device copies, which should matter on a GPU, where the network is no longer the
+bottleneck, but we have not measured a GPU.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}llr@{}}
+\toprule
+Trainer & Network & Samples / s (median of 3) \\
+\midrule
+v3 loop (\code{DataLoader}) & legacy-6$\times$64 & 397 (395--435) \\
+v4 trainer (D4 + EMA) & legacy-6$\times$64 & 432 (422--434) \\
+v4 trainer (D4 + EMA) & \code{gpool}-6$\times$64 & 385 (384--390) \\
+\bottomrule
+\end{tabular}
+\caption{CPU training throughput at batch 64 over 60 steps (\code{gofer\_train.bench}); median (min--max) of three runs.}
+\label{tab:eval-throughput}
+\end{table}
+
+\input{sections/08b-pipeline-eval}

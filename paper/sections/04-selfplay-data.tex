@@ -1,0 +1,176 @@
+\section{Self-Play and the Training Data}
+\label{sec:selfplay}
+
+Self-play runs in the Go engine, which is written in Go~\citep{donovan2015go}. This
+section covers how a game is played, what each position is labelled with, and the binary
+\emph{shard} format that replaces JSONL between the engine and the learner.
+
+\subsection{Search during self-play}
+\label{sec:selfplay-search}
+
+Each move is chosen by Monte Carlo tree search with the PUCT selection rule of
+\cref{eq:puct}~\citep{rosin2011multi,silver2017mastering}, using $c_{\mathrm{PUCT}}=1.1$
+as in \citet{wu2019accelerating}. Two details differ from \katago{}. An unvisited child is
+given the fixed value $-0.2$, whereas \katago{}'s first-play urgency is the parent's value
+minus $0.2\sqrt{P_{\mathrm{explored}}}$. And the constant $1.03$, which \katago{} and
+SAI~\citep{morandin2019sai} use as a softmax temperature on the root policy, is applied
+in \gofer{} as a divisor on the root children's mean values. Root priors are mixed with Dirichlet noise ($\alpha=0.15$, weight $0.25$) on \emph{every}
+self-play move. \katago{} instead turns noise and other exploration off on fast searches
+to keep them as strong as possible~\citep[\S3.1]{wu2019accelerating}.
+
+\paragraph{Playout cap randomization.}
+Following \citet[\S3.1]{wu2019accelerating}, each move is a \emph{full} search (cap $N$)
+with probability $p$, and otherwise a \emph{fast} search (cap $n<N$). The \gofer{}
+defaults are $p=0.20$, $N=200$ and $n=50$; \katago{}'s main run used $p=0.25$ and
+$(N,n)=(600,100)$, later raised to $(1000,200)$. The configurations in
+\cref{sec:infra} change these values per deployment.
+
+\paragraph{Forced playouts and target pruning (simplified).}
+Full searches force a minimum number of visits to every root child $c$ that has been
+expanded:
+\begin{equation}
+  n_{\mathrm{forced}}(c) = k + \left\lfloor \sqrt{P(c)\,(N+1)} \right\rfloor, \qquad k = 2,
+  \label{eq:gofer-forced}
+\end{equation}
+where $P(c)$ is the noised prior. \katago{} uses
+$n_{\mathrm{forced}}(c)=\bigl(kP(c)\sum_{c'}N(c')\bigr)^{1/2}$ and forces these visits by
+setting the urgency of an under-visited child to infinity inside the search. \gofer{}
+instead runs the forced playouts as a separate pass, right after the root is expanded and
+before the main search.
+The policy target differs more. \katago{} subtracts forced visits from each child only as
+long as that child would not have overtaken the best child under PUCT. \gofer{} simply
+removes children with fewer than two visits and renormalizes. This is cruder: it removes
+single-visit noise but keeps any extra visits that forcing added to a child that stayed
+bad. Both mechanisms predate v4 and are unchanged by it.
+
+\paragraph{Move selection and parallelism.}
+For the first 16 plies the move is sampled in proportion to visit counts ($\tau=1$); after
+that the most-visited move is played. The policy target is always the full visit
+distribution, whatever move is played. Games run concurrently and share one batched
+evaluator, so the neural network sees real batches. Each game's random generator is seeded
+from the run seed and the game index only, so the output does not depend on how many games
+run in parallel. It can still depend on the inference backend if two backends return
+different network outputs; in our runs the two backends produced identical row counts
+from the same seeds (\cref{sec:pipeline-eval}).
+
+\subsection{Labels and a common frame}
+\label{sec:selfplay-labels}
+
+Each recorded position gets the 8 binary input planes and 4 global features of
+\cref{sec:learner-data}, plus these targets:
+\begin{itemize}
+  \item $\pi$: the root visit distribution over the $S^2+1$ moves (pass is the last entry);
+  \item $z \in \{-1,0,+1\}$: the game result;
+  \item $s$: the final area-score margin, with komi included;
+  \item $o \in \{-1,0,+1\}^{S^2}$: the final owner of each point;
+  \item $\pi_{\mathrm{opp}}$: the policy target of the \emph{next} ply, i.e.\ the
+        opponent's reply, as in \citet{tian2016better} and \citet[\S3.4]{wu2019accelerating};
+  \item a flag saying whether the move was a full search.
+\end{itemize}
+In v4, every target is expressed from the side to move, the same frame as the
+``own/opponent'' input planes. Under area scoring every point belongs to one player or to
+neither, so each row satisfies an exact identity:
+\begin{equation}
+  s \;=\; \sum_{i=1}^{S^2} o_i \;-\; \kappa\,\sigma, \qquad
+  \sigma = \begin{cases} +1 & \text{Black to move}\\ -1 & \text{White to move}\end{cases}
+  \label{eq:score-identity}
+\end{equation}
+Here $\kappa$ is the komi, which goes to White. The shard writer's test checks
+\cref{eq:score-identity} on every row of real self-play output, and the fixture shard
+shared with the learner's tests satisfies it with zero error.
+
+\paragraph{Two defects in the v3 labels.}
+Comparing the v3 JSONL fields with this frame found two errors. Neither raised an
+exception, and both went unnoticed in v3.
+\begin{enumerate}
+  \item \textbf{Ownership frame.} v3 wrote ownership in the absolute frame (Black $=+1$)
+        for every row, while value and the input planes are side-to-move. For
+        White-to-move rows the target pointed the wrong way: the network had to recover
+        the colour from the side-to-move plane just to learn a sign flip.
+  \item \textbf{Opponent policy.} The field named \code{policy\_opp} held the policy of
+        the \emph{previous} ply, not the opponent's reply. It is correlated with the
+        right target, which is why nothing looked wrong. But the auxiliary loss it was
+        meant to feed would have taught the network to predict the past.
+\end{enumerate}
+v4 fixes both in the engine. The shard format
+stores the side-to-move ownership and the true next-ply policy. The JSONL writer keeps
+its old field meanings for compatibility and adds \code{policy\_next} and
+\code{score\_margin}; the learner corrects legacy rows when it loads them
+(\cref{sec:learner-data}). $\pi_{\mathrm{opp}}$ is recorded only when the next ply was a
+full search. After a fast search the visit distribution is too noisy to imitate, and the
+row stores an all-zero vector, which the loss treats as missing.
+
+\paragraph{Keeping fast-search rows.}
+\katago{} records only full-search positions~\citep[\S3.1]{wu2019accelerating}, and v3 did
+the same (\code{-full-only}). v4 shards keep every position and flag fast ones with
+$\code{full\_search}=0$. The learner then masks the two policy losses to full-search rows
+and trains value, ownership and score on every row (\cref{sec:learner-masking}). With
+$p=0.2$ this gives about $5\times$ more rows per game for those heads, at no extra
+self-play cost. The benefit is smaller than that ratio suggests. \citet{wu2019accelerating}
+note that value training is limited by the number of \emph{games}, since there is one
+noisy result per game. Extra positions from the same game share the same $z$ and are
+strongly correlated. The gain we expect is therefore mostly in the per-point ownership
+signal and in the variety of positions seen, not in independent value labels. The risk
+is overfitting to game outcomes. The learner's game-level validation split
+(\cref{sec:learner-data}) is what would reveal it. This choice has not been ablated for
+strength (\cref{sec:limitations}).
+
+\subsection{The shard format}
+\label{sec:selfplay-shards}
+
+When the output path ends in \code{.npz}, the engine writes a \emph{Gofer shard v1}. This
+is a standard NumPy archive~\citep{harris2020array}: a ZIP file~\citep{pkware2022zip} of
+\code{.npy} arrays~\citep{kern2007npy}, compressed with DEFLATE~\citep{deutsch1996deflate}.
+There is one shard per self-play run, and every row in a shard has the same board size.
+\Cref{tab:selfplay-shard} lists the arrays. Any \code{np.load} can read a shard, so the
+learner, the replay index and ad-hoc analysis all use it without a custom parser. The
+learner's JSONL packer produces the same layout, so the two producers are
+interchangeable.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}llll@{}}
+\toprule
+Array & dtype & Shape & Content \\
+\midrule
+\code{spatial}      & uint8   & $[R,8,S,S]$ & binary input planes \\
+\code{globals}      & float32 & $[R,4]$     & komi$/10$, move$/(S^2{+}1)$, is-black, is-white \\
+\code{policy}       & float32 & $[R,S^2{+}1]$ & $\pi$, root visit distribution \\
+\code{policy\_opp}  & float32 & $[R,S^2{+}1]$ & $\pi_{\mathrm{opp}}$, next-ply target (zeros if absent) \\
+\code{value}        & float32 & $[R]$       & $z$, side to move \\
+\code{score}        & float32 & $[R]$       & $s$, side to move, komi included \\
+\code{ownership}    & int8    & $[R,S^2]$   & $o$, side to move \\
+\code{full\_search} & uint8   & $[R]$       & 1 if the move was a full search \\
+\code{game\_id}     & int32   & $[R]$       & game index within the shard \\
+\code{move\_num}    & int16   & $[R]$       & ply number \\
+\code{meta}         & uint8   & $[K]$       & UTF-8 JSON: format, version, board size, rows, games, \\
+                    &         &             & komi, seed, generating model (ONNX hash), commit \\
+\bottomrule
+\end{tabular}
+\caption{Arrays in a Gofer shard v1 with $R$ rows on an $S\times S$ board. Every target
+uses the side-to-move frame.}
+\label{tab:selfplay-shard}
+\end{table}
+
+Three properties matter for the rest of the pipeline:
+\begin{itemize}
+  \item \emph{Atomic writes.} The engine writes to a temporary file and renames it at the
+        end, so a crash never leaves a truncated shard for the trainer to read.
+  \item \emph{Immutability.} No later stage rewrites a shard, so the replay buffer is just a
+        choice of which shards to read (\cref{sec:orch-replay}), and copying a run
+        directory between machines is incremental.
+  \item \emph{Provenance.} The \code{meta} array records which network generated the games
+        (the first 8 bytes of its ONNX SHA-256, or \code{heuristic}). The orchestrator can
+        read it without decompressing any data array.
+\end{itemize}
+
+\paragraph{Size.}
+We measured size on the same four self-play games (seed 1, 20 playouts, 327 positions)
+written in both formats. JSONL~\citep{bray2017json} took 779{,}565 bytes (2{,}384 bytes per
+row), and the shard took 18{,}969 bytes (58 bytes per row), $41\times$ smaller.
+Uncompressed, a shard row is 1{,}416 bytes, dominated by the 648 bytes of input planes and
+the two 328-byte policy vectors. DEFLATE does the rest: the planes are binary and sparse,
+and most policy entries are exactly zero. The learner's packer, run on a larger legacy file
+(\cref{sec:eval}), gives a similar $38\times$. Loading a shard is one decompression per
+array, with no per-number text parsing.

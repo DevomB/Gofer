@@ -1,0 +1,102 @@
+\section{Infrastructure}
+\label{sec:infra}
+
+\katago{}'s main run used up to 28 V100 GPUs for 19 days~\citep[App.~C]{wu2019accelerating}.
+\gofer{} has no compute budget, so v4 is designed to run meaningfully on free resources
+first and to use a single rented GPU efficiently later. One codebase and one configuration
+format serve four environments: a laptop, a free CI runner, a container on any GPU host,
+and a spot instance chosen across clouds. This section describes each, and how the time
+and cost of a run are estimated before paying for it.
+
+\subsection{Inference backends}
+\label{sec:infra-backends}
+
+The engine evaluates networks in one of two ways. The \emph{in-process} backend links ONNX
+Runtime~\citep{onnxruntime2021} into the Go binary through cgo and loads the pinned
+shared library (version 1.26.0) at run time. The \emph{sidecar} backend sends batches over
+HTTP to a Python inference server. The in-process backend is the default: in the
+end-to-end run it finished the same 20-game gate in 1.6\,s instead of 8.9\,s
+(\cref{sec:pipeline-eval}). The sidecar needs no C toolchain, which makes it the choice for
+quick local tests and for CI runners without cgo. The export step checks PyTorch against
+Python ONNX Runtime (\cref{sec:learner-export}). A separate, pre-existing harness checks
+that the Go in-process runtime reproduces the Python runtime's outputs. The orchestrator
+downloads the pinned ONNX Runtime build itself on Linux and Windows x86-64.
+
+\subsection{Container image}
+\label{sec:infra-docker}
+
+A multi-stage Docker~\citep{merkel2014docker} build compiles the engine with the ONNX
+Runtime tag in a Go image, then copies the binary into a PyTorch runtime image together
+with the pinned ONNX Runtime library, the learner and the orchestrator. The same file
+builds a CUDA variant for GPU hosts and a slim CPU variant, selected by a build argument.
+A workflow publishes both to the GitHub container registry, which is free for public
+repositories, so a rented machine only has to pull an image. The run directory is a
+mounted volume. Stopping the container sends \code{SIGTERM}, which the orchestrator handles
+cleanly (\cref{sec:orch-resume}). With a restart policy, the container resumes the run
+after a crash or reboot.
+
+\subsection{Rented and preemptible GPUs}
+\label{sec:infra-cloud}
+
+For cloud GPUs, a SkyPilot~\citep{yang2023skypilot} task file describes the job
+independently of the provider. SkyPilot provisions the cheapest acceptable GPU among the
+clouds the user has credentials for, preferring spot capacity. Its managed-job mode
+relaunches the task after a preemption. The run directory is mounted from an object-storage
+bucket, so a replacement machine starts with the state that the preempted one left, and
+the orchestrator resumes at the first unfinished stage (\cref{sec:orch-resume}). The
+learner's periodic checkpoints (\cref{sec:learner-opt}) bound the training work lost to one
+preemption. Two smaller tools cover the remaining cases: a bootstrap script prepares a
+plain Linux virtual machine (Go, ONNX Runtime, a CUDA or CPU PyTorch, engine build and
+self-test), and an \code{rsync} wrapper copies a run directory to or from any SSH host.
+Because shards and generations never change, repeated copies only transfer new files.
+
+\subsection{Free-tier training on GitHub Actions}
+\label{sec:infra-actions}
+
+GitHub-hosted runners are free for public repositories~\citep{githubactionsbilling}. A
+standard Linux runner has 4 vCPUs and 16\,GB of memory, and a job may run for at most
+6 hours~\citep{githubrunners}. v4 uses this as a no-cost training backend:
+\begin{enumerate}
+  \item A scheduled workflow starts every 6 hours. It is opt-in: it only runs after a
+        repository variable is set.
+  \item The job restores the run directory from the Actions cache, trains, and saves the
+        directory back. The cache evicts entries that have not been accessed for 7
+        days~\citep{githubactionscache}; on a 6-hour schedule that does not happen while
+        training is enabled.
+  \item The orchestrator stops starting new cycles after 4.75 hours. A hard timeout of
+        320 minutes stops a long stage early; the per-stage checkpoints of
+        \cref{sec:orch-resume} mean the next job continues it.
+  \item Each new champion is published as a GitHub Release (\cref{sec:orch-publish}),
+        which is permanent. The cache is only working storage.
+\end{enumerate}
+At most $4 \times 320$ minutes of runner time per day gives about 21 runner-hours, or
+about 85 vCPU-hours, per day, with no GPU. We do not claim this is fast. It is a way to
+make steady progress on a small network at zero cost, and to keep the whole loop
+exercised continuously. The gating configuration for this environment is necessarily weak
+(\cref{sec:orch-gate}): with a 192-game cap it can only reliably detect large gains.
+
+\subsection{Estimating time and cost}
+\label{sec:infra-estimate}
+
+Every stage writes its duration to an event log. The \code{estimate} command averages
+the per-stage times over the most recent trained cycles and projects a run of $C$ cycles:
+\begin{equation}
+  T(C) = C \sum_{s \in \mathrm{stages}} \bar t_s, \qquad \mathrm{cost}(C) = T(C)\cdot r,
+\end{equation}
+where $r$ is the hourly price of the instance. With overlap enabled, $\bar t_{\text{self-play}}$
+counts only the time the cycle actually waited for self-play, so $T$ is wall-clock time and
+not the sum of all work. The intended workflow is to run a few cycles of the target
+configuration, read the projection, and then set \code{deadline\_hours} as a hard budget.
+An HTML report shows the ladder Elo, each gate's score with its confidence interval, the
+time spent per stage in each cycle, and a table of all cycles.
+
+\subsection{Continuous integration}
+\label{sec:infra-ci}
+
+A CI workflow runs on every change to the engine, learner, orchestrator, configurations or
+infrastructure. It runs the Go shard tests and all Python tests, a real two-cycle pipeline
+run on CPU with the smoke configuration, and a build of the CPU container image followed by
+a self-test inside it. The workflow uploads the run directory and report as artifacts. At
+the time of writing, the CI, free-training and image workflows have been written and
+syntax-checked but not yet run on GitHub; the container image has not been built
+(\cref{sec:limitations}).

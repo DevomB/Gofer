@@ -1,0 +1,116 @@
+\section{Background}\label{sec:background}
+
+\subsection{AlphaZero-style self-play}
+
+Monte Carlo tree search~\citep{coulom2006efficient,kocsis2006bandit} guided by a policy
+and value network is the basis of AlphaGo~\citep{silver2016mastering}, AlphaGo
+Zero~\citep{silver2017mastering}, and AlphaZero~\citep{silver2018general}, together with
+their open reproductions ELF OpenGo~\citep{tian2019elf}, Leela
+Zero~\citep{pascutto2019leela} and SAI~\citep{morandin2019sai}.
+
+Each playout descends from the root. At each node it picks the child $c$ that maximises
+the PUCT score~\citep{rosin2011multi,silver2017mastering}:
+\begin{equation}
+  \mathrm{PUCT}(c) = V(c) + c_{\mathrm{PUCT}}\,P(c)\,\frac{\sqrt{\sum_{c'} N(c')}}{1 + N(c)},
+  \label{eq:puct}
+\end{equation}
+where $V$ is the mean value of the subtree, $P$ the network's prior and $N$ the visit
+count. The root visit distribution $\pi$ becomes the policy target, the game outcome $z$
+the value target, and the network is trained to minimise
+\begin{equation}
+  L = (z - \hat v)^2 - \textstyle\sum_m \pi(m)\log\hat\pi(m) + c\,\lVert\theta\rVert^2 .
+  \label{eq:az-loss}
+\end{equation}
+AlphaGo Zero also exploited the eight rotations and reflections of the board to augment
+its training data~\citep{silver2017mastering,silver2018general}, and it gated each new
+network by requiring a 55\% win rate against the current one over 400
+games~\citep{silver2017mastering}. AlphaZero dropped gating and trained
+continuously~\citep{silver2018general}.
+
+\subsection{The \katago{} recipe}\label{sec:bg-katago}
+
+\citet{wu2019accelerating} keeps the AlphaZero skeleton and changes the parts listed
+below. This report refers back to them by name.
+\begin{description}
+  \item[Playout cap randomization.] Only a fraction $p=0.25$ of turns gets a full search
+    (a cap of $N$ nodes); the rest use a fast search with cap $n<N$. Early in the run
+    $(N,n)=(600,100)$, rising to $(1000,200)$. \emph{Only full-search turns are recorded
+    for training}. Fast turns exist to generate more games, and therefore more value
+    targets, per unit of compute. Informal evidence from Leela Zero suggests that policy
+    learning needs far more playouts per move than value learning~\citep{forsten2019optimal}.
+  \item[Forced playouts and policy target pruning.] Children of the root get a minimum
+    number of playouts, $n_{\mathrm{forced}}(c)=(k P(c)\sum N)^{1/2}$ with $k=2$. The
+    forced extras are then subtracted from the policy target, so exploration no longer
+    pollutes what the policy learns.
+  \item[Global pooling.] Pooling layers compute each channel's mean, its mean scaled by board
+    width, and its maximum. A fully connected layer maps these to a per-channel bias for
+    another set of channels. The structure follows the first convolution of some residual
+    blocks and appears in the policy and value heads. It is related to
+    Squeeze-and-Excitation~\citep{hu2018squeeze}.
+  \item[Auxiliary policy target.] The policy head also predicts the opponent's reply, with
+    weight $w_{\mathrm{opp}}=0.15$~\citep{tian2016better}.
+  \item[Ownership and score targets.] The network predicts the final owner of each point
+    (cross-entropy with $w_o = 1.5/b^2$) and the final score, via a ``pdf'' and a ``cdf''
+    loss each with weight $0.02$. This follows the multi-labelled value networks of
+    \citet{wu2018multilabelled}.
+  \item[Game-specific input features.] Liberties, ladders, pass-alive regions and komi
+    parity.
+  \item[Training details.] SGD with momentum 0.9, batch 256, $c_{L2}=3\times10^{-5}$,
+    value-loss scale $c_g=1.5$. The per-sample learning rate is fixed, lowered for the
+    first 5M samples and near the end. Samples are drawn uniformly from a moving window
+    whose size grows sublinearly with the total amount of data:
+    \begin{equation}
+      N_{\mathrm{window}} = c\left(1 + \beta\,\frac{(N_{\mathrm{total}}/c)^{\alpha} - 1}{\alpha}\right),
+      \quad c=250{,}000,\ \alpha=0.75,\ \beta=0.4
+      \label{eq:window}
+    \end{equation}
+    \citep[App.~C]{wu2019accelerating}. Candidates are an exponential moving average of
+    weight snapshots, in the spirit of stochastic weight
+    averaging~\citep{izmailov2018averaging}. A candidate must win at least 100 of 200 games
+    to replace the current network~\citep[App.~E]{wu2019accelerating}.
+\end{description}
+\citeauthor{wu2019accelerating}'s ablations (Table~2 of that paper) put the training-time
+factor of each technique between $1.25\times$ and $1.65\times$ at about two days of
+compute. The factors multiply to roughly $9\times$. This report uses those factors only as
+motivation. We do not reproduce them.
+
+\subsection{\gofer{} before this work}\label{sec:bg-gofer}
+
+\gofer{} plays under Chinese area scoring with Tromp--Taylor-style
+evaluation~\citep{tromp2014go}. Its network interface is fixed by a feature schema:
+\begin{itemize}
+  \item \textbf{Spatial input} ($8\times S\times S$): own stones, opponent stones, empty
+        points, the simple-ko point, a to-move plane, and the last three moves.
+  \item \textbf{Global input} (4 values): komi$/10$, the normalised move number, and one-hot
+        side to move.
+  \item \textbf{Outputs}: $S^2+1$ policy logits (pass last) and a scalar $\tanh$ value from the
+        side to move's perspective.
+\end{itemize}
+
+Search uses \cref{eq:puct} with $c_{\mathrm{PUCT}}=1.1$. Unvisited children get a fixed
+value of $-0.2$, whereas \katago{}'s first-play urgency is the parent value minus
+$0.2\sqrt{P_{\mathrm{explored}}}$. In self-play, root Dirichlet noise ($\alpha=0.15$, blend $0.25$) is applied on
+every move, fast and full, whereas \katago{} disables it on fast searches. Full searches
+also force a minimum number of visits on each root child ($2 + \lfloor\sqrt{P(c)(N+1)}\rfloor$
+for playout cap $N$, versus \katago{}'s $\sqrt{2P(c)\sum N}$), and they prune the policy
+target by dropping children with fewer than two visits (\cref{sec:selfplay-search}). Inference runs through ONNX
+Runtime~\citep{onnxruntime2021}, either in-process or through a Python sidecar.
+
+The v3 loop, documented in the repository's ADR~0003, ran the following cycle:
+\begin{enumerate}
+  \item Self-play: 200 games per cycle, 200 playouts per move with playout cap randomization
+        ($p=0.20$, fast cap 50), keeping only full-search rows.
+  \item Replay: append the games to a JSONL replay file capped first-in-first-out at 50{,}000
+        rows.
+  \item Training: fine-tune the champion's 6-block, 64-channel network (``6$\times$64'') for
+        15 epochs with SGD.
+  \item Gating: export the candidate to ONNX and play up to 200 arena games against the
+        champion. Promote if it scores at least 0.55 with the lower Wilson
+        bound~\citep{wilson1927probable} above 0.5. The arena stops early: after 20 games
+        once 0.55 is out of reach, and after 100 games once the promotion condition holds.
+\end{enumerate}
+
+ADR~0005 compared net sizes offline and found a thin validation-loss edge for a 4$\times$48
+network. It kept 6$\times$64 anyway, because changing architecture breaks warm-starting and
+was estimated to cost 4--5 days and about 20 cycles to recover the champion's strength on
+the project's CPU instance. \Cref{sec:learner-distill} targets exactly that cost.

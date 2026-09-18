@@ -1,0 +1,96 @@
+\subsection{Pipeline end to end}
+\label{sec:pipeline-eval}
+
+\paragraph{Tests.}
+The Go shard writer has 4 tests:
+\begin{itemize}
+  \item NPY header layout and alignment;
+  \item a round trip of real self-play output through the ZIP container, checking
+        \cref{eq:score-identity} on every row;
+  \item next-ply policy labelling, including rows after a fast search;
+  \item rejection of shards that would mix board sizes.
+\end{itemize}
+The orchestrator has 23 tests. They replace Go, PyTorch and ONNX Runtime with a fake
+executor that writes the same output files the real tools would. They cover:
+\begin{itemize}
+  \item a three-cycle run with a seeded first champion, an SPRT acceptance that stops before
+        the cap, and an SPRT rejection;
+  \item a failure injected into training, followed by a resume that neither repeats
+        self-play nor counts rows twice;
+  \item reuse of cached gate batches after a restart;
+  \item skipping training below the row threshold; hold mode; background self-play;
+        in-process and sidecar command lines; pruning of old outputs;
+  \item the window formula; shard archiving; configuration parsing and validation; the
+        Elo and SPRT arithmetic;
+  \item publishing: every champion kept in the registry, the alias and latest release
+        moving forward, a failed regression match holding back or demoting a champion,
+        failed uploads retried, and rollback that renumbers nothing.
+\end{itemize}
+
+\paragraph{End-to-end runs.}
+We ran the real loop with the smoke configuration on the machine described in
+\cref{sec:eval} (an Intel Core i7-1185G7 with 16\,GB of memory). It used the real Go
+engine, learner, exporter and arena, with tiny settings: 8 games per cycle, 24/8 playouts
+with $p=0.25$, one or two training epochs, and gates of 20 games at 16 playouts. We ran it
+once with sidecar inference for three cycles, and once with in-process inference for two.
+The inference backend was the only difference; configuration, seeds and code were the
+same. \Cref{tab:pipeline-e2e} lists stage times.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{@{}llrrrrrr@{}}
+\toprule
+Backend & Cycle & Self-play & Train & Export & Gate & Rows & Window \\
+\midrule
+sidecar    & 1 & 22.8 & 23.0 & 7.7 & 5.7 & 659 & 561 \\
+sidecar    & 2 &  0.0 & 17.7 & 8.4 & 8.9 & 663 & 786 \\
+sidecar    & 3 & 20.9 & 15.1 & 7.9 & 9.1 & 380 & 901 \\
+in-process & 1 & 17.4 & 21.9 & 6.7 & 3.1 & 659 & 561 \\
+in-process & 2 &  0.0 & 15.9 & 7.4 & 1.6 & 663 & 786 \\
+\bottomrule
+\end{tabular}
+\caption{Wall-clock seconds per stage in the end-to-end smoke runs, with self-play rows
+produced and the replay window used for training. Self-play time is the time the cycle
+waited; with overlap, cycle~2's games were already generated during cycle~1. Cycle~1
+gates against the heuristic evaluator; later cycles use SPRT against the champion.
+Promotion and publishing each took under 0.2\,s.}
+\label{tab:pipeline-e2e}
+\end{table}
+
+\paragraph{Observations.}
+\begin{itemize}
+  \item \emph{Overlap.} Cycle~2's self-play wait was at most 0.01\,s in both runs, because
+        its games were played in the background during cycle~1's training, export and
+        gate. In cycle~3 of the sidecar run, the wait was 20.9\,s. That cycle's games
+        started during cycle~2 but took longer than cycle~2's training and gating, so
+        overlap hides self-play only up to the length of the other stages.
+  \item \emph{Backend.} The same 20-game gate took 1.6\,s in-process and 8.9\,s with
+        sidecars. The sidecar figure includes starting two inference servers and waiting
+        for them to be healthy, which dominates at this tiny scale.
+  \item \emph{Reproducibility.} The same seeds gave identical row counts with both
+        backends (659 and 663), including cycle~2, where self-play used the network. This
+        is consistent with the per-game seeding of \cref{sec:selfplay-search}, but it is
+        not a proof of bit-identical games.
+  \item \emph{Gate behaviour.} The smoke networks are deliberately weak: the first seeded
+        champion lost all 10 games to the heuristic evaluator. Each later candidate scored
+        exactly 10--10 against it. The likelihood ratio stayed near zero ($-0.10$),
+        the 20-game cap was reached, and the fallback rule rejected, which is the intended
+        outcome for a candidate with no detectable gain.
+  \item \emph{Data.} Shards took 21--41\,KB per cycle. The generated shards were loaded by
+        the learner without conversion, and the parity-checked export succeeded in every
+        cycle.
+\end{itemize}
+A full smoke run took about 2.5 minutes of wall-clock time for three cycles, including the
+engine build.
+
+\paragraph{Gate length and error rates.}
+\Cref{tab:orch-gate-oc} in \cref{sec:orch-gate} gives the exact operating characteristics
+of the v3 and v4 gates. It is derived analytically, from the implemented decision code,
+not measured from games. Its central results are a false-promotion rate of $2.7\%$ for v4
+against $8.0\%$ for v3 at zero true gain, and longer v4 gates near zero gain.
+
+\paragraph{Not yet measured.}
+We have not run the container build, any GitHub workflow, a GPU run, or a free-runner
+training run. No network trained by v4 has been compared with a v3 champion. These gaps
+are listed with the other limitations in \cref{sec:limitations}.
