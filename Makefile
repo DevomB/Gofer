@@ -16,14 +16,21 @@ lint:
 	go vet ./...
 	@test -z "$$(gofmt -l cmd/)" || { echo "gofmt needed:"; gofmt -l cmd/; exit 1; }
 
+# -run '^$$' on every profiling target: without it `go test -bench` runs the whole
+# test suite first and the profile is dominated by it, so a file named
+# legalmoves-cpu.prof was mostly not legal-move generation.
 profile:
-	go test -cpuprofile=.tectonix/reports/legalmoves-cpu.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
+	go test -run '^$$' -cpuprofile=.tectonix/reports/legalmoves-cpu.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
 
 memprofile:
-	go test -memprofile=.tectonix/reports/legalmoves-mem.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
+	go test -run '^$$' -memprofile=.tectonix/reports/legalmoves-mem.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
 
+# PGO wants a profile of what the binary actually does. That is search: self-play
+# and the arena are both MCTS with an evaluator, and legal-move generation is a
+# leaf inside it. Profiling BenchmarkLegalMoves alone optimised for the callee
+# and left the caller unrepresented.
 pgo-profile:
-	go test -cpuprofile=default.pgo -bench=BenchmarkLegalMoves -benchtime=10s ./cmd/gofer/
+	go test -run '^$$' -cpuprofile=default.pgo -bench='BenchmarkBestMove|BenchmarkSearchParallel|BenchmarkLegalMoves' -benchtime=5s ./cmd/gofer/
 
 pgo-build:
 	@test -f default.pgo || (echo "run: make pgo-profile" && exit 1)

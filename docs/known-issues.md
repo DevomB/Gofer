@@ -44,6 +44,8 @@ komi is near 0.5 and `TestIdenticalEvalColorBalance` asserts balance there, whil
 - Simple ko only, unless the Tromp-Taylor superko wrapper is selected.
 - Root-parallel MCTS does not reliably speed up at low playout counts (200 on 9x9): lock
   contention and worker startup can match single-threaded time. Revisit at 800+ playouts.
+  A search profile puts roughly 22% of samples in synchronisation (`procyieldAsm`,
+  `semasleep`, `semawakeup`, `preemptM`), so the contention is measured, not suspected.
 
 ## Inference fallbacks are silent
 
@@ -57,7 +59,11 @@ the exported ONNX fails loudly instead, at sidecar startup or with HTTP 400.
 - Short matches are not strength claims. The CI smoke arena runs 20 games; gate on 200.
 - `make bench-check` compares max-of-3 samples. On Windows, thermal noise alone can exceed
   the 10% gate for search and I/O-heavy benches. Linux CI is the authoritative gate.
-- `make pgo-profile` profiles `BenchmarkLegalMoves`, which is not the search hot path.
+- `make pgo-profile` now profiles the search (`BenchmarkBestMove`, `BenchmarkSearchParallel`)
+  rather than `BenchmarkLegalMoves` alone, and all three profiling targets pass `-run '^$'`.
+  Without it `go test -bench` ran the whole suite first, so the profiles were dominated by
+  tests: a `default.pgo` generated in June had `removeDeadGroups` at 26%, no MCTS in its top
+  twelve, and samples against `Board.Neighbors`, a function since deleted.
 
 ## Deferred by choice
 
