@@ -1,6 +1,6 @@
 # Training pipeline (orchestrator v4)
 
-`python -m training.pipeline` runs the whole reinforcement loop from one TOML config: self-play, train, export, gate, promote, publish. It is resumable at every stage, runs the same way on a laptop, a free CI runner, or a rented GPU, and replaces `scripts/train-loop-v3.sh`, whose Python side was removed once nothing depended on it.
+`python -m training.pipeline` runs the whole reinforcement loop from one TOML config: self-play, train, export, gate, promote, publish. It is resumable at every stage, runs the same way on a laptop, a free CI runner, or a rented GPU, and replaces the v3 shell loop, which was deleted in Sep 2026 once nothing referenced it (see [ADR 0003](decisions/0003-iterative-training-loop.md)).
 
 ```text
           ┌──────────── cycle N ─────────────────────────────────────────────┐
@@ -26,7 +26,7 @@ python -m training.pipeline report --config configs/pipeline-smoke.toml  # runs/
 
 ## What changed from the v3 shell loop
 
-| | v3 (`train-loop-v3.sh`) | v4 orchestrator |
+| | v3 shell loop (deleted) | v4 orchestrator |
 |---|---|---|
 | Self-play data | JSONL, full-search rows only | `.npz` shards (~40x smaller); fast rows kept for value/ownership |
 | Replay | one `replay.jsonl`, rewritten on every trim | immutable shards; window grows with total data (KataGo power law) |
