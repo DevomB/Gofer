@@ -133,9 +133,8 @@ a uniform distribution over 82 moves.
 \paragraph{7. The reference baseline enhanced both players.}
 Forced-playout mode (\code{-arena-enhanced}) was resolved by comparing evaluator
 \emph{names}: the enhanced side was whichever engine's name matched the baseline's.
-The project's reproducible baseline command runs
-\code{-black-eval heuristic -white-eval heuristic}---the same name on both
-sides---so both engines were enhanced and \code{baseline} silently meant
+The project's reproducible baseline command passes the same evaluator name on
+both sides, so both engines were enhanced and \code{baseline} silently meant
 \code{both}. Because forced playouts act at the root, which is where defects 3
 and 4 lived, this masked them in precisely the measurement meant to detect a
 strength change: re-running that command after repairing the search moved its win
