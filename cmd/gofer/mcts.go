@@ -349,8 +349,8 @@ func (e *Engine) descend(br *Board, path []int, useTT bool) {
 		// The transposition key covers stones, not pass history, so a finished
 		// position can collide with a live one: never serve it from the table.
 		if useTT {
-			if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 && !twoPasses(br) {
-				e.backupLocked(path, v.Value)
+			if v, ok := e.TT.Get(br.Hash()); ok && !twoPasses(br) {
+				e.backupLocked(path, v)
 				e.mu.Unlock()
 				return
 			}
@@ -419,7 +419,7 @@ func (e *Engine) expandLocked(node int, b *Board) {
 	// array. Writing the flag through that stale pointer left the node looking
 	// unexpanded forever, so every playout stopped at it and no child was visited.
 	e.arena.Get(node).Expanded = true
-	e.TT.Store(b.Hash(), Entry{Depth: 1, Value: res.Value})
+	e.TT.Store(b.Hash(), res.Value)
 }
 
 func (e *Engine) selectChildLocked(node int, isRoot bool) int {
@@ -471,22 +471,22 @@ func (e *Engine) leafValue(b *Board) float64 {
 	}
 	hash := b.Hash()
 	e.mu.Lock()
-	if v, ok := e.TT.Get(hash); ok && v.Depth != 0 {
+	if v, ok := e.TT.Get(hash); ok {
 		e.mu.Unlock()
-		return v.Value
+		return v
 	}
 	e.mu.Unlock()
 
 	res := e.Eval.Evaluate(b)
 	if res.HasValue {
 		e.mu.Lock()
-		e.TT.Store(hash, Entry{Depth: 1, Value: res.Value})
+		e.TT.Store(hash, res.Value)
 		e.mu.Unlock()
 		return res.Value
 	}
 	v := e.randomPlayout(b)
 	e.mu.Lock()
-	e.TT.Store(hash, Entry{Depth: 1, Value: v})
+	e.TT.Store(hash, v)
 	e.mu.Unlock()
 	return v
 }

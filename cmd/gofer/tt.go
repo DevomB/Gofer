@@ -1,39 +1,41 @@
 package main
 
-// Entry is a transposition table record.
-type Entry struct {
-	Depth int
-	Value float64
+// slot is one transposition record. The full Zobrist key is kept alongside the
+// value: indexing by hash&mask alone cannot tell two positions apart once they
+// land in the same slot, and serving one position's evaluation for another is
+// silent - it backs a wrong value up the tree and looks like a bad evaluator.
+type slot struct {
+	key    uint64
+	value  float64
+	filled bool
 }
 
-// Table is a Zobrist-keyed transposition table.
+// Table is a Zobrist-keyed transposition table with replace-always eviction.
 type Table struct {
-	slots []Entry
+	slots []slot
 	mask  uint64
 }
 
-// NewTable creates a TT with the given slot count (power of two).
+// NewTable creates a table with the given slot count, rounded up to a power of
+// two so the index is a mask rather than a division.
 func NewTable(size int) *Table {
-	if size < 256 {
-		size = 256
+	n := 256
+	for n < size {
+		n <<= 1
 	}
-	return &Table{
-		slots: make([]Entry, size),
-		mask:  uint64(size - 1),
-	}
+	return &Table{slots: make([]slot, n), mask: uint64(n - 1)}
 }
 
-// Get looks up hash.
-func (t *Table) Get(hash uint64) (Entry, bool) {
-	e := t.slots[hash&t.mask]
-	if e.Depth == 0 {
-		return Entry{}, false
+// Get returns the value stored for hash, if this exact position is in the table.
+func (t *Table) Get(hash uint64) (float64, bool) {
+	s := t.slots[hash&t.mask]
+	if !s.filled || s.key != hash {
+		return 0, false
 	}
-	return e, true
+	return s.value, true
 }
 
-// Store saves an entry (replace always).
-// Replace-always eviction; no depth preference.
-func (t *Table) Store(hash uint64, e Entry) {
-	t.slots[hash&t.mask] = e
+// Store records value for hash, evicting whatever shared the slot.
+func (t *Table) Store(hash uint64, value float64) {
+	t.slots[hash&t.mask] = slot{key: hash, value: value, filled: true}
 }
