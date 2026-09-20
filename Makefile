@@ -14,6 +14,7 @@ race:
 
 lint:
 	go vet ./...
+	@out="$$(gofmt -l cmd/)"; 		if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 profile:
 	go test -cpuprofile=.tectonix/reports/legalmoves-cpu.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/

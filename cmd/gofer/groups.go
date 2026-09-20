@@ -28,7 +28,7 @@ func (v *visitMark) bump() {
 	}
 }
 
-func (v *visitMark) mark(i int)   { v.gen[i] = v.cur }
+func (v *visitMark) mark(i int)      { v.gen[i] = v.cur }
 func (v *visitMark) seen(i int) bool { return v.gen[i] == v.cur }
 
 // legalityScratch holds reusable buffers for LegalMoves hot path.

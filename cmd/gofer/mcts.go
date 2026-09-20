@@ -215,7 +215,7 @@ func (e *Engine) runSearch(b *Board) int {
 		deadline := time.Now().Add(e.cfg.ThinkTime)
 		n := 0
 		for time.Now().Before(deadline) {
-			e.runPlayout(b, e.root)
+			e.runPlayout(b)
 			n++
 		}
 		return n
@@ -237,7 +237,7 @@ func (e *Engine) runPlayouts(b *Board, playouts int) {
 	}
 	if workers == 1 || playouts < workers {
 		for i := 0; i < playouts; i++ {
-			e.runPlayout(b, e.root)
+			e.runPlayout(b)
 		}
 		return
 	}
@@ -256,7 +256,7 @@ func (e *Engine) runPlayouts(b *Board, playouts int) {
 		go func(count int) {
 			defer wg.Done()
 			for i := 0; i < count; i++ {
-				e.runPlayout(b, e.root)
+				e.runPlayout(b)
 			}
 		}(n)
 	}
@@ -293,59 +293,37 @@ func (e *Engine) runForcedRootPlayouts(b *Board) {
 			target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
 			need = target - int(c.Visits)
 		}
+		move := c.Move
 		e.mu.Unlock()
-		for need > 0 {
-			e.runPlayoutForced(b, cidx)
-			need--
+		for ; need > 0; need-- {
+			br := b.Clone()
+			e.applyMove(br, move)
+			e.descend(br, append(newPath(), e.root, cidx), skipTT)
 		}
 	}
 }
 
-func (e *Engine) runPlayoutForced(b *Board, firstChild int) {
-	br := b.Clone()
-	e.mu.Lock()
-	move := e.arena.Get(firstChild).Move
-	e.mu.Unlock()
-	path := []int{e.root, firstChild}
-	e.applyMove(br, move)
-	node := firstChild
+// Whether a playout may be served from the transposition table. Forced root
+// playouts skip it: the visit is mandated to shape the policy target, and a
+// table hit would credit the child without exploring anything beneath it.
+const (
+	probeTT = true
+	skipTT  = false
+)
 
-	for {
-		e.mu.Lock()
-		n := e.arena.Get(node)
-		if !n.Expanded || len(n.Children) == 0 {
-			e.mu.Unlock()
-			break
-		}
-		child := e.selectChildLocked(node, false)
-		move = e.arena.Get(child).Move
-		e.mu.Unlock()
-		path = append(path, child)
-		e.applyMove(br, move)
-		node = child
-	}
+// newPath returns an empty descent path with room for a typical 9x9 descent, so
+// the hot loop does not reallocate on the way down.
+func newPath() []int { return make([]int, 0, 24) }
 
-	e.mu.Lock()
-	n := e.arena.Get(node)
-	terminal := n.Expanded && len(n.Children) == 0
-	if !n.Expanded {
-		e.expandLocked(node, br)
-		terminal = len(e.arena.Get(node).Children) == 0
-	}
-	e.mu.Unlock()
-
-	value := e.leafValue(br)
-	if terminal { // a finished game is scored, not estimated, as in runPlayout
-		value = terminalValue(e.Rules, br)
-	}
-	e.backup(path, value)
+// runPlayout is one ordinary playout from the root.
+func (e *Engine) runPlayout(b *Board) {
+	e.descend(b.Clone(), append(newPath(), e.root), probeTT)
 }
 
-func (e *Engine) runPlayout(b *Board, root int) {
-	br := b.Clone()
-	path := make([]int, 0, 24)
-	path = append(path, root)
-	node := root
+// descend walks from the last node in path down to a leaf, expands it, and backs
+// the result up. br must already be the position reached by the moves in path.
+func (e *Engine) descend(br *Board, path []int, useTT bool) {
+	node := path[len(path)-1]
 
 	for {
 		e.mu.Lock()
@@ -370,10 +348,12 @@ func (e *Engine) runPlayout(b *Board, root int) {
 	if !n.Expanded {
 		// The transposition key covers stones, not pass history, so a finished
 		// position can collide with a live one: never serve it from the table.
-		if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 && !twoPasses(br) {
-			e.backupLocked(path, v.Value)
-			e.mu.Unlock()
-			return
+		if useTT {
+			if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 && !twoPasses(br) {
+				e.backupLocked(path, v.Value)
+				e.mu.Unlock()
+				return
+			}
 		}
 		e.expandLocked(node, br)
 		terminal = len(e.arena.Get(node).Children) == 0

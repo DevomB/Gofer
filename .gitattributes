@@ -1,0 +1,11 @@
+# Normalize to LF in the repository. Without this, a Windows checkout with
+# core.autocrlf=true rewrites every text file to CRLF, which makes `gofmt -l`
+# report the whole tree and would break shell scripts if one were ever
+# committed as-is.
+* text=auto eol=lf
+
+*.png  binary
+*.pdf  binary
+*.onnx binary
+*.npz  binary
+*.pt   binary

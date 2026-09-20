@@ -206,22 +206,22 @@ func TestIdenticalEvalColorBalance(t *testing.T) {
 
 	const games = 200
 	res := RunMatch(MatchConfig{
-		Games:         games,
-		Size:          9,
+		Games: games,
+		Size:  9,
 		// Fair komi for equal heuristic engines at 50 playouts, measured on the
 		// repaired search (ADR 0008): 150 games give Black 51.3%. The sweep runs
 		// 58% at komi 0, 51% at 0.5, 46% at 1.0, 42% at 1.5 and 29% at 6.5. The
 		// old value (-1.0) was fitted to a search that stopped at the root and
 		// ended games near-empty, where komi alone decided them.
-		Komi:          0.5,
-		Playouts:      50,
-		BlackEval:     "heuristic",
-		WhiteEval:     "heuristic",
-		Seed:          99,
-		SwapColors:    true,
-		OpeningMoves:  8,
-		OpeningTemp:   1.0,
-		Parallel:      4,
+		Komi:         0.5,
+		Playouts:     50,
+		BlackEval:    "heuristic",
+		WhiteEval:    "heuristic",
+		Seed:         99,
+		SwapColors:   true,
+		OpeningMoves: 8,
+		OpeningTemp:  1.0,
+		Parallel:     4,
 	})
 	if res.Games != games {
 		t.Fatalf("want %d games got %d", games, res.Games)
@@ -229,7 +229,6 @@ func TestIdenticalEvalColorBalance(t *testing.T) {
 	assertWinsNearExpected(t, res.WinsBlack, res.Games, 0.5, 3.0)
 	t.Logf("black=%d white=%d draws=%d komi=0.5", res.WinsBlack, res.WinsWhite, res.Draws)
 }
-
 
 func assertWinsNearExpected(t *testing.T, wins, n int, p, sigmaN float64) {
 	t.Helper()

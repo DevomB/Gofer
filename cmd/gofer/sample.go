@@ -11,18 +11,18 @@ const SampleSchemaVersion = 1
 
 // Sample is one self-play training record.
 type Sample struct {
-	BoardHash  uint64    `json:"board_hash"`
-	MoveNum    int       `json:"move_num"`
-	Policy     []float32 `json:"policy"`
-	PolicyOpp  []float32 `json:"policy_opp,omitempty"`
+	BoardHash       uint64    `json:"board_hash"`
+	MoveNum         int       `json:"move_num"`
+	Policy          []float32 `json:"policy"`
+	PolicyOpp       []float32 `json:"policy_opp,omitempty"`
 	FeaturesSpatial []float32 `json:"features_spatial,omitempty"`
 	FeaturesGlobal  []float32 `json:"features_global,omitempty"`
-	ToPlay     Color     `json:"to_play"`
-	Value      float32   `json:"value"`
-	Komi       float64   `json:"komi,omitempty"`
-	Ownership  []float32 `json:"ownership,omitempty"`
-	FullSearch bool      `json:"full_search,omitempty"`
-	ScorePDF   []float64 `json:"score_pdf,omitempty"`
+	ToPlay          Color     `json:"to_play"`
+	Value           float32   `json:"value"`
+	Komi            float64   `json:"komi,omitempty"`
+	Ownership       []float32 `json:"ownership,omitempty"`
+	FullSearch      bool      `json:"full_search,omitempty"`
+	ScorePDF        []float64 `json:"score_pdf,omitempty"`
 	// GameID is the self-play game index within one run (groups rows by game).
 	GameID int `json:"game_id"`
 	// ScoreMargin is the final area-score margin (komi included) from ToPlay's view.

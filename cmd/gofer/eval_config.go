@@ -15,8 +15,8 @@ type EvalConfig struct {
 }
 
 var evalConfig = EvalConfig{
-	Backend:   "inprocess",
-	BatchSize: 8,
+	Backend:     "inprocess",
+	BatchSize:   8,
 	EvalTimeout: 500 * time.Millisecond,
 	MaxWait:     2 * time.Millisecond,
 }

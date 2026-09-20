@@ -14,37 +14,37 @@ import (
 
 type cliFlags struct {
 	gtp, play, analyze, selfplay, watch, arena, convertSGF, verifyJSONL bool
-	convertMaxRows                                         int
-	convertEpsilon                                         float64
-	games                                      int
-	size                                       int
-	komi                                       float64
-	playouts, gtpPlayouts                      int
-	think                                      time.Duration
-	topN                                       int
-	eval, humanColor, out, sgfDir              string
-	blackEval, whiteEval, arenaJSON            string
-	blackPlayouts, whitePlayouts               int
-	selfplayFullOnly                           bool
-	selfplayEval                               string
-	selfplayONNXFraction                       float64
-	selfplayParallel                           int
-	selfplayTempMoves                          int
-	selfplayFastPlayouts                       int
-	selfplayFullPlayouts                       int
-	selfplayCapRandomizeP                      float64
-	selfplayFixedPlayouts                      bool
-	seed                                       int64
-	sgfPath, setup                             string
-	modelPath, onnxURL, onnxURL2               string
-	evalBackend, modelPath2                    string
-	batchSize                                  int
-	evalTimeout                                time.Duration
-	arenaEnhanced                              string
-	arenaParallel                              int
-	arenaOpeningMoves                          int
-	arenaTemp                                  float64
-	arenaPlayAll                               bool
+	convertMaxRows                                                      int
+	convertEpsilon                                                      float64
+	games                                                               int
+	size                                                                int
+	komi                                                                float64
+	playouts, gtpPlayouts                                               int
+	think                                                               time.Duration
+	topN                                                                int
+	eval, humanColor, out, sgfDir                                       string
+	blackEval, whiteEval, arenaJSON                                     string
+	blackPlayouts, whitePlayouts                                        int
+	selfplayFullOnly                                                    bool
+	selfplayEval                                                        string
+	selfplayONNXFraction                                                float64
+	selfplayParallel                                                    int
+	selfplayTempMoves                                                   int
+	selfplayFastPlayouts                                                int
+	selfplayFullPlayouts                                                int
+	selfplayCapRandomizeP                                               float64
+	selfplayFixedPlayouts                                               bool
+	seed                                                                int64
+	sgfPath, setup                                                      string
+	modelPath, onnxURL, onnxURL2                                        string
+	evalBackend, modelPath2                                             string
+	batchSize                                                           int
+	evalTimeout                                                         time.Duration
+	arenaEnhanced                                                       string
+	arenaParallel                                                       int
+	arenaOpeningMoves                                                   int
+	arenaTemp                                                           float64
+	arenaPlayAll                                                        bool
 }
 
 func parseCLIFlags() cliFlags {
