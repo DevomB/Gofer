@@ -12,7 +12,7 @@ func treeNodes(eng *Engine) int {
 	if eng.arena == nil {
 		return 0
 	}
-	return len(eng.arena.nodes)
+	return eng.arena.Len()
 }
 
 func TestPUCTFormula(t *testing.T) {

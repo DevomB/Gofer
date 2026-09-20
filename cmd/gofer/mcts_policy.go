@@ -4,7 +4,7 @@ import "sort"
 
 func (e *Engine) analyzeLocked(topN, playouts int) Analysis {
 	out := Analysis{Playouts: playouts}
-	if e.arena == nil || len(e.arena.nodes) == 0 {
+	if e.arena == nil || e.arena.Len() == 0 {
 		out.Best = PassMove
 		return out
 	}
@@ -108,7 +108,7 @@ func (e *Engine) RootPolicy(legal []Move) []float32 {
 	pi := make([]float32, len(legal))
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.arena == nil || len(e.arena.nodes) == 0 {
+	if e.arena == nil || e.arena.Len() == 0 {
 		return uniformPolicy32(len(legal))
 	}
 	root := e.arena.Get(e.root)

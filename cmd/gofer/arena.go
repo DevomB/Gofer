@@ -13,38 +13,66 @@ type Node struct {
 	Expanded bool
 }
 
-// Arena stores nodes in a contiguous slice; doubles capacity when full.
+// arenaChunk is the number of nodes per allocation. Chunks are never resized, so
+// a *Node handed out by Get stays valid for the life of the arena.
+const arenaChunk = 1024
+
+// Arena stores nodes in fixed-size chunks.
+//
+// It used to be one slice that AddChild appended to, which meant Get returned a
+// pointer into memory that the next expansion could reallocate. Any pointer held
+// across an AddChild was then silently writing into a discarded array. That cost
+// us: the root's "expanded" flag was lost on every 9x9 search (82 children
+// against a capacity of 64), the search never descended, and no test caught it
+// because every test board has fewer children than the initial capacity. Chunked
+// storage makes the whole class of mistake impossible instead of moving the
+// threshold at which it appears.
 type Arena struct {
-	nodes []Node
+	chunks [][]Node
+	n      int
 }
 
 // NewArena creates an empty arena.
 func NewArena() *Arena {
-	return &Arena{nodes: make([]Node, 0, 64)}
+	return &Arena{}
 }
 
 // Root allocates the root node and returns its index.
 func (a *Arena) Root() int {
-	if len(a.nodes) == 0 {
-		a.nodes = append(a.nodes, Node{Parent: -1})
+	if a.n == 0 {
+		a.alloc(Node{Parent: -1})
 	}
 	return 0
 }
 
-// Get returns node at index.
+// Len returns the number of allocated nodes.
+func (a *Arena) Len() int { return a.n }
+
+// Get returns the node at index i. The pointer stays valid across later AddChild
+// calls, because chunks are allocated once and never grown.
 func (a *Arena) Get(i int) *Node {
-	return &a.nodes[i]
+	return &a.chunks[i/arenaChunk][i%arenaChunk]
+}
+
+func (a *Arena) alloc(n Node) int {
+	idx := a.n
+	if idx/arenaChunk == len(a.chunks) {
+		a.chunks = append(a.chunks, make([]Node, arenaChunk))
+	}
+	*a.Get(idx) = n
+	a.n++
+	return idx
 }
 
 // AddChild appends a child node and returns its index.
 func (a *Arena) AddChild(parent int, m Move, prior float64) int {
-	idx := len(a.nodes)
-	a.nodes = append(a.nodes, Node{
+	idx := a.alloc(Node{
 		Parent: parent,
 		Move:   m,
 		Prior:  prior,
 	})
-	a.nodes[parent].Children = append(a.nodes[parent].Children, idx)
+	p := a.Get(parent)
+	p.Children = append(p.Children, idx)
 	return idx
 }
 

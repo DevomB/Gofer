@@ -441,3 +441,35 @@ def test_config_rejects_odd_bootstrap_games_and_empty_cycles(tmp_path):
         make_cfg(tmp_path, gating__bootstrap_games=7)
     with pytest.raises(ValueError, match="games_per_cycle"):
         make_cfg(tmp_path, selfplay__games_per_cycle=0)
+
+
+# ------------------------------------------------- portability (ORT downloads)
+
+def test_ort_build_covers_arm_and_mac():
+    """Apple Silicon and ARM servers (Graviton) must not be locked out."""
+    from training.pipeline.procs import ORT_VERSION, ort_build_for
+
+    cases = {
+        ("Linux", "x86_64"): "linux-x64",
+        ("Linux", "aarch64"): "linux-aarch64",
+        ("Linux", "arm64"): "linux-aarch64",      # some distros report arm64
+        ("Darwin", "arm64"): "osx-arm64",
+        ("Windows", "AMD64"): "win-x64",
+    }
+    for (system, machine), expected in cases.items():
+        build = ort_build_for(system, machine)
+        assert build is not None, f"{system}/{machine} has no ORT build"
+        name, kind, lib = build
+        assert expected in name and ORT_VERSION in name
+        assert kind in ("tgz", "zip") and lib.startswith("lib/")
+
+
+def test_unsupported_platform_points_at_the_sidecar(tmp_path, monkeypatch):
+    """Intel Macs have no pinned in-process build; the error must say what does work."""
+    from training.pipeline import procs
+
+    assert procs.ort_build_for("Darwin", "x86_64") is None
+    monkeypatch.setattr(procs.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(procs.platform, "machine", lambda: "x86_64")
+    with pytest.raises(procs.CommandError, match="sidecar"):
+        procs.ensure_ort_library(tmp_path)

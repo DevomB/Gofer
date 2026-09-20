@@ -49,6 +49,8 @@ python -m training.pipeline report --config configs/pipeline-smoke.toml  # runs/
 
 Override any key without editing a file: `--set gating.max_games=200 --set 'train.args={config="training/configs/train-gpu.toml", steps=5000}'`. Print the fully resolved config with `python -m training.pipeline config --config <file>`.
 
+**Platforms.** The `inprocess` backend needs a pinned ONNX Runtime shared library, which the orchestrator downloads for Linux x86-64, Linux arm64 (Graviton), macOS arm64 (Apple Silicon) and Windows x86-64. Anywhere else — an Intel Mac, for instance — use `engine.backend = "sidecar"`, which only needs the Python `onnxruntime` wheel; the error message says so.
+
 Sections: `[run]` (name, deadline, overlap, pruning), `[engine]` (backend `inprocess` | `sidecar`), `[selfplay]`, `[replay]` (window), `[train]` (script plus `args` passed through to the trainer), `[gating]` (SPRT), `[publish]`. Unknown keys are errors.
 
 ## The stages

@@ -118,20 +118,43 @@ class SubprocessExecutor:
         raise CommandError(f"sidecar on :{port} not healthy after {timeout}s (log: {log})")
 
 
+# Release archives published for the pinned ONNX Runtime, by (system, architecture).
+# ARM matters here: Apple Silicon is what most contributors have, and Graviton is
+# the cheapest CPU capacity on AWS, so hard-coding x86-64 would rule out both.
+ORT_BUILDS = {
+    ("Linux", "x86_64"): (f"onnxruntime-linux-x64-{ORT_VERSION}", "tgz", f"lib/libonnxruntime.so.{ORT_VERSION}"),
+    ("Linux", "aarch64"): (f"onnxruntime-linux-aarch64-{ORT_VERSION}", "tgz", f"lib/libonnxruntime.so.{ORT_VERSION}"),
+    ("Darwin", "arm64"): (f"onnxruntime-osx-arm64-{ORT_VERSION}", "tgz", f"lib/libonnxruntime.{ORT_VERSION}.dylib"),
+    ("Windows", "x86_64"): (f"onnxruntime-win-x64-{ORT_VERSION}", "zip", "lib/onnxruntime.dll"),
+}
+# platform.machine() spellings that mean the same architecture.
+ORT_ARCH_ALIASES = {"amd64": "x86_64", "x64": "x86_64", "arm64": "aarch64", "aarch64": "aarch64"}
+
+
+def ort_build_for(system: str, machine: str) -> tuple[str, str, str] | None:
+    arch = ORT_ARCH_ALIASES.get(machine.lower(), machine.lower())
+    if system == "Darwin" and arch == "aarch64":
+        arch = "arm64"                      # the macOS archive is named arm64
+    if system == "Windows":
+        arch = "x86_64" if arch in ("x86_64", "aarch64") else arch
+    return ORT_BUILDS.get((system, arch))
+
+
 def ensure_ort_library(cache_dir: Path) -> Path:
-    """Download the pinned ONNX Runtime shared library (Linux x64 / Windows x64)."""
+    """Download the pinned ONNX Runtime shared library for this platform."""
     system = platform.system()
-    machine = platform.machine().lower()
-    if machine not in ("x86_64", "amd64"):
-        raise CommandError(f"no pinned ORT download for {system}/{machine}; set engine.ort_lib")
-    if system == "Linux":
-        name, lib_rel = f"onnxruntime-linux-x64-{ORT_VERSION}", f"lib/libonnxruntime.so.{ORT_VERSION}"
-        url = f"https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{name}.tgz"
-    elif system == "Windows":
-        name, lib_rel = f"onnxruntime-win-x64-{ORT_VERSION}", "lib/onnxruntime.dll"
-        url = f"https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{name}.zip"
-    else:
-        raise CommandError(f"no pinned ORT download for {system}; set engine.ort_lib")
+    machine = platform.machine()
+    build = ort_build_for(system, machine)
+    if build is None:
+        raise CommandError(
+            f"ONNX Runtime {ORT_VERSION} publishes no build for {system}/{machine}, so the "
+            f"in-process backend cannot run here. Either set engine.ort_lib to a local "
+            f"libonnxruntime, or use the sidecar backend, which runs anywhere Python "
+            f"onnxruntime installs:\n"
+            f"  python -m training.pipeline run --config <cfg> --set 'engine.backend=\"sidecar\"'"
+        )
+    name, kind, lib_rel = build
+    url = f"https://github.com/microsoft/onnxruntime/releases/download/v{ORT_VERSION}/{name}.{kind}"
     lib = cache_dir / name / lib_rel
     if lib.exists():
         return lib
