@@ -43,7 +43,8 @@ These are tested in [cmd/gofer/shard_test.go](../cmd/gofer/shard_test.go) and [t
 
 - **One perspective.** `value`, `score`, `ownership` and `policy_opp` all use the side-to-move frame, like the own/opp input planes. Exactly: `score == ownership.sum(1) - komi` for black-to-move rows and `+ komi` for white-to-move rows.
 - **Fast rows are kept.** Unlike `-full-only` JSONL, shards keep playout-cap-randomization fast rows, flagged `full_search=0`. The learner trains value/ownership/score on every row and masks the policy losses to `full_search == 1`. That gives about 5x more value data at no self-play cost. Pass `-full-only=true` explicitly to drop them.
-- **Atomic.** Shards are written to `<path>.tmp` and renamed, so a crash never leaves a truncated `.npz` for the trainer.
+- **Atomic.** Shards are written to `<path>.tmp` and renamed (retrying on Windows sharing violations), so a crash never leaves a truncated `.npz` for the trainer.
+- **Validated at write time.** A row is rejected, rather than silently written, if a plane is not 0/1, if any float is NaN or infinite, or if `ownership` is missing: the learner applies its ownership loss to every row, so an all-zero map would teach "neutral everywhere". Self-play always supplies ownership; SGF conversion writes JSONL, not shards.
 - **Immutable.** The replay buffer never rewrites shards. The window is "newest shards that fit", and aging out moves a file to `selfplay/archive/`.
 
 ## Compared with JSONL

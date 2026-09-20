@@ -320,12 +320,17 @@ func (e *Engine) runPlayoutForced(b *Board, firstChild int) {
 
 	e.mu.Lock()
 	n := e.arena.Get(node)
+	terminal := n.Expanded && len(n.Children) == 0
 	if !n.Expanded {
 		e.expandLocked(node, br)
+		terminal = len(e.arena.Get(node).Children) == 0
 	}
 	e.mu.Unlock()
 
 	value := e.leafValue(br)
+	if terminal { // a finished game is scored, not estimated, as in runPlayout
+		value = terminalValue(e.Rules, br)
+	}
 	e.backup(path, value)
 }
 
@@ -422,7 +427,11 @@ func (e *Engine) expandLocked(node int, b *Board) {
 	for i, m := range moves {
 		e.arena.AddChild(node, m, priors[i])
 	}
-	n.Expanded = true
+	// Re-fetch: AddChild appends to the arena's slice, which reallocates once the
+	// children outgrow its capacity, and `n` would then point into the discarded
+	// array. Writing the flag through that stale pointer left the node looking
+	// unexpanded forever, so every playout stopped at it and no child was visited.
+	e.arena.Get(node).Expanded = true
 	e.TT.Store(b.Hash(), Entry{Depth: 1, Value: res.Value})
 }
 
@@ -432,11 +441,27 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	if parentVisits == 0 {
 		parentVisits = 1
 	}
+	// First-play urgency, relative to how much of the policy has been explored:
+	// an unseen move is worth roughly what this node is worth, minus a reduction
+	// that grows as the explored moves account for more of the prior. A flat
+	// pessimistic constant instead made the first visited child unbeatable, so
+	// the search put every playout down one line and the visit distribution --
+	// which is the policy training target -- collapsed to a single move.
+	fpu := n.Mean()
+	if !(isRoot && e.cfg.RootNoise) { // no reduction at a noised root, as in KataGo
+		explored := 0.0
+		for _, cidx := range n.Children {
+			if c := e.arena.Get(cidx); c.Visits > 0 {
+				explored += c.Prior
+			}
+		}
+		fpu -= e.cfg.FPU * math.Sqrt(explored)
+	}
 	best := -1
 	bestScore := math.Inf(-1)
 	for _, cidx := range n.Children {
 		c := e.arena.Get(cidx)
-		score := puctScore(c, parentVisits, isRoot, e.cfg)
+		score := puctScore(c, parentVisits, isRoot, fpu, e.cfg)
 		if score > bestScore {
 			bestScore = score
 			best = cidx

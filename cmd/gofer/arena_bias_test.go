@@ -4,8 +4,8 @@ import "testing"
 
 // TestArenaIdenticalNetsNoSystematicRoleBias verifies swap-colors balances role
 // wins for equal strength. Stone colour is expected to skew here: this match uses
-// tournament komi 6.5, which at 50 playouts favours White (Black wins about 15%);
-// fair komi for these engines is near 2.0, and TestIdenticalEvalColorBalance
+// tournament komi 6.5, which at 50 playouts favours White (Black wins about 29%);
+// fair komi for these engines is near 0.5, and TestIdenticalEvalColorBalance
 // asserts colour balance there. Before the ADR 0008 search fix this test logged
 // stone_black=9 of 188 and the skew was the bug, not komi.
 func TestArenaIdenticalNetsNoSystematicRoleBias(t *testing.T) {

@@ -6,22 +6,39 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
 
 ### Fixed
 
-- **MCTS selected the move best for the opponent.** `puctScore` used a child's mean
-  without negating it, but node values are stored from each node's own side to move.
-  More search made the engine weaker: on the project's own baseline command (Black 600
-  playouts vs White 200, identical heuristics) Black won **0 of 20** before and **13 of 20**
-  after, with games going from 11–13 moves to 20–69. See
-  [ADR 0008](docs/decisions/0008-mcts-value-sign-and-terminal-scoring.md).
-- **The search never saw the end of the game.** Two consecutive passes were not treated as
-  terminal and finished positions were scored by the evaluator instead of the rules, so the
-  search walked into lost endings. Terminal results are never cached in the transposition
-  table, whose key does not cover pass history.
+- **The search never left the root on 9x9.** `Arena.Get` returns a pointer into a slice
+  that `AddChild` appends to, and `expandLocked` wrote the "expanded" flag through a
+  pointer taken before the append. A 9x9 root has 82 children against an initial capacity
+  of 64, so the flag was lost on every search: playouts stopped at the root, the
+  transposition table answered the rest, and no child was ever visited. The engine played
+  the first legal move regardless of playout count. Boards small enough to avoid the
+  reallocation — every unit test — were unaffected.
+- **Selection preferred the opponent's best move.** `puctScore` used a child's mean without
+  negating it, but node values are stored from each node's own side to move, so more search
+  made the engine weaker.
+- **First-play urgency was a flat constant**, so once a child had been visited nothing could
+  outscore it: at 200 playouts one move took every visit. The visit distribution is the
+  policy training target, so this would have produced one-hot targets. It is now the node's
+  own value minus a reduction that grows with the explored prior, as in KataGo.
+- **The search could not see the end of the game.** Two consecutive passes were not terminal
+  and finished positions were scored by the evaluator instead of the rules, so the engine
+  walked into lost endings. Terminal results are never cached in the transposition table,
+  whose key does not cover pass history.
 - **Arena role attribution was biased.** Per-game seeds were linear in the game index while
   colours swapped on the same parity, so one role systematically drew correlated openings.
   With two evaluators that are literally the same code, roles split 36/64, 55/26 and 55/30
   across three seeds; after mixing the seeds they split 55/53, 51/69 and 55/61.
+
+Controlled before/after, identical settings (40 games, seed 42, identical heuristics,
+Black 600 playouts vs White 200): Black won **0 of 40** before and **24 of 40** after, with
+the median game going from 28 to 80 moves. With fair komi and identical evaluators, 200
+games now split 99-101 by colour.
+
 - Every strength number recorded before these fixes is void, including
-  `.tectonix/reports/arena-9x9-baseline.json`.
+  `.tectonix/reports/arena-9x9-baseline.json`, and self-play data produced before them
+  carries policy targets from a search that did not search.
+- Fair komi for equal heuristic engines at 50 playouts is now about 0.5; the tests that
+  encoded the old value (fitted to the broken search) were updated.
 
 ### Added
 
@@ -30,7 +47,9 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
   SkyPilot / free-CI deployment, and a paper in `paper/`. See
   [docs/pipeline.md](docs/pipeline.md) and [ADR 0007](docs/decisions/0007-pipeline-orchestrator.md).
 - `plan-sprt` reports a gate's exact promotion rate and expected length
-  (`training/pipeline/gate_oc.py`), and a short-mode test asserts that more playouts win.
+  (`training/pipeline/gate_oc.py`). Three short-mode tests guard the search: root children
+  are visited, visits spread across moves, and selection prefers the move that is worse for
+  the opponent.
 
 ## [2.7.1] - 2026-07-07
 

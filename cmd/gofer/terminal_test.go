@@ -104,6 +104,74 @@ func TestSelectionPrefersMovesGoodForTheMover(t *testing.T) {
 	}
 }
 
+// TestSearchVisitsRootChildren guards the arena's node storage. Arena.Get returns
+// a pointer into a slice that AddChild appends to, so expanding a node with more
+// children than the slice's spare capacity reallocates it and any pointer taken
+// beforehand then writes into the discarded array. A 9x9 root has 82 children
+// against an initial capacity of 64, so the "expanded" flag was lost on every
+// search: each playout bailed out at the root, no child was ever visited, and
+// the engine played the first legal move regardless of how long it searched.
+func TestSearchVisitsRootChildren(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Playouts = 60
+	cfg.Workers = 1
+	cfg.Seed = 3
+	eng := NewEngine(Chinese(), Heuristic{}, cfg)
+	b := NewBoard(9, 6.5)
+	a := eng.Analyze(b, 5)
+
+	root := eng.arena.Get(eng.root)
+	if got := len(root.Children); got != 82 {
+		t.Fatalf("root has %d children, want 82 (one per legal move plus pass); "+
+			"duplicates mean it was expanded more than once", got)
+	}
+	var visits uint32
+	for _, c := range root.Children {
+		visits += eng.arena.Get(c).Visits
+	}
+	if visits == 0 {
+		t.Fatal("no root child was visited in 60 playouts: the search never descends")
+	}
+	if len(a.Candidates) == 0 || a.Candidates[0].Visits == 0 {
+		t.Fatalf("analysis reports no visited candidate: %+v", a.Candidates)
+	}
+}
+
+// TestSearchExploresSeveralMoves guards the visit distribution, which is the
+// policy training target. First-play urgency used to be a flat pessimistic
+// constant, well below a typical node value, so the first child to be visited
+// outscored every unvisited one forever: all playouts went down one line and the
+// target collapsed to a single move.
+func TestSearchExploresSeveralMoves(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Playouts = 200
+	cfg.Workers = 1
+	cfg.Seed = 11
+	eng := NewEngine(Chinese(), Heuristic{}, cfg)
+	a := eng.Analyze(NewBoard(9, 6.5), 5)
+
+	root := eng.arena.Get(eng.root)
+	visited, top := 0, uint32(0)
+	for _, cidx := range root.Children {
+		if v := eng.arena.Get(cidx).Visits; v > 0 {
+			visited++
+			if v > top {
+				top = v
+			}
+		}
+	}
+	if visited < 5 {
+		t.Fatalf("only %d moves visited in 200 playouts: the search is not exploring", visited)
+	}
+	if float64(top) > 0.9*float64(cfg.Playouts) {
+		t.Fatalf("one move took %d of %d playouts: the visit distribution is degenerate",
+			top, cfg.Playouts)
+	}
+	if len(a.Candidates) < 2 {
+		t.Fatalf("analysis lists %d candidates", len(a.Candidates))
+	}
+}
+
 func TestTerminalValueSignsWithKomi(t *testing.T) {
 	rs := Chinese()
 	// Komi 0.5 on an empty board: Black, to move, still loses on komi alone.
