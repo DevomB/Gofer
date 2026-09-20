@@ -1,6 +1,6 @@
 """The training loop: self-play -> train -> export -> gate -> promote, per cycle.
 
-Differences from scripts/train-loop-v3.sh:
+Differences from the v3 shell loop (deleted Sep 2026; see ADR 0007):
   * self-play writes compact .npz shards (no JSONL parse, ~40x smaller);
   * the replay buffer is a growing window over immutable shards (no rewrites);
   * gating is a sequential test (SPRT) run in arena batches: it controls the

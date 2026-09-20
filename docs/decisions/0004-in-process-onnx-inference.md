@@ -40,7 +40,7 @@ Reimplement conv blocks, policy/value heads, and softmax in pure Go.
 
 ## Decision
 
-- **Default `-eval-backend=inprocess`** in `cmd/gofer` and `EVAL_BACKEND=inprocess` in `scripts/train-loop-v3.sh`.
+- **Default `-eval-backend=inprocess`** in `cmd/gofer`, and `EVAL_BACKEND=inprocess` in the v3 loop script (since deleted; see [ADR 0003](0003-iterative-training-loop.md)).
 - **`SidecarBackend` and `training/inference_server.py` remain** in the tree, unused by default, for one more production cycle before deletion.
 - Sidecar path still available via `-eval-backend=sidecar` or `EVAL_BACKEND=sidecar` for rollback.
 

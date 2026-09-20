@@ -400,6 +400,26 @@ had been done, so no trained model was lost; the self-play data generated so far
 carries policy targets from a search that never descended, and is not worth
 training on.
 
+That accounting was incomplete, and the way it was incomplete is worth stating,
+because we only noticed weeks later. Marking data void is the obvious half of
+the job. The other half is asking what was decided on the strength of it, and
+that question does not ask itself: void data sits in a directory where someone
+will trip over it, whereas a conclusion drawn from void data has already been
+written up, accepted, and filed somewhere that reads as settled. In our case a
+net-size ablation had compared four architectures by validation loss on a frozen
+snapshot of exactly this self-play output. Policy is the dominant term in that
+loss, so every figure in it measured how well each network fit a target
+containing no search. The conclusion survived only by luck: the ablation had
+recommended changing nothing, so nothing was built on it. Had it recommended a
+smaller trunk, we would have adopted an architecture on the strength of a
+measurement of noise and had no reason to revisit it.
+
+The practice we would adopt from this is a mechanical one. Whenever a dataset is
+declared void, enumerate the decisions taken on it and mark each one explicitly,
+even where the decision happens to stand. A decision whose evidence has
+evaporated is not automatically wrong; it is unsupported, and the distinction is
+invisible unless someone writes it down.
+
 \subsection{Pipeline end to end}
 \label{sec:pipeline-eval}
 

@@ -2,7 +2,12 @@
 
 ## Status
 
-Accepted — 2026-07-01
+Accepted 2026-07-01. **Superseded by [ADR 0007](0007-pipeline-orchestrator.md);
+the artifacts described below no longer exist.** `scripts/train-loop-v3.sh`,
+`scripts/weekly-train-loop.sh` and the Python modules they drove
+(`training/cycle.py`, `replay.py`, `manifest.py`) were deleted in Sep 2026 once
+nothing referenced them. This record is kept for the reasoning, which ADR 0007
+argues against point by point; the code is in the git history.
 
 ## Context
 
