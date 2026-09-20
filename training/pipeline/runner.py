@@ -432,8 +432,12 @@ class Pipeline:
         """
         cmd = self.arena_command(games, seed, report, baseline, challenger) + ["-arena-config-hash"]
         try:
-            out = self.executor.capture(cmd, cwd=self.root, env=self.env)
-        except Exception as exc:  # noqa: BLE001 - advisory check, never fatal
+            out = self.x.capture(cmd, env=self.env)
+        except (CommandError, OSError) as exc:
+            # Only environmental failures degrade to the game-count check. A
+            # TypeError or AttributeError here is a bug in this method, and
+            # swallowing it would leave the hash check silently never running -
+            # which is how this was first shipped.
             self.log(f"could not read arena config hash ({exc}); falling back to game-count check only")
             return None
         return out.strip().splitlines()[-1].strip() if out.strip() else None

@@ -52,6 +52,18 @@ class FakeJob:
 class FakeExecutor:
     """Simulates gofer / trainer / exporter by writing their output artifacts."""
 
+    # The engine answers -arena-config-hash with a hash of the configuration.
+    # The fake derives one the same way: from the argv it is handed. Without
+    # this the helper raised AttributeError, the caller swallowed it, and the
+    # hash check silently never ran - in the tests as well as in production.
+    config_hash = "fakehash00000000"
+
+    def capture(self, cmd, *, env=None):
+        # Deliberately NOT recorded in self.calls: this is a query about what a
+        # match would be, not a match. Recording it makes every cached report
+        # look as though it had been replayed.
+        return self.config_hash + "\n"
+
     def __init__(self, arena=None, rows_per_game: int = 50, fail_on: str | None = None) -> None:
         self.calls: list[list[str]] = []
         self.arena = arena or (lambda cycle, batch, games: (games // 2, games // 2, 0))
@@ -92,7 +104,8 @@ class FakeExecutor:
             seed = int(_arg(cmd, "-seed"))
             w, l, d = self.arena(seed // 1000, seed % 1000, games)
             Path(_arg(cmd, "-json")).write_text(json.dumps(
-                {"wins_challenger": w, "wins_baseline": l, "draws": d, "game_count": games}))
+                {"wins_challenger": w, "wins_baseline": l, "draws": d, "game_count": games,
+                 "config_hash": self.config_hash}))
 
     def spawn(self, cmd, *, log, env=None):
         self.run(cmd, log=log, env=env)
@@ -203,7 +216,9 @@ def test_resumed_gate_reuses_finished_batches(tmp_path):
     pipe.run(max_cycles=1)
     gdir = pipe.gating_dir / "cycle-0002"
     gdir.mkdir(parents=True)
-    (gdir / "batch-01.json").write_text(json.dumps({"wins_challenger": 9, "wins_baseline": 1, "draws": 0, "game_count": 10}))
+    (gdir / "batch-01.json").write_text(json.dumps(
+        {"wins_challenger": 9, "wins_baseline": 1, "draws": 0, "game_count": 10,
+         "config_hash": FakeExecutor.config_hash}))
     pipe.run(max_cycles=1)
     arena_calls = [c for c in ex.calls if ex.kind(c) == "arena"]
     assert all(not _arg(c, "-json").endswith("batch-01.json") for c in arena_calls)
@@ -497,3 +512,49 @@ def test_batch_size_override_is_honoured(tmp_path):
     sp = pipe.selfplay_command(1)
     assert sp[sp.index("-batch-size") + 1] == "64"
     assert sp[sp.index("-selfplay-parallel") + 1] == "32"
+
+
+def test_cached_report_from_a_different_configuration_is_replayed(tmp_path):
+    """A cached arena report must match the configuration that would produce it.
+
+    Game count alone is not enough: a resumed run can reach a gate with a
+    different candidate, backend or opening setting, and the stale report has
+    the right shape and the wrong contents. This check shipped broken once - the
+    helper read a misnamed attribute, the caller swallowed the AttributeError,
+    and the hash was never compared in production OR in these tests.
+    """
+    ex = FakeExecutor()
+    pipe = make_pipe(tmp_path, ex)
+    gdir = pipe.gating_dir / "cycle-0002"
+    gdir.mkdir(parents=True)
+    stale = gdir / "batch-01.json"
+    stale.write_text(json.dumps({"wins_challenger": 9, "wins_baseline": 1, "draws": 0,
+                                 "game_count": 10, "config_hash": "a-different-configuration"}))
+
+    assert not pipe._usable_report(stale, 10, ex.config_hash), "stale evidence accepted"
+    # The same report under the matching hash is fine, so the check is not just refusing everything.
+    stale.write_text(json.dumps({"wins_challenger": 9, "wins_baseline": 1, "draws": 0,
+                                 "game_count": 10, "config_hash": ex.config_hash}))
+    assert pipe._usable_report(stale, 10, ex.config_hash)
+
+
+def test_arena_config_hash_surfaces_programming_errors(tmp_path):
+    """Only environmental failures may degrade to the game-count check.
+
+    The first version caught bare Exception, so a typo in the helper looked
+    exactly like a missing engine and the check quietly stopped running.
+    """
+    class Broken(FakeExecutor):
+        def capture(self, cmd, *, env=None):
+            raise TypeError("a bug in the helper, not a missing binary")
+
+    pipe = make_pipe(tmp_path, Broken())
+    with pytest.raises(TypeError):
+        pipe._arena_config_hash(tmp_path / "r.json", 10, 1, None, tmp_path / "c.onnx")
+
+    class NoEngine(FakeExecutor):
+        def capture(self, cmd, *, env=None):
+            raise OSError("engine binary missing")
+
+    pipe = make_pipe(tmp_path, NoEngine())
+    assert pipe._arena_config_hash(tmp_path / "r.json", 10, 1, None, tmp_path / "c.onnx") is None
