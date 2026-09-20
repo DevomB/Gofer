@@ -1,40 +1,22 @@
 {
-  "wins_black": 133,
-  "wins_white": 67,
+  "wins_black": 149,
+  "wins_white": 51,
   "draws": 0,
   "wins_baseline": 0,
   "wins_challenger": 0,
-  "win_rate_black": 0.665,
+  "win_rate_black": 0.745,
   "win_rate_baseline": 0,
   "win_rate_challenger": 0,
   "wilson_ci_low": 0,
   "wilson_ci_high": 0.018846005918320894,
   "baseline_wilson_ci_low": 0,
   "baseline_wilson_ci_high": 0.018846005918320894,
-  "config_hash": "e3c7490ff938de1d",
+  "config_hash": "e5b503112bdce12b",
   "game_count": 200,
   "baseline_eval": "heuristic",
   "challenger_eval": "heuristic",
   "promoted": false,
   "games": [
-    {
-      "game": 1,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 15
-    },
-    {
-      "game": 7,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
     {
       "game": 5,
       "black_eval": "heuristic",
@@ -42,43 +24,25 @@
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 18
-    },
-    {
-      "game": 2,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 4,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
       "moves": 23
-    },
-    {
-      "game": 8,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
     },
     {
       "game": 6,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
+      "black_wins": false,
+      "white_wins": true,
       "draw": false,
-      "moves": 27
+      "moves": 46
+    },
+    {
+      "game": 7,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 80
     },
     {
       "game": 3,
@@ -87,7 +51,25 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
+      "moves": 73
+    },
+    {
+      "game": 11,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
       "moves": 27
+    },
+    {
+      "game": 8,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 14,
@@ -96,43 +78,16 @@
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 12
+      "moves": 7
     },
     {
-      "game": 10,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 13,
+      "game": 2,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 18
-    },
-    {
-      "game": 11,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 12,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
+      "moves": 83
     },
     {
       "game": 9,
@@ -141,79 +96,52 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 27
+      "moves": 71
     },
     {
-      "game": 17,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 15,
+      "game": 1,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 77
     },
     {
-      "game": 23,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 16,
+      "game": 4,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 73
     },
     {
-      "game": 22,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 19,
+      "game": 10,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 83
     },
     {
       "game": 20,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
+      "black_wins": false,
+      "white_wins": true,
       "draw": false,
-      "moves": 23
+      "moves": 21
     },
     {
-      "game": 24,
+      "game": 12,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 81
     },
     {
       "game": 18,
@@ -222,61 +150,97 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 33
+      "moves": 71
     },
     {
-      "game": 26,
+      "game": 13,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 18
+      "moves": 83
+    },
+    {
+      "game": 16,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 53
+    },
+    {
+      "game": 19,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 17,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 71
+    },
+    {
+      "game": 22,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 45
+    },
+    {
+      "game": 23,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 35
+    },
+    {
+      "game": 15,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 21,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 31,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 7
+      "moves": 83
+    },
+    {
+      "game": 24,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 28,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 25,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 29,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
+      "moves": 76
     },
     {
       "game": 27,
@@ -285,25 +249,34 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 25
+      "moves": 81
     },
     {
-      "game": 35,
+      "game": 26,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 25,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 10
+      "moves": 83
     },
     {
-      "game": 30,
+      "game": 29,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
+      "black_wins": true,
+      "white_wins": false,
       "draw": false,
-      "moves": 20
+      "moves": 83
     },
     {
       "game": 33,
@@ -312,16 +285,25 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 19
+      "moves": 65
     },
     {
-      "game": 36,
+      "game": 31,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
+      "black_wins": true,
+      "white_wins": false,
       "draw": false,
-      "moves": 14
+      "moves": 67
+    },
+    {
+      "game": 30,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 34,
@@ -330,61 +312,7 @@
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 37,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 38,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 39,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 40,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 42,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 44,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
+      "moves": 56
     },
     {
       "game": 32,
@@ -393,7 +321,61 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 33
+      "moves": 81
+    },
+    {
+      "game": 38,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 34
+    },
+    {
+      "game": 37,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 36,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 44,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 41
+    },
+    {
+      "game": 35,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 42,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 53
     },
     {
       "game": 43,
@@ -402,7 +384,16 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 25
+      "moves": 65
+    },
+    {
+      "game": 39,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 79
     },
     {
       "game": 41,
@@ -411,16 +402,7 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 47,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
+      "moves": 83
     },
     {
       "game": 45,
@@ -429,25 +411,16 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 50
     },
     {
-      "game": 46,
+      "game": 40,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 50,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
+      "moves": 83
     },
     {
       "game": 48,
@@ -456,52 +429,16 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 39
     },
     {
-      "game": 52,
+      "game": 46,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 49,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 51,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 55,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 58,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
+      "moves": 61
     },
     {
       "game": 53,
@@ -510,52 +447,25 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 29
+      "moves": 39
     },
     {
-      "game": 59,
+      "game": 52,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 14
+      "moves": 43
     },
     {
-      "game": 56,
+      "game": 47,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 57,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 60,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 62,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
+      "moves": 67
     },
     {
       "game": 54,
@@ -564,25 +474,97 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 33
+      "moves": 44
     },
     {
-      "game": 63,
+      "game": 49,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 15
+      "moves": 73
     },
     {
-      "game": 64,
+      "game": 50,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 51,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 14
+      "moves": 72
+    },
+    {
+      "game": 62,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 19
+    },
+    {
+      "game": 63,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 12
+    },
+    {
+      "game": 58,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 55,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 79
+    },
+    {
+      "game": 57,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 75
+    },
+    {
+      "game": 56,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 60,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 81
     },
     {
       "game": 61,
@@ -591,16 +573,34 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 27
+      "moves": 83
     },
     {
-      "game": 65,
+      "game": 59,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 69,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 38
+    },
+    {
+      "game": 70,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 34
     },
     {
       "game": 67,
@@ -609,10 +609,10 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 63
     },
     {
-      "game": 73,
+      "game": 74,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
@@ -627,52 +627,16 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 71
     },
     {
-      "game": 75,
+      "game": 64,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 3
-    },
-    {
-      "game": 69,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 71,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 70,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 72,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
+      "moves": 83
     },
     {
       "game": 66,
@@ -681,7 +645,34 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 27
+      "moves": 83
+    },
+    {
+      "game": 65,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 71,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 73,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 77
     },
     {
       "game": 79,
@@ -690,34 +681,7 @@
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 81,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 77,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 74,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
+      "moves": 83
     },
     {
       "game": 76,
@@ -726,838 +690,10 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 80,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 83,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 78,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 84,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 89,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
+      "moves": 77
     },
     {
       "game": 82,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 31
-    },
-    {
-      "game": 86,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 88,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
-    },
-    {
-      "game": 87,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
-    },
-    {
-      "game": 85,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 24
-    },
-    {
-      "game": 96,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 6
-    },
-    {
-      "game": 94,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 90,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 97,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 92,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 99,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 100,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 11
-    },
-    {
-      "game": 93,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 95,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 91,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 105,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 10
-    },
-    {
-      "game": 98,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 101,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 106,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 102,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 107,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 108,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 103,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 109,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
-    },
-    {
-      "game": 104,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 110,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 20
-    },
-    {
-      "game": 115,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
-    },
-    {
-      "game": 111,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 113,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 112,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 114,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 118,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 116,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 117,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 119,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 120,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 124,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 122,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 126,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 125,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 121,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 128,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 132,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 10
-    },
-    {
-      "game": 123,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 29
-    },
-    {
-      "game": 127,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 130,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 129,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 136,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 131,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 137,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 10
-    },
-    {
-      "game": 133,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 134,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 135,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 138,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 22
-    },
-    {
-      "game": 141,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 146,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 139,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 140,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 145,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 144,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 147,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 149,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 154,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 3
-    },
-    {
-      "game": 148,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 142,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 31
-    },
-    {
-      "game": 143,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 33
-    },
-    {
-      "game": 151,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 150,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 155,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 152,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 158,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 157,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 13
-    },
-    {
-      "game": 153,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 159,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 16
-    },
-    {
-      "game": 156,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 164,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 8
-    },
-    {
-      "game": 162,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 17
-    },
-    {
-      "game": 160,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 161,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 24
-    },
-    {
-      "game": 169,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 11
-    },
-    {
-      "game": 163,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 173,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 4
-    },
-    {
-      "game": 165,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 167,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 168,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 166,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 25
-    },
-    {
-      "game": 176,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 8
-    },
-    {
-      "game": 171,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
@@ -1566,34 +702,655 @@
       "moves": 18
     },
     {
-      "game": 170,
+      "game": 72,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 83
     },
     {
-      "game": 178,
+      "game": 77,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 75,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 87,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 42
+    },
+    {
+      "game": 81,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 72
+    },
+    {
+      "game": 84,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 71
+    },
+    {
+      "game": 80,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 12
+      "moves": 83
     },
     {
-      "game": 174,
+      "game": 78,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 83
     },
     {
-      "game": 172,
+      "game": 86,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 83,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 93,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 39
+    },
+    {
+      "game": 91,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 61
+    },
+    {
+      "game": 85,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 88,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 81
+    },
+    {
+      "game": 92,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 89,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 95,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 101,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 7
+    },
+    {
+      "game": 90,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 94,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 99,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 71
+    },
+    {
+      "game": 96,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 71
+    },
+    {
+      "game": 100,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 46
+    },
+    {
+      "game": 103,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 41
+    },
+    {
+      "game": 105,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 29
+    },
+    {
+      "game": 97,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 106,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 45
+    },
+    {
+      "game": 98,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 104,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 60
+    },
+    {
+      "game": 109,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 102,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 110,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 70
+    },
+    {
+      "game": 116,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 34
+    },
+    {
+      "game": 112,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 107,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 108,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 111,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 75
+    },
+    {
+      "game": 113,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 114,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 121,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 65
+    },
+    {
+      "game": 115,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 119,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 61
+    },
+    {
+      "game": 118,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 117,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 76
+    },
+    {
+      "game": 122,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 61
+    },
+    {
+      "game": 120,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 128,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 37
+    },
+    {
+      "game": 123,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 81
+    },
+    {
+      "game": 124,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 125,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 69
+    },
+    {
+      "game": 127,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 77
+    },
+    {
+      "game": 134,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 45
+    },
+    {
+      "game": 129,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 75
+    },
+    {
+      "game": 137,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 7
+    },
+    {
+      "game": 133,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 51
+    },
+    {
+      "game": 130,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 135,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 68
+    },
+    {
+      "game": 131,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 75
+    },
+    {
+      "game": 126,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 132,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 140,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 49
+    },
+    {
+      "game": 141,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 50
+    },
+    {
+      "game": 136,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 82
+    },
+    {
+      "game": 138,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 139,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 147,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 34
+    },
+    {
+      "game": 148,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 41
+    },
+    {
+      "game": 146,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 49
+    },
+    {
+      "game": 151,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 41
+    },
+    {
+      "game": 143,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 73
+    },
+    {
+      "game": 142,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 149,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 63
+    },
+    {
+      "game": 155,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
@@ -1602,13 +1359,220 @@
       "moves": 26
     },
     {
-      "game": 175,
+      "game": 145,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 154,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 55
+    },
+    {
+      "game": 144,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 150,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 152,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 78
+    },
+    {
+      "game": 159,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 53
+    },
+    {
+      "game": 153,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 157,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 53
+    },
+    {
+      "game": 164,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 33
+    },
+    {
+      "game": 161,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 49
+    },
+    {
+      "game": 160,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 73
+    },
+    {
+      "game": 158,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 75
+    },
+    {
+      "game": 165,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 43
+    },
+    {
+      "game": 156,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 162,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 69
+    },
+    {
+      "game": 171,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 38
+    },
+    {
+      "game": 163,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 167,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 81
+    },
+    {
+      "game": 169,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 69
+    },
+    {
+      "game": 168,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 76
+    },
+    {
+      "game": 174,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
       "moves": 23
+    },
+    {
+      "game": 173,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 49
+    },
+    {
+      "game": 166,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 170,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 180,
@@ -1617,52 +1581,25 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 19
+      "moves": 41
     },
     {
-      "game": 181,
+      "game": 172,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 19
+      "moves": 81
     },
     {
-      "game": 183,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 179,
+      "game": 178,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 27
-    },
-    {
-      "game": 186,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 14
-    },
-    {
-      "game": 184,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
+      "moves": 83
     },
     {
       "game": 177,
@@ -1671,43 +1608,61 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 31
+      "moves": 65
     },
     {
-      "game": 189,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 6
-    },
-    {
-      "game": 188,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 185,
+      "game": 176,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 19
+      "moves": 83
     },
     {
-      "game": 190,
+      "game": 179,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
+      "black_wins": true,
+      "white_wins": false,
       "draw": false,
-      "moves": 12
+      "moves": 83
+    },
+    {
+      "game": 183,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 69
+    },
+    {
+      "game": 175,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 184,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 188,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 33
     },
     {
       "game": 182,
@@ -1716,7 +1671,34 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 25
+      "moves": 83
+    },
+    {
+      "game": 189,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 34
+    },
+    {
+      "game": 181,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 185,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
     },
     {
       "game": 187,
@@ -1725,70 +1707,25 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 21
+      "moves": 55
     },
     {
-      "game": 194,
+      "game": 190,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 12
+      "moves": 45
     },
     {
       "game": 193,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 19
-    },
-    {
-      "game": 198,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
       "black_wins": false,
       "white_wins": true,
       "draw": false,
-      "moves": 12
-    },
-    {
-      "game": 191,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 23
-    },
-    {
-      "game": 192,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": false,
-      "white_wins": true,
-      "draw": false,
-      "moves": 24
-    },
-    {
-      "game": 195,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 21
-    },
-    {
-      "game": 197,
-      "black_eval": "heuristic",
-      "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
-      "draw": false,
-      "moves": 17
+      "moves": 65
     },
     {
       "game": 196,
@@ -1797,25 +1734,88 @@
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 23
+      "moves": 65
     },
     {
       "game": 199,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
-      "black_wins": true,
-      "white_wins": false,
+      "black_wins": false,
+      "white_wins": true,
       "draw": false,
-      "moves": 21
+      "moves": 7
     },
     {
-      "game": 200,
+      "game": 186,
       "black_eval": "heuristic",
       "white_eval": "heuristic",
       "black_wins": true,
       "white_wins": false,
       "draw": false,
-      "moves": 19
+      "moves": 83
+    },
+    {
+      "game": 192,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 73
+    },
+    {
+      "game": 191,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 195,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 197,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 81
+    },
+    {
+      "game": 194,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": true,
+      "white_wins": false,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 200,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 83
+    },
+    {
+      "game": 198,
+      "black_eval": "heuristic",
+      "white_eval": "heuristic",
+      "black_wins": false,
+      "white_wins": true,
+      "draw": false,
+      "moves": 74
     }
   ]
 }
