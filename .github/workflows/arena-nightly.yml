@@ -1,13 +1,29 @@
 name: Arena nightly
 
+# The full (non-short) Go suite plus a 200-game strength gate. Ordinary CI runs
+# `go test ./... -short`, which skips every arena-scale test; that gap is how a
+# search that never left the root survived (ADR 0008). These jobs are the place
+# where slow, statistical checks are allowed to run.
 on:
   schedule:
     - cron: "0 6 * * *"
   workflow_dispatch:
 
 jobs:
+  full-suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Full test suite (includes the arena-scale tests -short skips)
+        run: go test ./cmd/gofer/ -count=1 -timeout 80m
+
   arena-200:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -20,7 +36,23 @@ jobs:
             -black-eval heuristic -white-eval heuristic -seed 42 \
             -arena-enhanced baseline \
             -json arena-nightly.json
+      - name: More search must win
+        run: |
+          python - <<'PY'
+          import json, sys
+          d = json.load(open("arena-nightly.json"))
+          black, white = d["wins_black"], d["wins_white"]
+          decisive = black + white
+          rate = black / decisive if decisive else 0
+          print(f"black(600 playouts)={black} white(200 playouts)={white} rate={rate:.3f}")
+          # The side searching three times harder must win a clear majority. It won
+          # 3.5% of these games while the search was broken, and the recorded
+          # baseline sat in the repository for months saying so.
+          if rate < 0.55:
+              sys.exit(f"search is not converting into strength: {black}/{decisive} = {rate:.1%}")
+          PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: arena-nightly-json
           path: arena-nightly.json
