@@ -174,7 +174,7 @@ tailwind.config = {
       <p class="rv mt-7 text-lg text-ink-dim leading-relaxed max-w-xl">
         Gofer is a complete Go engine — Chinese rules, PUCT Monte-Carlo search, GTP, and a
         self-play loop where every new network must <span class="text-ink">beat the reigning champion</span>
-        to earn promotion. No hand-waving: Wilson confidence intervals, bit-exact ONNX parity,
+        to earn promotion. No hand-waving: a sequential probability ratio test, bit-exact ONNX parity,
         and a benchmark gate in CI.
       </p>
       <div class="rv mt-9 flex flex-wrap items-center gap-3">
@@ -263,9 +263,9 @@ tailwind.config = {
       <div class="mt-1 font-mono text-[.68rem] text-ink-mute">Go ORT ↔ Python parity harness</div>
     </div>
     <div class="rv" style="transition-delay:.21s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">45,243</div>
-      <div class="mt-2 text-sm text-ink-dim">positions in the replay buffer</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">training cycle 7 · runs on a 2 GiB box</div>
+      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">+186 <span class="text-xl text-ink-dim">Elo</span></div>
+      <div class="mt-2 text-sm text-ink-dim">from tripling search <span class="text-violet font-medium">— was &minus;576</span></div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">600 vs 200 playouts · 200 games</div>
     </div>
   </div>
 </section>
@@ -310,8 +310,8 @@ tailwind.config = {
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M14 4v20M6 24h16"/><path d="M14 7 7 12h14zM4 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3zM18 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3z"/></svg>
       <h3 class="mt-4 font-medium text-lg">A merciless arena</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Champion versus challenger under identical configs. Wilson confidence intervals, early rejection when the gate is mathematically out of reach, and a config hash stamped on every report.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">promote only if win rate clears 0.55</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Champion versus challenger under identical configs. A sequential probability ratio test on Elo, batches played out in full so its error control holds, and a config hash stamped on every report.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">promote only if SPRT accepts H1 (elo &ge; +35)</p>
     </div>
   </div>
 </section>
@@ -320,7 +320,7 @@ tailwind.config = {
 <section id="loop" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
   <p class="eyebrow rv">The training loop</p>
   <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Nothing gets promoted <em class="italic text-gold-bright">without a fight.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle: the champion plays itself, a network trains on the games, and the result walks into an arena against the very champion that generated its data. Lose, and it's discarded. Win past the Wilson gate, and it takes the throne — after the old champion is archived.</p>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle: the champion plays itself, a network trains on the games, and the result walks into an arena against the very champion that generated its data. Lose, and it's discarded. Win past the SPRT gate, and it takes the throne — after the old champion is archived.</p>
 
   <!-- circular loop (desktop) -->
   <div class="rv mt-10 hidden md:block">
@@ -340,8 +340,8 @@ tailwind.config = {
 
       <!-- center -->
       <text x="380" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#8B7CF6">THE LOOP</text>
-      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">cycle 7</text>
-      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">45,243 positions and counting</text>
+      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">self-play</text>
+      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">every stage checkpointed</text>
 
       <!-- nodes: angles -90,-30,30,90,150,210 on r=185 around (380,280) -->
       <g font-family="Inter, sans-serif">
@@ -374,7 +374,7 @@ tailwind.config = {
           <circle cx="219.8" cy="372.5" r="10" fill="#D6A85C"/>
           <circle cx="219.8" cy="372.5" r="15" fill="none" stroke="#D6A85C" stroke-width="1" opacity=".35"/>
           <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Arena gate</text>
-          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">200 games vs champion · Wilson CI</text>
+          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">up to 200 games vs champion · SPRT</text>
         </g>
         <!-- PROMOTE (upper left) -->
         <g>
@@ -392,14 +392,14 @@ tailwind.config = {
     <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay buffer</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">persistent · capped 50k rows</div></div></div>
     <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · resume from best.pt</div></div></div>
     <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 4.6 MB</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">200 games vs champion · Wilson CI</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">up to 200 games vs champion · SPRT</div></div></div>
     <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Promote — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">old champion archived first</div></div></div>
   </div>
 
   <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
     <div class="rv bg-surface border border-line rounded-xl p-6">
       <p class="eyebrow !text-[.62rem]">The gate</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger needs a <span class="text-ink">win rate whose Wilson interval clears 0.55</span> over up to 200 equal-config games — minimum 100 before promotion, early rejection the moment the bound becomes unreachable.</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger faces a <span class="text-ink">sequential probability ratio test on Elo</span> — no gain against +35, &alpha; = &beta; = 0.05 — in fixed batches up to a configured cap. The v3 gate re-checked a Wilson bound after every game, which inflated false promotions to about 8%.</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
       <p class="eyebrow !text-[.62rem]">The proof</p>
@@ -407,7 +407,7 @@ tailwind.config = {
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.14s">
       <p class="eyebrow !text-[.62rem]">The honest part</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">The net is young. The current champion took the title in cycle 3; challengers since have peaked at a 30.5% arena win rate. <span class="text-ink">The loop is the point</span> — the strength is earned, cycle by cycle, on a 2 GiB cloud box.</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Every strength number this project recorded before September 2026 is void: the search had been selecting the opponent's best move, so more search made it weaker. The same fixed benchmark — 600 playouts against 200 — moved from <span class="text-ink">&minus;576 Elo to +186 Elo</span> once that was repaired. The loop is the point; the numbers only count after the thing doing the measuring works.</p>
     </div>
   </div>
 </section>
@@ -418,7 +418,7 @@ tailwind.config = {
     <div class="lg:sticky lg:top-28 min-w-0">
       <p class="eyebrow rv">One binary</p>
       <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Meet it in the <em class="italic text-gold-bright">terminal.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or read the loop's ledger. Every session below is real, captured output — including the engine's questionable taste in opening moves. It's cycle 7. It will learn.</p>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or read the loop's ledger. Every session below is real, captured output, recorded before the search defects in ADR 0008 were found. They show the engine as it was, not as it now plays.</p>
       <div class="rv mt-8 flex flex-wrap gap-2 font-mono text-[.7rem]">
         <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">-play</button>
         <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-gtp</button>
@@ -498,13 +498,13 @@ tailwind.config = {
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0003-iterative-training-loop.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.08s">
       <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0003</span>
       <span class="font-medium text-ink sm:w-64 shrink-0">Iterative training loop</span>
-      <span class="text-sm text-ink-dim">Win rate used to bounce — 33% → 58% → 35% — under weekly from-scratch retraining. Persistent state and monotonic promotion fixed it.</span>
+      <span class="text-sm text-ink-dim">Weekly from-scratch retraining made strength bounce between runs. Persistent state and monotonic promotion fixed it.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0004-in-process-onnx-inference.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.12s">
       <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0004</span>
       <span class="font-medium text-ink sm:w-64 shrink-0">In-process ONNX inference</span>
-      <span class="text-sm text-ink-dim">Cut the HTTP hop — CGO + ORT in the same binary. Production target is a 2 GiB Lightsail box, not a GPU.</span>
+      <span class="text-sm text-ink-dim">Cut the HTTP hop — CGO + ORT in the same binary, so a CPU box runs the loop with no sidecar process.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0005-net-size-ablation.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.16s">
@@ -1145,7 +1145,7 @@ tailwind.config = {
         { t: 'dim', s: ' 2 . . . . . . . . .' },
         { t: 'dim', s: ' 1 . . . . . . . . .' },
         { t: 'out', s: 'Black to move' },
-        { t: 'com', s: '# yes, it answered E5 with A9. cycle 7. it will learn.' },
+        { t: 'com', s: '# it answered E5 with A9. the net is young; the loop is the point.' },
       ]
     },
     gtp: {
@@ -1206,7 +1206,7 @@ tailwind.config = {
         { t: 'out', s: '  "seed": "fresh"' },
         { t: 'out', s: '}' },
         { t: 'com', s: '# the champion still holds the gate. that’s the ledger —' },
-        { t: 'com', s: '# a challenger has to clear a 0.55 Wilson bound to rewrite it.' },
+        { t: 'com', s: '# a challenger has to pass a sequential test on Elo to rewrite it.' },
       ]
     }
   };
