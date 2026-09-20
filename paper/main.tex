@@ -57,10 +57,12 @@ outnumbered the search budget and flattened the policy training target. The othe
 were in the measurement apparatus, and they are why the first five survived: the arena
 drew correlated openings for one of the two roles, the reproducible strength baseline
 silently enhanced both players in a way that bypassed the root, and matches stopped early
-on the very statistic they were measuring. In a controlled match---identical evaluators,
-one side searching three times harder---the deeper search won \textbf{0 of 40} games
-before and \textbf{24 of 40} after, with the median game growing from 28 moves to 80.
-Every strength number the project had recorded was measuring these bugs.
+on the very statistic they were measuring. The project's own reproducible strength
+baseline---200 games, identical evaluators, one side searching three times harder---had
+recorded the deeper search winning \textbf{7 games in 200}, or $-576$ Elo. The same
+command now returns \textbf{149 in 200}, $+186$ Elo, with the median game growing from 11
+moves to 76. Every strength number the project had recorded was measuring these bugs, and
+the reference baseline asserted that more search was catastrophically harmful.
 
 We describe the full loop. Go self-play writes compact binary shards. A new learner masks
 the policy loss to full-search positions, splits train and validation by game, augments

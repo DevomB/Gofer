@@ -44,10 +44,11 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
   With two evaluators that are literally the same code, roles split 36/64, 55/26 and 55/30
   across three seeds; after mixing the seeds they split 55/53, 51/69 and 55/61.
 
-Controlled before/after, identical settings (40 games, seed 42, identical heuristics,
-Black 600 playouts vs White 200): Black won **0 of 40** before and **24 of 40** after, with
-the median game going from 28 to 80 moves. With fair komi and identical evaluators, 200
-games now split 99-101 by colour.
+The project's reproducible baseline (200 games, identical heuristics, Black 600 playouts
+vs White 200) went from **7/200** to **149/200** for the deeper search: -576 Elo to +186,
+a sign flip, with the median game going from 11 moves to 76. A controlled 40-game pair at
+identical settings gives 0/40 before and 24/40 after. With fair komi and identical
+evaluators, 200 games now split 99-101 by colour.
 
 - Every strength number recorded before these fixes is void, including
   `.tectonix/reports/arena-9x9-baseline.json`, and self-play data produced before them

@@ -174,24 +174,58 @@ large bias.
 \paragraph{What the fixes are worth.}
 The same experiment before and after, with identical settings---40 games, one
 seed, identical heuristic evaluators on both sides, a symmetric configuration,
-and Black searching 600 playouts against White's 200:
+and Black searching 600 playouts against White's 200---gives 0/40 before and
+24/40 after, with the median game growing from 28 moves to 80.
 
-\begin{center}\small
-\begin{tabular}{@{}lccc@{}}
+The project's own reproducible baseline (\code{make reproduce-9x9-baseline}: 200
+games, the same matchup) makes a sharper record, because it was run at four
+points in this work and its answer moved each time:
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabular}{@{}lrrrrr@{}}
 \toprule
-& Black wins & median game & distinct game lengths \\
+Engine state & Black & White & win rate & Elo & median game \\
 \midrule
-before (commit \code{6ef7ce3}) & 0/40 & 28 moves & 26 \\
-after  & 24/40 (60\%) & 80 moves & 20 \\
+original, as committed              & 7   & 193 & 0.035 & $-576$ & 11 moves \\
+after defects 1--2                  & 133 & 67  & 0.665 & $+119$ & ${\sim}20$ moves \\
+after defects 3--5                  & 133 & 67  & 0.665 & $+119$ & 21 moves \\
+after defects 6--8 (current)        & 149 & 51  & 0.745 & $+186$ & 76 moves \\
 \bottomrule
 \end{tabular}
-\end{center}
+\caption{The same 200-game command, run as each group of defects came off. Elo is
+$-400\log_{10}(1/p-1)$ on the Black win rate. The second run's file was
+overwritten by the third, so its median is from the summary recorded at the time.}
+\label{tab:baseline-progression}
+\end{table}
 
-Search now converts into strength, which is the premise the entire loop rests on.
+Three things in that table are worth stating rather than leaving to the reader.
+
+First, the answer to ``is three times the search worth anything'' moved from
+$-576$ to $+186$ Elo. That is not an error of magnitude but of sign: the
+committed reference baseline asserted that tripling the search was
+catastrophically harmful, and that file sat in the repository as the project's
+strength record.
+
+Second, rows two and three are identical---133/67, the same Elo, means of 20.0
+and 19.6 moves, the same maximum of 33---although every individual game record
+differs between them. That is the measurement demonstrating that it was not
+measuring what had just been repaired: \code{-arena-enhanced} was silently
+enhancing both sides (defect~7), and forced root playouts were deciding the
+moves either way.
+
+Third, the cleanest signal of the regime change is not the win rate but the game
+lengths: \emph{the longest game in either middle run, 33 moves, is shorter than
+the median game of the final run, 76}. The final run's distribution is 8 games
+under 20 moves, 39 from 20 to 49, 62 from 50 to 79 and 91 at 80 or more, against
+an original mean of 12.9. Those are not two samples from a shifted distribution;
+they are two different processes. Throughout, Black concedes komi 6.5, which at
+these playout counts favours White (\cref{sec:pipeline-found-komi}), so $+186$
+Elo is measured against a handicap and understates the search advantage.
+
 Two further checks: with identical evaluators at fair komi, 200 games split
 99--101 by colour, and a 200-playout search spreads its visits over many moves
-instead of one. Black wins $60\%$ while also conceding komi 6.5, which at these
-playout counts favours White (\cref{sec:pipeline-found-komi}).
+instead of one.
 
 \paragraph{Fair komi moved with the fix.}
 \label{sec:pipeline-found-komi}

@@ -51,12 +51,16 @@ Two consecutive passes end a game in every game loop, but `isTerminal` only reco
 
 ## Consequences
 
-Controlled experiment, identical settings before and after (40 games, seed 42, identical heuristic evaluators, symmetric configuration, Black searching 600 playouts against White's 200, komi 6.5):
+The project's reproducible baseline (`make reproduce-9x9-baseline`: 200 games, identical heuristic evaluators, Black searching 600 playouts against White's 200, komi 6.5) was re-run as each group of defects came off:
 
-| | Black wins | median game length |
-|---|---|---|
-| before (commit `6ef7ce3`) | 0/40 | 28 moves |
-| after | 24/40 (60%) | 80 moves |
+| Engine state | Black | White | win rate | Elo | median game |
+|---|---|---|---|---|---|
+| original, as committed | 7 | 193 | 0.035 | -576 | 11 moves |
+| after defects 1-2 | 133 | 67 | 0.665 | +119 | ~20 moves |
+| after defects 3-5 | 133 | 67 | 0.665 | +119 | 21 moves |
+| after defects 6-8 | 149 | 51 | 0.745 | +186 | 76 moves |
+
+The middle two rows are identical in aggregate although every game differs: `-arena-enhanced` was silently enhancing both sides, so the measurement was not sensitive to the root defects that had just been fixed. The longest game in either middle run (33 moves) is shorter than the median game of the final run (76). A controlled 40-game pair at identical settings gives 0/40 before and 24/40 after.
 
 Search now converts into strength, which is the premise the entire training loop rests on. Two further checks: with identical evaluators and fair komi, 200 games split 99–101 by colour; and a 200-playout search now spreads its visits over many moves instead of one.
 
