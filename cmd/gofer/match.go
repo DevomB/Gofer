@@ -49,24 +49,29 @@ type GameSummary struct {
 
 // MatchResult is JSON output for arena runs.
 type MatchResult struct {
-	WinsBlack          int           `json:"wins_black"`
-	WinsWhite          int           `json:"wins_white"`
-	Draws              int           `json:"draws"`
-	WinsBaseline       int           `json:"wins_baseline"`
-	WinsChallenger     int           `json:"wins_challenger"`
-	WinRateBlack       float64       `json:"win_rate_black"`
-	WinRateBaseline    float64       `json:"win_rate_baseline"`
-	WinRateChallenger  float64       `json:"win_rate_challenger"`
-	WilsonCILow        float64       `json:"wilson_ci_low"`
-	WilsonCIHigh       float64       `json:"wilson_ci_high"`
-	BaselineWilsonLow  float64       `json:"baseline_wilson_ci_low"`
-	BaselineWilsonHigh float64       `json:"baseline_wilson_ci_high"`
-	ConfigHash         string        `json:"config_hash"`
-	Games              int           `json:"game_count"`
-	BaselineEval       string        `json:"baseline_eval"`
-	ChallengerEval     string        `json:"challenger_eval"`
-	Promoted           bool          `json:"promoted"`
-	GameSummaries      []GameSummary `json:"games,omitempty"`
+	WinsBlack          int     `json:"wins_black"`
+	WinsWhite          int     `json:"wins_white"`
+	Draws              int     `json:"draws"`
+	WinsBaseline       int     `json:"wins_baseline"`
+	WinsChallenger     int     `json:"wins_challenger"`
+	WinRateBlack       float64 `json:"win_rate_black"`
+	WinRateBaseline    float64 `json:"win_rate_baseline"`
+	WinRateChallenger  float64 `json:"win_rate_challenger"`
+	WilsonCILow        float64 `json:"wilson_ci_low"`
+	WilsonCIHigh       float64 `json:"wilson_ci_high"`
+	BaselineWilsonLow  float64 `json:"baseline_wilson_ci_low"`
+	BaselineWilsonHigh float64 `json:"baseline_wilson_ci_high"`
+	ConfigHash         string  `json:"config_hash"`
+	// Evaluations served by the model vs by the heuristic fallback. A high
+	// rate means this result did not measure what black_eval/white_eval name.
+	EvalRequests     uint64        `json:"eval_requests"`
+	EvalFallbacks    uint64        `json:"eval_fallbacks"`
+	EvalFallbackRate float64       `json:"eval_fallback_rate"`
+	Games            int           `json:"game_count"`
+	BaselineEval     string        `json:"baseline_eval"`
+	ChallengerEval   string        `json:"challenger_eval"`
+	Promoted         bool          `json:"promoted"`
+	GameSummaries    []GameSummary `json:"games,omitempty"`
 }
 
 // WilsonCI returns Wilson score interval for binomial proportion (z=1.96 ~ 95%).
@@ -171,6 +176,10 @@ func RunMatch(cfg MatchConfig) MatchResult {
 		ChallengerEval: cfg.WhiteEval,
 	}
 
+	// Scoped to this match: the counters are process-wide, and a caller that
+	// runs several matches must not inherit the previous one's fallbacks.
+	resetEvalHealth()
+
 	evals, closeEvals := buildArenaEvaluators(cfg)
 	defer closeEvals()
 
@@ -243,6 +252,7 @@ func RunMatch(cfg MatchConfig) MatchResult {
 
 	played := prog.played
 	out.Games = played
+	out.EvalFallbackRate, out.EvalRequests, out.EvalFallbacks = evalFallbackRate()
 	out.GameSummaries = prog.summaries
 	out.WinsBaseline = prog.baselineWins
 	out.WinsChallenger = prog.challengerWins

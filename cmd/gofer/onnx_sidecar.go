@@ -108,6 +108,7 @@ func decodeSidecarResults(out []Result, boards []*Board, body []byte, fb Evaluat
 	var parsed sidecarEvalResp
 	if err := json.Unmarshal(body, &parsed); err != nil {
 		st.Fallbacks.Add(uint64(len(boards)))
+		recordEvalFallbacks(len(boards))
 		return fallbackBatch(out, boards, fb)
 	}
 
@@ -115,12 +116,14 @@ func decodeSidecarResults(out []Result, boards []*Board, body []byte, fb Evaluat
 		want := b.Size()*b.Size() + 1
 		if i >= len(parsed.Results) {
 			st.Fallbacks.Add(1)
+			recordEvalFallbacks(1)
 			out[i] = fb.Evaluate(b)
 			continue
 		}
 		r := parsed.Results[i]
 		if len(r.Policy) != want {
 			st.Fallbacks.Add(1)
+			recordEvalFallbacks(1)
 			out[i] = fb.Evaluate(b)
 			continue
 		}
@@ -138,15 +141,18 @@ func (s SidecarBackend) EvalBatch(boards []*Board) []Result {
 	fb := s.fallback()
 	st := s.stats()
 	st.Requests.Add(uint64(len(boards)))
+	recordEvalRequests(len(boards))
 
 	data, err := makeSidecarRequest(boards)
 	if err != nil {
 		st.Fallbacks.Add(uint64(len(boards)))
+		recordEvalFallbacks(len(boards))
 		return fallbackBatch(out, boards, fb)
 	}
 	body, err := s.postEval(data)
 	if err != nil {
 		st.Fallbacks.Add(uint64(len(boards)))
+		recordEvalFallbacks(len(boards))
 		return fallbackBatch(out, boards, fb)
 	}
 	return decodeSidecarResults(out, boards, body, fb, st)

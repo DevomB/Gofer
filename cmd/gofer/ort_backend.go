@@ -33,8 +33,10 @@ func (o ORTBackend) EvalBatch(boards []*Board) []Result {
 	if len(boards) == 0 {
 		return out
 	}
+	recordEvalRequests(len(boards))
 	results, err := o.session.evalBatch(boards)
 	if err != nil {
+		recordEvalFallbacks(len(boards))
 		for i, b := range boards {
 			out[i] = o.Fallback.Evaluate(b)
 		}
@@ -44,6 +46,7 @@ func (o ORTBackend) EvalBatch(boards []*Board) []Result {
 		if i < len(results) && len(results[i].Policy) == boards[i].Size()*boards[i].Size()+1 {
 			out[i] = results[i]
 		} else {
+			recordEvalFallbacks(1)
 			out[i] = o.Fallback.Evaluate(boards[i])
 		}
 	}

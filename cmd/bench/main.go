@@ -85,7 +85,10 @@ func runBenchesMax(runs int) ([]benchResult, error) {
 	}
 	var merged []benchResult
 	for i := 0; i < runs; i++ {
-		out, err := exec.Command("go", "test", "-bench=.", "-benchmem", "./...").CombinedOutput()
+		// -run=^$ matters: without it this runs the whole test suite as well as
+		// the benchmarks, once per sample. The statistical suite takes ~10
+		// minutes, so three samples spent half an hour not benchmarking.
+		out, err := exec.Command("go", "test", "-run=^$", "-bench=.", "-benchmem", "./...").CombinedOutput()
 		fmt.Print(string(out))
 		if err != nil {
 			if exit, ok := err.(*exec.ExitError); ok {

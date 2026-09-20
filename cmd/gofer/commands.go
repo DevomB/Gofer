@@ -210,6 +210,10 @@ func runArenaCLI(f cliFlags) {
 		PlayAllGames:  f.arenaPlayAll,
 	}
 	result := RunMatch(cfg)
+	if err := checkEvalHealth(cfg, result); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -380,4 +384,32 @@ func selfplayModelID(evalMode, modelPath string) string {
 	}
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:8])
+}
+
+// checkEvalHealth refuses a result produced mostly by the heuristic fallback
+// when the match named a model. Both ONNX backends answer with the heuristic
+// rather than failing, so a closed sidecar or an unloadable model yields a
+// complete, plausible arena report attributing the games to a model that never
+// ran. Failing closed here is what keeps a promotion gate honest.
+func checkEvalHealth(cfg MatchConfig, result MatchResult) error {
+	if !namesONNX(cfg.BlackEval) && !namesONNX(cfg.WhiteEval) {
+		return nil
+	}
+	if result.EvalRequests == 0 {
+		return fmt.Errorf("arena named %q vs %q but no model evaluation was attempted: "+
+			"the ONNX backend never ran, so this result is the heuristic playing itself",
+			cfg.BlackEval, cfg.WhiteEval)
+	}
+	if result.EvalFallbackRate > maxEvalFallbackRate {
+		return fmt.Errorf("arena named %q vs %q but %.1f%% of evaluations (%d of %d) fell back "+
+			"to the heuristic, above the %.0f%% bar: the model did not decide these games",
+			cfg.BlackEval, cfg.WhiteEval, result.EvalFallbackRate*100,
+			result.EvalFallbacks, result.EvalRequests, maxEvalFallbackRate*100)
+	}
+	return nil
+}
+
+// namesONNX reports whether an evaluator name asks for a model.
+func namesONNX(name string) bool {
+	return strings.HasPrefix(strings.ToLower(name), "onnx")
 }
