@@ -10,17 +10,29 @@ Open problems documented here so they survive chat history.
 
 **Upgrade path:** Benson pass-alive marking before territory flood (see `docs/failure-modes.md`).
 
-## Arena stone-color vs role wins (resolved — not a scoring bug)
+## Arena stone-color vs role wins (superseded Sep 2026)
 
-**Status:** Resolved Jul 2026.
+**Status:** The Jul 2026 entry here concluded that the White-heavy stone-color split was
+expected from komi and that role gating was unaffected. That conclusion was wrong, and it
+is worth keeping visible because it is how the underlying defects survived: a real symptom
+was explained away as a known property of the game.
 
-**Finding:** Chinese area scoring in `cmd/gofer/chinese_rules.go` is symmetric (mirror tests, conservation invariant, indexing symmetry). Systematic **stone-color** skew at komi 6.5 on 9×9 is expected: first-move advantage plus komi favors White in equal-strength play.
+What was actually happening ([ADR 0008](decisions/0008-search-correctness.md)):
 
-**Arena gating uses role wins** (challenger vs baseline) with `SwapColors=true`. Equal-strength nets (`heuristic` vs `heuristic2`) show ~50/50 challenger win rate at komi 6.5; stone-color split stays White-heavy. Cycle 24's 85% challenger rate reflects model strength, not a scoring defect.
+- The search never left the root on 9x9, so games were decided near-empty and komi took
+  them. The 9-of-188 stone-color split was that, not first-move advantage.
+- Role attribution was *not* balanced. Per-game seeds were linear in the game index while
+  colours swapped on the same parity, so identical evaluators split 126-74 by role. The
+  earlier "~50/50 challenger win rate" held only because colour alternation cancelled it
+  in the particular runs that were looked at.
+- Every strength number quoted in the old entry, including the 85% challenger rate for
+  cycle 24, is void.
 
-**Removed:** `normalizeArenaKomi` / `komi9x9Arena` arena-only komi remap (did not fix role gating; masked diagnosis).
-
-**Unified komi:** `6.5` for self-play and arena (`DefaultSelfplayConfig`, CLI default).
+**Now:** with the search repaired and seeds mixed, identical evaluators at fair komi split
+99-101 by colour over 200 games. Stone-color skew at tournament komi 6.5 is still expected
+(Black wins about 29% at 50 playouts) because 6.5 is not fair for engines this weak; fair
+komi is near 0.5 and `TestIdenticalEvalColorBalance` asserts balance there, while
+`TestArenaIdenticalNetsNoSystematicRoleBias` asserts role balance at 6.5.
 
 ## Production hardware assumption
 
