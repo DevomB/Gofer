@@ -57,7 +57,7 @@ func TestArenaReportWriteFailurePropagates(t *testing.T) {
 
 var errTransient = errors.New("simulated sharing violation")
 
-func alwaysTransient(err error) bool { return errors.Is(err, errTransient) }
+func isSimulated(err error) bool { return errors.Is(err, errTransient) }
 
 func TestReportRenameRetriesTransientErrors(t *testing.T) {
 	calls := 0
@@ -68,7 +68,7 @@ func TestReportRenameRetriesTransientErrors(t *testing.T) {
 		}
 		return nil
 	}
-	if err := retryRename(rename, alwaysTransient, "a", "b", 10, time.Millisecond); err != nil {
+	if err := renameLoop(rename, isSimulated, "a", "b", 10, time.Millisecond); err != nil {
 		t.Fatalf("expected success after retries, got %v", err)
 	}
 	if calls != 3 {
@@ -83,7 +83,7 @@ func TestReportRenameStopsOnPermanentError(t *testing.T) {
 		calls++
 		return permanent
 	}
-	err := retryRename(rename, alwaysTransient, "a", "b", 10, time.Millisecond)
+	err := renameLoop(rename, isSimulated, "a", "b", 10, time.Millisecond)
 	if !errors.Is(err, permanent) {
 		t.Fatalf("err = %v, want the permanent error", err)
 	}
@@ -98,7 +98,7 @@ func TestReportRenameGivesUpAfterAllAttempts(t *testing.T) {
 		calls++
 		return errTransient
 	}
-	err := retryRename(rename, alwaysTransient, "a", "b", 4, time.Millisecond)
+	err := renameLoop(rename, isSimulated, "a", "b", 4, time.Millisecond)
 	if !errors.Is(err, errTransient) {
 		t.Fatalf("err = %v, want the transient error surfaced after giving up", err)
 	}

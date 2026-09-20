@@ -48,14 +48,9 @@ func isShardPath(path string) bool {
 	return strings.HasSuffix(strings.ToLower(path), ".npz")
 }
 
-// writeFileAtomic writes data to a sibling temp file and renames it into place.
-//
-// The Python orchestrator caches hot-path artifacts by existence: run_match in
-// training/pipeline/runner.py reuses any arena report it finds instead of
-// replaying the match. A truncated file left behind by a kill mid-write is
-// therefore permanent — every resume skips the match and then fails to parse
-// the report. Renaming last means a reader sees either the previous file or
-// the complete new one.
+// writeFileAtomic writes via a sibling temp file so a reader sees either the old
+// file or the complete new one. The pipeline caches arena reports by existence,
+// so a half-written one would be reused forever.
 func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	tmp := path + ".tmp"
 	if err := os.WriteFile(tmp, data, perm); err != nil {
@@ -68,22 +63,20 @@ func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
 	return nil
 }
 
-// renameRetries and renameBackoff mirror write_json_atomic in
-// training/pipeline/state.py, which already retries for the same reason: on
-// Windows an indexer or AV scanner briefly holds the destination open and
-// MoveFileEx fails. Retrying beats failing a whole self-play or gating stage.
+// Mirrors write_json_atomic in training/pipeline/state.py: a Windows scanner
+// holding the destination open fails the rename for a few milliseconds.
 const (
 	renameRetries = 10
 	renameBackoff = 50 * time.Millisecond
 )
 
 func renameWithRetry(oldpath, newpath string) error {
-	return retryRename(os.Rename, isTransientRenameErr, oldpath, newpath, renameRetries, renameBackoff)
+	return renameLoop(os.Rename, isTransientRenameErr, oldpath, newpath, renameRetries, renameBackoff)
 }
 
-// retryRename takes the rename and the predicate as arguments so the backoff
-// loop is testable without provoking a real sharing violation.
-func retryRename(rename func(string, string) error, transient func(error) bool,
+// renameLoop takes its rename and predicate as arguments so the backoff is
+// testable without provoking a real sharing violation.
+func renameLoop(rename func(string, string) error, transient func(error) bool,
 	oldpath, newpath string, attempts int, backoff time.Duration) error {
 	var err error
 	for attempt := 0; attempt < attempts; attempt++ {
@@ -101,9 +94,8 @@ func retryRename(rename func(string, string) error, transient func(error) bool,
 }
 
 // isTransientRenameErr reports whether a failed rename is worth retrying. Only
-// Windows produces these: another handle on the destination yields a sharing,
-// lock or access error that clears on its own within milliseconds. Elsewhere a
-// rename failure is real, and retrying would only delay reporting it.
+// Windows produces these; elsewhere a rename failure is real and retrying would
+// just delay reporting it.
 func isTransientRenameErr(err error) bool {
 	if err == nil || runtime.GOOS != "windows" {
 		return false
@@ -185,11 +177,9 @@ func buildShardArrays(samples []Sample) ([]npyArray, int, int, error) {
 	planes := planeLen / points
 	globalsLen := len(samples[0].FeaturesGlobal)
 
-	// Every column is materialised in memory before the shard is written, so an
-	// oversized cycle would otherwise be killed by the OS with nothing to point
-	// at. Fail here instead, naming the numbers that produced it. This also
-	// keeps the capacities below from overflowing int on 32-bit builds, where
-	// n*planeLen wraps silently.
+	// Every column is built in memory before the shard is written, so fail here
+	// rather than be killed by the OS with nothing to point at. Also keeps the
+	// capacities below from wrapping int on 32-bit builds.
 	perRow := int64(planeLen) + int64(points) + 1 + int64(globalsLen)*4 + int64(pol)*8 + 14
 	if total := int64(n) * perRow; total > maxShardBytes {
 		return nil, 0, 0, fmt.Errorf(
