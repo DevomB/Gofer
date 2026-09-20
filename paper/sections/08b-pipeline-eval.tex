@@ -9,10 +9,11 @@ then mechanically $0.500$ and no gate could ever decide anything.
 Chasing that produced eight defects, all older than v4 and all invisible to the
 test suite (\cref{tab:found-defects}). They fall into two groups. Five are in the
 search: they made the engine play badly and, worse, made the data it generated
-worthless. Three are in the measurement apparatus: they are the reason the first
-five survived so long, because each one broke the instrument that should have
-detected them. We give them in the order the evidence forced them out. That order
-matters, because after each fix the symptom was still there.
+worthless. Three are in the measurement apparatus, and these are not a separate
+category of bug so much as the reason the other five were survivable: each one
+supplied a plausible explanation that made the next one invisible. We give them
+in the order the evidence forced them out, because that order is the finding.
+After each of the first three fixes the symptom was still there.
 
 \begin{table}[htbp]
 \centering\small
@@ -222,6 +223,26 @@ and deterministic. We first wrote a game-playing version instead---three times
 the search must win a majority---and it did fail on the broken engine, reporting
 4 wins in 11 decisive games; but at these playout counts the outcome is noisy
 enough that we would not trust it as a gate in continuous integration.
+
+\paragraph{Why they were survivable.}
+None of these defects crashed. Every one produced a number that a reasonable
+person could explain. A search that returns the first legal move looks like a
+weak engine on a small budget. A flattened visit distribution looks like a
+network that has not learned yet. A zero-filled ownership row looks like a
+neutral board. A match that stops at 169 of 200 games looks like a clean sample,
+because nothing reports the number it was asked for. The most expensive instance
+is not in the code at all: a note in the repository's known-issues file recorded
+the White-heavy colour split as expected from komi and first-move advantage,
+which is a true statement about Go and a false explanation of that measurement.
+It closed the investigation for two months.
+
+The general lesson we take from this is about which experiments are worth
+running early. The measurement that eventually broke the case open---more search
+must beat less search, with everything else held equal---is not a test of any
+feature. It is a test of whether the system's most basic premise holds, and its
+expected answer was known in advance, so a wrong answer could not be rationalised
+away. A project with no compute budget can afford several such experiments; what
+it cannot afford is a training run whose result it has no way to interpret.
 
 \paragraph{And six in the orchestrator.}
 \label{sec:pipeline-eval-review}
