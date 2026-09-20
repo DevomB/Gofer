@@ -26,19 +26,28 @@ def softmax(x: np.ndarray) -> np.ndarray:
     return e / np.sum(e)
 
 
+# Accelerator providers in preference order. A ROCm build of onnxruntime
+# registers ROCMExecutionProvider and never CUDAExecutionProvider, so checking
+# only for CUDA drops an AMD card to CPU silently — which reads as a slow box
+# rather than a misconfigured one.
+GPU_PROVIDERS = ("CUDAExecutionProvider", "ROCMExecutionProvider", "MIGraphXExecutionProvider")
+
+
 def pick_providers() -> list[str]:
     available = set(ort.get_available_providers())
-    if "CUDAExecutionProvider" in available:
-        # ORT advertising CUDA does not mean the driver works. torch is the
-        # cheapest probe we already depend on; if it is absent or cannot see a
-        # device, CPU is the right answer, not an error.
-        try:
-            import torch
+    gpu = next((p for p in GPU_PROVIDERS if p in available), None)
+    if gpu is None:
+        return ["CPUExecutionProvider"]
+    # ORT advertising a provider does not mean the driver works. torch is the
+    # cheapest probe we already depend on, and its cuda namespace covers ROCm
+    # builds too; if it is absent or sees no device, CPU is the right answer.
+    try:
+        import torch
 
-            if torch.cuda.is_available():
-                return ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        except (ImportError, RuntimeError):
-            pass
+        if torch.cuda.is_available():
+            return [gpu, "CPUExecutionProvider"]
+    except (ImportError, RuntimeError):
+        pass
     return ["CPUExecutionProvider"]
 
 

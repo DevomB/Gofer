@@ -7,7 +7,8 @@
 #   GOFER_CONFIG=configs/pipeline-gpu.toml bash infra/cloud/bootstrap.sh --run
 #
 # Installs Go (if missing or too old), ONNX Runtime 1.26.0, a Python venv with
-# the learner deps (CUDA torch when nvidia-smi works), builds bin/gofer with the
+# the learner deps (GPU torch when a driver is visible; GOFER_TORCH_INDEX pins a
+# ROCm or CUDA wheel index), builds bin/gofer with the
 # in-process ORT backend, and runs the orchestrator's unit tests as a self-check.
 set -euo pipefail
 
@@ -84,11 +85,21 @@ fi
 source "$VENV/bin/activate"
 pip install -q --upgrade pip
 if ! python -c "import torch" 2>/dev/null; then
-  if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
+  if [[ -n "${GOFER_TORCH_INDEX:-}" ]]; then
+    log "installing torch from GOFER_TORCH_INDEX"
+    pip install -q torch --index-url "$GOFER_TORCH_INDEX"
+  elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then
     log "installing CUDA torch"
     pip install -q torch
+  elif command -v rocm-smi >/dev/null 2>&1 && rocm-smi >/dev/null 2>&1; then
+    # Not guessed: the ROCm wheel index is version-specific and a wrong one
+    # installs a torch that runs on CPU without saying so.
+    log "AMD GPU detected, but no ROCm wheel index is pinned here."
+    log "Rerun with GOFER_TORCH_INDEX=https://download.pytorch.org/whl/rocm<X.Y>"
+    log "to use it. Installing CPU torch for now."
+    pip install -q torch --index-url https://download.pytorch.org/whl/cpu
   else
-    log "no NVIDIA GPU: installing CPU torch"
+    log "no GPU detected: installing CPU torch"
     pip install -q torch --index-url https://download.pytorch.org/whl/cpu
   fi
 fi
