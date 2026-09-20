@@ -1,13 +1,44 @@
-\subsection{What the pipeline found: five defects in the engine}
+\subsection{What the pipeline found: eight defects}
 \label{sec:pipeline-found}
 
 The first thing the v4 gate did was refuse to work. Running it on real networks,
 every net-versus-net game was won by White in 12--32 moves, at every playout
 count we tried. Because the arena alternates colours, the candidate's score was
-then mechanically $0.500$ and no gate could ever decide anything. Chasing that
-led to five defects, all older than v4 and all invisible to the test suite. We
-give them in the order the evidence forced us to find them, because the order is
-the point: each fix removed one explanation and left the symptom in place.
+then mechanically $0.500$ and no gate could ever decide anything.
+
+Chasing that produced eight defects, all older than v4 and all invisible to the
+test suite (\cref{tab:found-defects}). They fall into two groups. Five are in the
+search: they made the engine play badly and, worse, made the data it generated
+worthless. Three are in the measurement apparatus: they are the reason the first
+five survived so long, because each one broke the instrument that should have
+detected them. We give them in the order the evidence forced them out. That order
+matters, because after each fix the symptom was still there.
+
+\begin{table}[htbp]
+\centering\small
+\begin{tabular}{@{}rp{5.1cm}p{7.6cm}@{}}
+\toprule
+& Defect & Consequence \\
+\midrule
+\multicolumn{3}{@{}l@{}}{\emph{In the search}} \\
+1 & Child values not negated in selection & The engine chose the move best for its opponent; more search made it weaker \\
+2 & Two passes not treated as terminal & Finished positions scored by the network, so the search walked into lost endings \\
+3 & Node pointer invalidated by reallocation & On $9\times9$ the root never counted as expanded: no child was ever visited \\
+4 & First-play urgency a flat constant & Every playout went down one line; the policy target collapsed to one move \\
+5 & Forced playouts floored on every child & 82 children $\times$ $k$ outnumbered the search budget and flattened the policy target \\
+\addlinespace
+\multicolumn{3}{@{}l@{}}{\emph{In the measurement}} \\
+6 & Per-game seeds correlated with the colour swap & Role attribution biased: identical players split 126--74 \\
+7 & \code{-arena-enhanced baseline} resolved by name & The reference baseline silently enhanced both players, masking 3 and 4 \\
+8 & In-match stop fired on the statistic under test & A 200-game measurement played 169; a second stopping rule ran inside every gate batch \\
+\bottomrule
+\end{tabular}
+\caption{The defects found while building and validating the gate. None was
+detectable by the test suite as it stood: the arena-scale tests skip in short
+mode, which is the mode continuous integration runs, and the unit tests use
+boards small enough that defect~3 cannot occur.}
+\label{tab:found-defects}
+\end{table}
 
 \paragraph{1. The search preferred the opponent's best move.}
 Node values are stored from each node's own side to move: the backup negates the
@@ -59,17 +90,22 @@ consecutive seeds and now uses the same mixing.
 
 \paragraph{4. On $9\times9$, the search never left the root.}
 The three fixes above did not lengthen the games, so the symptom was still
-unexplained. The arena's node storage is a slice, and its accessor returns a
+unexplained. The arena's node storage was one slice, and its accessor returned a
 pointer into it. Expanding a node took that pointer, appended the children---which
 reallocates the slice once they outgrow its capacity---and then wrote the
 ``expanded'' flag through the pointer, into the array that had just been
-discarded. The initial capacity is 64 nodes and a $9\times9$ root has 82
+discarded. The initial capacity was 64 nodes and a $9\times9$ root has 82
 children, so on every $9\times9$ search the root stayed unexpanded: each playout
 broke out of the descent immediately, the transposition table answered all the
 later ones with the root's own value, and \textbf{no child was ever visited}.
 Move selection takes the most-visited child, all of them zero, so the engine
 played the first legal move no matter how long it searched. Every test in the
 suite uses a board small enough that the reallocation never happens.
+
+Raising the initial capacity would only move the threshold at which the mistake
+reappears, so the storage is now fixed-size chunks that are allocated once and
+never resized: a pointer stays valid for the life of the arena, and the class of
+error is gone rather than postponed. Search time is unchanged.
 
 \paragraph{5. All the search went down one line.}
 With the root finally expanded, 200 playouts put 100\% of their visits on a
@@ -79,6 +115,61 @@ The visit distribution \emph{is} the policy training target, so this would have
 trained every network on one-hot targets. Urgency is now the node's own value
 minus a reduction that grows with the explored prior, as in
 \citet{wu2019accelerating}.
+
+\paragraph{6. Forced playouts flooded the root.}
+\Citet[\S3.2]{wu2019accelerating} forces extra playouts on ``each child of the
+root that has received any playouts'', so a move the search never looked at gets
+none. \gofer{} forced a floor of $k$ on \emph{every} child, and did it before the
+main search rather than after. On $9\times9$ that is 82 children, so at a
+200-playout budget the forced pass outnumbered the search itself. It flattened
+the visit distribution, and it made the policy-target pruning a no-op, because
+every child had been forced above the two-visit threshold that pruning uses.
+Restricting forcing to visited children, after the search, sharpens the targets
+measurably: over 154 full-search positions at 200 playouts, the top move went
+from $0.159$ to $0.199$ of the visits, the number of moves with any visits from
+$41.5$ to $24.3$, and the entropy from $2.98$ to $2.60$ nats, against $4.41$ for
+a uniform distribution over 82 moves.
+
+\paragraph{7. The reference baseline enhanced both players.}
+Forced-playout mode (\code{-arena-enhanced}) was resolved by comparing evaluator
+\emph{names}: the enhanced side was whichever engine's name matched the baseline's.
+The project's reproducible baseline command runs
+\code{-black-eval heuristic -white-eval heuristic}---the same name on both
+sides---so both engines were enhanced and \code{baseline} silently meant
+\code{both}. Because forced playouts act at the root, which is where defects 3
+and 4 lived, this masked them in precisely the measurement meant to detect a
+strength change: re-running that command after repairing the search moved its win
+counts not at all. The mode now follows the baseline \emph{role} across the colour
+swap. The difference is not subtle, at 600 versus 200 playouts over 60 games:
+
+\begin{center}\small
+\begin{tabular}{@{}lcc@{}}
+\toprule
+\code{-arena-enhanced} & Black wins & median game \\
+\midrule
+\code{none}     & 67\% & 76 moves \\
+\code{baseline} & 62\% & 41 moves \\
+\code{both}     & 70\% & 21 moves \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The baseline command now uses \code{none}, so it measures search scaling
+rather than forced-playout behaviour.
+
+\paragraph{8. Measurement runs stopped on the statistic they measured.}
+A match ends as soon as its promotion gate is decided. The accept branch is
+guarded by a minimum game count, which tests raise to disable it, but the reject
+branch is not, so a 200-game bias measurement silently played 169 games---stopping
+exactly when the challenger fell behind. That is optional stopping correlated
+with the quantity under test, the same error class this report attributes to the
+v3 gate (\cref{sec:orch-gate}), here inside the harness rather than the gate. The
+same rule ran inside every batch of the v4 gate, putting a second stopping rule
+on the stream the SPRT was already testing sequentially. Batches now play out in
+full. Re-deriving the gate's operating characteristics without the inner stop
+moves them very little---false promotions at zero true gain from $2.4\%$ to
+$2.3\%$---which is worth stating plainly: it was a correctness problem, not a
+large bias.
 
 \paragraph{What the fixes are worth.}
 The same experiment before and after, with identical settings---40 games, one

@@ -46,18 +46,21 @@ single rented, preemptible GPU without losing work.
 
 Building the gate turned out to be the most valuable part. Asked to decide whether one
 network was stronger than another, it could not: the answer was exactly $0.500$ every
-time. Chasing that exposed five defects, all older than this work and all invisible to the
-test suite. On $9\times9$ the search never left the root at all, because a stale pointer
-lost the flag that marks a node expanded; with that repaired, every playout went down a
-single line, because first-play urgency was a flat constant no visited child could lose
-to; selection maximised the \emph{opponent's} value, so more search made the engine
-weaker; two passes were never treated as the end of the game, so finished positions were
-scored by the network instead of the rules; and the arena drew correlated openings for one
-of the two roles, biasing the comparison it existed to make. In a controlled match---
-identical evaluators, one side searching three times harder---the deeper search won
-\textbf{0 of 40} games before and \textbf{24 of 40} after, with the median game growing
-from 28 moves to 80. Every strength number the project had recorded was measuring these
-bugs.
+time. Chasing that exposed eight defects, all older than this work and all invisible to
+the test suite. Five were in the search. On $9\times9$ it never left the root at all,
+because a stale pointer lost the flag that marks a node expanded; with that repaired,
+every playout went down a single line, because first-play urgency was a flat constant no
+visited child could lose to; selection maximised the \emph{opponent's} value, so more
+search made the engine weaker; two passes were never treated as the end of the game; and
+forced playouts, applied to every child rather than every \emph{visited} child,
+outnumbered the search budget and flattened the policy training target. The other three
+were in the measurement apparatus, and they are why the first five survived: the arena
+drew correlated openings for one of the two roles, the reproducible strength baseline
+silently enhanced both players in a way that bypassed the root, and matches stopped early
+on the very statistic they were measuring. In a controlled match---identical evaluators,
+one side searching three times harder---the deeper search won \textbf{0 of 40} games
+before and \textbf{24 of 40} after, with the median game growing from 28 moves to 80.
+Every strength number the project had recorded was measuring these bugs.
 
 We describe the full loop. Go self-play writes compact binary shards. A new learner masks
 the policy loss to full-search positions, splits train and validation by game, augments

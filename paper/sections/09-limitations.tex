@@ -1,5 +1,21 @@
 \section{Limitations}\label{sec:limitations}
 
+\paragraph{The implementations assume a small board.}
+The shard format stores plane counts and board size dynamically, the engine takes a board
+size, and the \code{gpool} networks are size-agnostic, but two implementations are not.
+The shard writer and the learner's reader both materialise a whole window in memory: at
+$19\times19$, 100k rows of 22 planes over 361 points is roughly 800\,MB in one allocation
+before the policy arrays. And the inference sidecar hard-codes $9\times9$ and eight
+planes, so a larger board would fail there rather than in the parts that look
+size-dependent. Both are ceilings rather than errors at the size we run, and both need
+fixing before any $19\times19$ work.
+
+\paragraph{Platform coverage.}
+The in-process backend needs a pinned ONNX Runtime library, which exists for Linux
+x86-64, Linux arm64, macOS arm64 and Windows x86-64. On anything else---an Intel Mac, for
+instance---the pipeline runs only through the sidecar backend, which needs just the Python
+wheel.
+
 \paragraph{Everything measured before the engine fixes is void.}
 The defects in \cref{sec:pipeline-found} invalidate every strength number this project
 had recorded, including its committed reference baseline and the gate scores from the
