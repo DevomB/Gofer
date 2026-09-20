@@ -315,9 +315,20 @@ func runSelfplayCLI(f cliFlags) {
 		// use them for value/ownership while masking their policy loss.
 		cfg.FullOnlyExport = false
 	}
+	resetEvalHealth()
 	samples, logs := RunSelfplayWithLogs(cfg)
+	fallbackRate, evalRequests, evalFallbacks := evalFallbackRate()
+	if err := checkSelfplayEvalHealth(cfg, fallbackRate, evalRequests, evalFallbacks); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if shardOut {
-		meta := ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: selfplayModelID(cfg.EvalMode, f.modelPath, cfg.ONNXFraction)}
+		meta := ShardMeta{
+			Komi:             cfg.Komi,
+			Seed:             cfg.Seed,
+			Model:            selfplayModelID(cfg.EvalMode, f.modelPath, cfg.ONNXFraction),
+			EvalFallbackRate: fallbackRate,
+		}
 		if err := WriteSampleShard(f.out, samples, meta); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -428,4 +439,29 @@ func checkEvalHealth(cfg MatchConfig, result MatchResult) error {
 // namesONNX reports whether an evaluator name asks for a model.
 func namesONNX(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), "onnx")
+}
+
+// checkSelfplayEvalHealth refuses to write a shard that the model did not
+// generate. The arena equivalent guards one promotion decision; this guards the
+// training data, which outlives the cycle that produced it - a shard labelled
+// with a champion but played by the heuristic stays in the replay window for as
+// many cycles as the window is deep.
+//
+// Mix mode is judged against the share of games that were meant to use the
+// model, since the rest are heuristic by design and must not count as failures.
+func checkSelfplayEvalHealth(cfg SelfplayConfig, rate float64, requests, fallbacks uint64) error {
+	if !namesONNX(cfg.EvalMode) && !strings.EqualFold(cfg.EvalMode, "mix") {
+		return nil
+	}
+	if requests == 0 {
+		return fmt.Errorf("self-play asked for eval %q but no model evaluation was attempted: "+
+			"every position was played by the heuristic, and the shard would be labelled with a model that never ran",
+			cfg.EvalMode)
+	}
+	if rate > maxEvalFallbackRate {
+		return fmt.Errorf("self-play asked for eval %q but %.1f%% of evaluations (%d of %d) fell back to the heuristic, "+
+			"above the %.0f%% bar: these rows are not this model's self-play",
+			cfg.EvalMode, rate*100, fallbacks, requests, maxEvalFallbackRate*100)
+	}
+	return nil
 }
