@@ -21,17 +21,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import torch  # noqa: E402
 
 from gofer_train.data import split_by_game  # noqa: E402,F401  (re-export)
-from gofer_train.trainer import TrainConfig, Trainer, pick_device  # noqa: E402
+from gofer_train.trainer import TrainConfig, Trainer  # noqa: E402
 
 SPLIT_SEED = 42
 OWNERSHIP_LOSS_WEIGHT = 0.15  # legacy constant (net_size_ablation.py); see LossWeights
-
-
-def training_device() -> torch.device:
-    return pick_device("auto")
 
 
 # ---- legacy dataclass API (tests, net_size_ablation) ------------------------

@@ -27,7 +27,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import zipfile
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
@@ -170,10 +169,6 @@ def read_shard(path: Path) -> Rows:
             game_id=opt("game_id", np.zeros(n, np.int32)).astype(np.int64),
             move_num=opt("move_num", np.zeros(n, np.int16)).astype(np.int16, copy=False),
         )
-
-
-def is_shard(path: Path) -> bool:
-    return path.suffix == ".npz" and zipfile.is_zipfile(path)
 
 
 # ---------------------------------------------------------------- jsonl ----
