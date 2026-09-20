@@ -41,7 +41,7 @@ Build the `training/gofer_train/` package:
 
 ## Consequences
 
-- Existing callers (the v3 shell loop, `make train-bootstrap`, `net_size_ablation.py`) keep working. `best.pt` is still a plain state_dict.
+- Existing callers (`make train-bootstrap`, `net_size_ablation.py`) keep working. `best.pt` is still a plain state_dict. The v3 shell loop was also a caller; it was removed in Sep 2026 (see [ADR 0007](0007-pipeline-orchestrator.md)).
 - The default architecture is still `legacy-6x64` when no `--arch` is given. Moving to `gpool` is an explicit, gated decision (distill → arena vs champion), not a silent switch.
 - CPU training speed per step is roughly unchanged, because it is compute-bound. The wins are data volume (shards are ~40× smaller than JSONL), GPU throughput, and sample efficiency.
 - Validation loss is not comparable with v3 numbers: the split is different and fast-cap rows are masked out of the policy loss.

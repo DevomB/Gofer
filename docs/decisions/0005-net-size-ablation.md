@@ -4,6 +4,14 @@
 
 Investigated Jul 2026 — **not adopted**. Live architecture remains **6×64** (`GoferBootstrapNet` default).
 
+**The evidence below is void (flagged Sep 2026).** The frozen snapshot was self-play
+output from before the defects in [ADR 0008](0008-search-correctness.md), so its policy
+targets come from a search that never left the root. Policy is the dominant term in the
+loss, which makes every val-loss figure in this file a measure of how well each net fits a
+target that carries no search in it. The *decision* stands, because it was a decision not
+to act; the *reason* does not. Re-run the ablation on post-fix shards before citing this
+either way.
+
 ## Context
 
 With replay capped at 50k rows, a 6×64 trunk (1.2M params) may exceed what the data volume needs. Phase 2 Piece 2 compared smaller nets offline on a frozen replay snapshot before any live architecture change.

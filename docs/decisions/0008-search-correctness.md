@@ -77,6 +77,9 @@ The middle two rows are identical in aggregate although every game differs: `-ar
 
 Search now converts into strength, which is the premise the entire training loop rests on. Two further checks: with identical evaluators and fair komi, 200 games split 99–101 by colour; and a 200-playout search now spreads its visits over many moves instead of one.
 
+- The net-size ablation ([ADR 0005](0005-net-size-ablation.md)) was run on a frozen
+  pre-fix replay snapshot, so its val-loss comparison is void too. Its conclusion was to
+  change nothing, so nothing followed from it, but the file now says so.
 - **Every strength number recorded before these fixes is void**, including `.tectonix/reports/arena-9x9-baseline.json`, and every self-play shard produced before them carries policy targets from a search that did not search.
 - Policy targets are sharper at the same settings: over 154 full-search positions at 200 playouts, the top move went from 0.159 to 0.199 of the visits, the number of moves with any visits from 41.5 to 24.3, and the entropy from 2.98 to 2.60 nats (uniform over 82 moves is 4.41).
 - Forced-playout mode measurably changes play: at 600 vs 200 playouts over 60 games, Black wins 67% with `none` (median game 76 moves), 62% with `baseline` (41 moves) and 70% with `both` (21 moves). The reproducible baseline command now uses `none`, so it measures search scaling rather than forced-playout behaviour.

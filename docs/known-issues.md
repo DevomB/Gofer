@@ -70,6 +70,6 @@ the complexity yet.
 | Global pooling inside the search net | Implemented in the learner (`gofer_train/nets.py`), not in the Go heuristic path |
 | Dynamic score maximization | Post-paper KataGo; needs a score head we trust first |
 | Open-addressing transposition table | Current `map`-backed TT has not shown up in profiles |
-| Progressive net scaling | ADR 0005 measured no win for 9x9 at current data volume |
+| Progressive net scaling | ADR 0005 found no win for 9x9, but on a pre-fix snapshot whose policy targets are void; re-run before relying on it |
 | Policy surprise weighting, JSON analysis API | Post-paper, no current consumer |
 | Index the root-child lookup in `mcts_policy.go` | `fillLegalPolicy` and `prunePolicy` match children against legal moves by scanning, so each is O(children x legal) and the second repeats the matching the first already did. That is ~13k comparisons per self-play move on 9x9 against a 16-95ms move, so about 0.02%; `policyIndex` already gives the key an index would use. Worth doing when a profile says so, or when 19x19 becomes real |
