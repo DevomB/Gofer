@@ -1,4 +1,10 @@
-"""ONNX parity harness — Python reference path (inference_server.Session, no HTTP)."""
+"""ONNX parity harness — Python reference path (inference_server.Session, no HTTP).
+
+Writes an inference-parity reference for cmd/gofer/onnx_parity_test.go: policy
+and value for a fixed set of positions, so the Go and Python ORT paths can be
+compared. This is never training data, so rows carry no ownership labels by
+design; do not "fix" that by adding them.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +17,9 @@ from pathlib import Path
 import onnxruntime as ort
 
 # Reuse sidecar session + softmax so parity matches production inference code.
-from inference_server import Session, BOARD_SIZE, POLICY_SIZE  # noqa: E402
+# The session also carries the model's own shape, so this harness never needs to
+# hardcode a board size or plane count.
+from inference_server import Session  # noqa: E402
 
 
 def load_positions(samples_path: Path, limit: int) -> list[dict]:
@@ -61,17 +69,17 @@ def main() -> int:
         for i, row in enumerate(positions):
             spatial = row["features_spatial"]
             globals_ = row["features_global"]
-            if len(spatial) != 8 * BOARD_SIZE * BOARD_SIZE:
+            if len(spatial) != session.spatial_len:
                 print(f"skip row {i}: bad spatial len {len(spatial)}", file=sys.stderr)
                 continue
-            if len(globals_) != 4:
+            if len(globals_) != session.globals_len:
                 print(f"skip row {i}: bad global len {len(globals_)}", file=sys.stderr)
                 continue
             t0 = time.perf_counter_ns()
             results = session.eval_batch([spatial], [globals_])
             total_ns += time.perf_counter_ns() - t0
             r = results[0]
-            if len(r["policy"]) != POLICY_SIZE:
+            if len(r["policy"]) != session.policy_size:
                 print(f"skip row {i}: policy len {len(r['policy'])}", file=sys.stderr)
                 continue
             rec = {

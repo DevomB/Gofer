@@ -23,6 +23,11 @@ import (
 const (
 	ShardFormat  = "gofer-shard"
 	ShardVersion = 1
+
+	// maxShardBytes bounds the in-memory build of one shard. A cycle that needs
+	// more than this is a configuration mistake, not a workload: at 9x9 it is
+	// millions of rows, and at 19x19 it still allows a quarter of a million.
+	maxShardBytes = 2 << 30 // 2 GiB
 )
 
 // ShardMeta is written into the shard's "meta" array as UTF-8 JSON bytes.
@@ -179,6 +184,19 @@ func buildShardArrays(samples []Sample) ([]npyArray, int, int, error) {
 	}
 	planes := planeLen / points
 	globalsLen := len(samples[0].FeaturesGlobal)
+
+	// Every column is materialised in memory before the shard is written, so an
+	// oversized cycle would otherwise be killed by the OS with nothing to point
+	// at. Fail here instead, naming the numbers that produced it. This also
+	// keeps the capacities below from overflowing int on 32-bit builds, where
+	// n*planeLen wraps silently.
+	perRow := int64(planeLen) + int64(points) + 1 + int64(globalsLen)*4 + int64(pol)*8 + 14
+	if total := int64(n) * perRow; total > maxShardBytes {
+		return nil, 0, 0, fmt.Errorf(
+			"shard: %d rows of %d planes on %dx%d needs %.1f GiB in memory (limit %d GiB); "+
+				"lower selfplay.games_per_cycle or split the cycle",
+			n, planes, size, size, float64(total)/(1<<30), maxShardBytes>>30)
+	}
 
 	spatial := make([]byte, 0, n*planeLen)
 	globals := make([]byte, 0, n*globalsLen*4)

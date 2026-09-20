@@ -15,8 +15,8 @@ import numpy as np
 import onnxruntime as ort
 
 SCHEMA_VERSION = 2
-BOARD_SIZE = 9
-POLICY_SIZE = BOARD_SIZE * BOARD_SIZE + 1
+SPATIAL_INPUT = "spatial_input"
+GLOBAL_INPUT = "global_input"
 LOG_EVERY_N = 50
 
 
@@ -46,29 +46,77 @@ def _session_options() -> ort.SessionOptions:
     return opts
 
 
+def model_shape(sess: ort.InferenceSession, path: str) -> tuple[int, int, int]:
+    """Read (planes, board_size, globals) off the model's own input signature.
+
+    Board size and plane count are properties of the exported network, not of
+    this server. Reading them here is what lets one sidecar serve 9x9 and 19x19
+    without a flag, and turns a size mismatch into a named error instead of an
+    opaque reshape failure deep in a batch.
+    """
+    shapes = {i.name: i.shape for i in sess.get_inputs()}
+    missing = [n for n in (SPATIAL_INPUT, GLOBAL_INPUT) if n not in shapes]
+    if missing:
+        raise ValueError(f"{path}: model has no input(s) {missing}; found {sorted(shapes)}")
+    spatial, glob = shapes[SPATIAL_INPUT], shapes[GLOBAL_INPUT]
+    if len(spatial) != 4 or len(glob) != 2:
+        raise ValueError(
+            f"{path}: want {SPATIAL_INPUT} [batch, planes, size, size] and {GLOBAL_INPUT} [batch, n]; "
+            f"got {spatial} and {glob}"
+        )
+    planes, rows, cols = spatial[1], spatial[2], spatial[3]
+    globals_len = glob[1]
+    for label, dim in (("planes", planes), ("rows", rows), ("cols", cols), ("globals", globals_len)):
+        # Only the batch dimension may be dynamic; the export fixes the rest.
+        if not isinstance(dim, int):
+            raise ValueError(f"{path}: {label} dimension is dynamic ({dim!r}); re-export with a fixed shape")
+    if rows != cols:
+        raise ValueError(f"{path}: board is {rows}x{cols}, not square")
+    return planes, rows, globals_len
+
+
 class Session:
     def __init__(self, model_path: str) -> None:
-        self.model_path = model_path
         self.providers = pick_providers()
-        self.sess = ort.InferenceSession(
+        self.request_count = 0
+        self._load(model_path)
+
+    def _load(self, model_path: str) -> None:
+        # Build and inspect the new session before adopting it, so a bad model
+        # on reload leaves the sidecar still serving the working one.
+        sess = ort.InferenceSession(
             model_path, sess_options=_session_options(), providers=self.providers
         )
-        self.spatial_name = "spatial_input"
-        self.global_name = "global_input"
-        self.request_count = 0
+        planes, board_size, globals_len = model_shape(sess, model_path)
+        self.sess = sess
+        self.model_path = model_path
+        self.planes = planes
+        self.board_size = board_size
+        self.globals_len = globals_len
+        self.spatial_len = planes * board_size * board_size
+        self.policy_size = board_size * board_size + 1
 
     def reload(self, model_path: str) -> None:
-        self.model_path = model_path
-        self.sess = ort.InferenceSession(
-            model_path, sess_options=_session_options(), providers=self.providers
-        )
+        self._load(model_path)
 
     def eval_batch(self, spatial: list[list[float]], globals_: list[list[float]]) -> list[dict[str, Any]]:
         t0 = time.perf_counter()
         batch = len(spatial)
-        sp = np.array(spatial, dtype=np.float32).reshape(batch, 8, BOARD_SIZE, BOARD_SIZE)
-        gl = np.array(globals_, dtype=np.float32).reshape(batch, 4)
-        feeds = {self.spatial_name: sp, self.global_name: gl}
+        sp = np.asarray(spatial, dtype=np.float32)
+        gl = np.asarray(globals_, dtype=np.float32)
+        # Check against the model's own shape first: a caller built for a
+        # different board otherwise dies inside reshape with no mention of size.
+        if sp.shape != (batch, self.spatial_len):
+            raise ValueError(
+                f"spatial {sp.shape} != ({batch}, {self.spatial_len}) for "
+                f"{self.planes} planes on {self.board_size}x{self.board_size}"
+            )
+        if gl.shape != (batch, self.globals_len):
+            raise ValueError(f"globals {gl.shape} != ({batch}, {self.globals_len})")
+        feeds = {
+            SPATIAL_INPUT: sp.reshape(batch, self.planes, self.board_size, self.board_size),
+            GLOBAL_INPUT: gl,
+        }
         # Model may emit a third "ownership" output; the engine only needs
         # policy + value, so take the first two and ignore the rest.
         outputs = self.sess.run(None, feeds)
@@ -76,8 +124,8 @@ class Session:
         results = []
         for i in range(batch):
             policy = softmax(logits[i]).astype(np.float32).tolist()
-            if len(policy) != POLICY_SIZE:
-                raise ValueError(f"policy len {len(policy)} != {POLICY_SIZE}")
+            if len(policy) != self.policy_size:
+                raise ValueError(f"policy len {len(policy)} != {self.policy_size}")
             results.append({"value": float(value[i]), "policy": policy})
         self.request_count += 1
         if self.request_count % LOG_EVERY_N == 0:
@@ -113,9 +161,9 @@ def health_payload(session: Session) -> dict[str, Any]:
     return {
         "status": "ok",
         "schema_version": SCHEMA_VERSION,
-        "policy_size": POLICY_SIZE,
-        "spatial_shape": [8, BOARD_SIZE, BOARD_SIZE],
-        "global_shape": [4],
+        "policy_size": session.policy_size,
+        "spatial_shape": [session.planes, session.board_size, session.board_size],
+        "global_shape": [session.globals_len],
         "model": session.model_path,
         "providers": session.providers,
     }

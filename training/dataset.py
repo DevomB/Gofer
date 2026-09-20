@@ -30,6 +30,27 @@ def iter_samples(path: Path) -> Iterator[dict]:
             yield row
 
 
+def check_ownership(rows: list[dict], path: Path) -> None:
+    """Every row must carry full ownership labels; never substitute zeros.
+
+    The ownership head is trained with an unmasked loss, so a zero-filled row is
+    indistinguishable from a genuinely neutral board and quietly teaches
+    "neutral everywhere". A wrong length is worse still: it is normally a
+    board-size mismatch, and filling it would disguise that as a
+    training-quality problem. Checked once at load so the failure names a row,
+    instead of surfacing thousands of batches into an epoch.
+    """
+    points = BOARD_SIZE * BOARD_SIZE
+    for i, row in enumerate(rows):
+        own = row.get("ownership")
+        if not own:
+            raise ValueError(f"{path}: row {i} has no ownership labels; every row needs {points}")
+        if len(own) != points:
+            raise ValueError(
+                f"{path}: row {i} has {len(own)} ownership labels, want {points} (board-size mismatch?)"
+            )
+
+
 class SampleDataset(Dataset):
     """Self-play samples with exported features and board-indexed policy."""
 
@@ -40,6 +61,7 @@ class SampleDataset(Dataset):
         ]
         if not self.rows:
             raise ValueError(f"no valid samples in {path}")
+        check_ownership(self.rows, path)
 
     def __len__(self) -> int:
         return len(self.rows)
@@ -50,8 +72,5 @@ class SampleDataset(Dataset):
         globals_ = torch.tensor(row["features_global"], dtype=torch.float32)
         policy = torch.tensor(row["policy"], dtype=torch.float32)
         value = torch.tensor(float(row.get("value", 0.0)), dtype=torch.float32)
-        own = row.get("ownership") or [0.0] * (BOARD_SIZE * BOARD_SIZE)
-        if len(own) != BOARD_SIZE * BOARD_SIZE:
-            own = [0.0] * (BOARD_SIZE * BOARD_SIZE)
-        ownership = torch.tensor(own, dtype=torch.float32)
+        ownership = torch.tensor(row["ownership"], dtype=torch.float32)
         return spatial, globals_, policy, value, ownership
