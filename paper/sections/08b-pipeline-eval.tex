@@ -1,55 +1,30 @@
-\subsection{What the pipeline found: two defects in the engine}
+\subsection{What the pipeline found: five defects in the engine}
 \label{sec:pipeline-found}
 
 The first thing the v4 gate did was refuse to work. Running it on real networks,
 every net-versus-net game was won by White in 12--32 moves, at every playout
 count we tried. Because the arena alternates colours, the candidate's score was
 then mechanically $0.500$ and no gate could ever decide anything. Chasing that
-led to two defects in the engine, both older than v4 and both invisible to the
-test suite.
+led to five defects, all older than v4 and all invisible to the test suite. We
+give them in the order the evidence forced us to find them, because the order is
+the point: each fix removed one explanation and left the symptom in place.
 
-\paragraph{The search preferred the opponent's best move.}
+\paragraph{1. The search preferred the opponent's best move.}
 Node values are stored from each node's own side to move: the backup negates the
 value at every level, and evaluators return the value from the side to move. A
 child's mean is therefore the \emph{opponent's} view, and selection must negate
-it. It did not. The search maximised the opponent's value, so more search made
+it. It did not, so the search maximised the opponent's value and more search made
 the engine weaker.
 
-The project's own reference baseline measures exactly this: 200 games, identical
-heuristic evaluators, Black searching 600 playouts against White's 200
-(\code{make reproduce-9x9-baseline}). It had been sitting in the repository
-recording \textbf{7 Black wins in 200 games}. Re-running the same command after
-the fix gives \textbf{133 of 200}, a win rate of $0.665$, or about $+119$ Elo for
-tripling the search:
-
-\begin{center}\small
-\begin{tabular}{@{}lccc@{}}
-\toprule
-Black at 600 playouts vs White at 200 & Black wins & mean game length & games under 10 moves \\
-\midrule
-before (committed baseline) & 7/200 & 12.9 moves & all won by White \\
-after  & 133/200 & 20.0 moves & 5, split 3--2 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-Black wins two thirds of the games while also conceding komi 6.5, which at these
-playout counts favours White (\cref{sec:pipeline-found-komi}), so the search
-advantage is larger than the win rate alone suggests. The game-length
-distribution is the clearer evidence that play is no longer degenerate: the
-handful of remaining short games are split between the colours instead of being
-uniformly White wins.
-
-\paragraph{The search could not see the end of the game.}
+\paragraph{2. The search could not see the end of the game.}
 Two consecutive passes end a game in every game loop, but the search did not
 treat them as terminal, and scored finished positions with the evaluator instead
 of the rules. Passing into a pass therefore looked ordinary, and with komi the
 engine walked into lost endings. We added the two-pass rule and exact terminal
 scoring, and kept terminal results out of the transposition table, whose key
-covers stones but not pass history. Fixing this alone changed no measurable
-outcome; the sign error dominated.
+covers stones but not pass history.
 
-\paragraph{A third defect, in the arena itself.}
+\paragraph{3. The arena favoured one role.}
 With both engine fixes in, a 200-game match between two evaluators that are
 \emph{literally the same code} still split 126--74 by role. Per-game seeds were
 linear in the game index (\code{seed}\,$+2i$, \code{seed}\,$+2i+1$, and
@@ -78,52 +53,126 @@ Seed & unswapped & swapped & (baseline--challenger) \\
 \end{tabular}
 \end{center}
 
-This mattered more than the raw numbers suggest: the gate attributes wins by
-role, so a biased role split is a biased promotion decision. Self-play used the
-same consecutive seeds and now uses the same mixing.
+This mattered more than the numbers suggest: the gate attributes wins by role, so
+a biased role split is a biased promotion decision. Self-play used the same
+consecutive seeds and now uses the same mixing.
+
+\paragraph{4. On $9\times9$, the search never left the root.}
+The three fixes above did not lengthen the games, so the symptom was still
+unexplained. The arena's node storage is a slice, and its accessor returns a
+pointer into it. Expanding a node took that pointer, appended the children---which
+reallocates the slice once they outgrow its capacity---and then wrote the
+``expanded'' flag through the pointer, into the array that had just been
+discarded. The initial capacity is 64 nodes and a $9\times9$ root has 82
+children, so on every $9\times9$ search the root stayed unexpanded: each playout
+broke out of the descent immediately, the transposition table answered all the
+later ones with the root's own value, and \textbf{no child was ever visited}.
+Move selection takes the most-visited child, all of them zero, so the engine
+played the first legal move no matter how long it searched. Every test in the
+suite uses a board small enough that the reallocation never happens.
+
+\paragraph{5. All the search went down one line.}
+With the root finally expanded, 200 playouts put 100\% of their visits on a
+single move. First-play urgency was a flat $-0.2$ in the child's frame, far below
+a typical node value, so the first child to be visited could never be outscored.
+The visit distribution \emph{is} the policy training target, so this would have
+trained every network on one-hot targets. Urgency is now the node's own value
+minus a reduction that grows with the explored prior, as in
+\citet{wu2019accelerating}.
+
+\paragraph{What the fixes are worth.}
+The same experiment before and after, with identical settings---40 games, one
+seed, identical heuristic evaluators on both sides, a symmetric configuration,
+and Black searching 600 playouts against White's 200:
+
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& Black wins & median game & distinct game lengths \\
+\midrule
+before (commit \code{6ef7ce3}) & 0/40 & 28 moves & 26 \\
+after  & 24/40 (60\%) & 80 moves & 20 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Search now converts into strength, which is the premise the entire loop rests on.
+Two further checks: with identical evaluators at fair komi, 200 games split
+99--101 by colour, and a 200-playout search spreads its visits over many moves
+instead of one. Black wins $60\%$ while also conceding komi 6.5, which at these
+playout counts favours White (\cref{sec:pipeline-found-komi}).
 
 \paragraph{Fair komi moved with the fix.}
 \label{sec:pipeline-found-komi}
-Two tests in the repository encoded a "fair komi" of $-1$ for equal heuristic
+Two tests in the repository encoded a ``fair komi'' of $-1$ for equal heuristic
 engines, with a comment explaining that tournament komi was not fair at test
-playout counts. That constant had been fitted to the broken search, which ended
-games near-empty in about eleven moves and let komi alone decide them. Measured
-again after the fix, at 50 playouts over 120--200 games per point, Black scores
-$70\%$ at komi 0, $70\%$ at $1.5$, $53\%$ at $2.0$, $38\%$ at $2.5$, $28\%$ at
-$3.5$ and $15\%$ at $6.5$. Fair komi for these engines is therefore near $2.0$,
-and the tests were updated to use it.
+playout counts. That constant had been fitted to a search that stopped at the
+root: games ended near-empty and komi alone decided them. Measured again on the
+repaired engine, at 50 playouts over 100--150 games per point, Black scores
+$58\%$ at komi 0, $51\%$ at $0.5$, $46\%$ at $1.0$, $42\%$ at $1.5$, $34\%$ at
+$3.5$ and $29\%$ at $6.5$. Fair komi for these engines is near $0.5$, where 200
+games split 99--101, and the tests now use that. The value moved twice during
+this work, once per round of engine fixes, which is a reminder that such a
+constant is a measurement of the engine, not a property of the game.
 
 \paragraph{Why nothing caught it.}
-The repository's continuous integration runs \code{go test ./... -short}, and
-every arena-scale test skips itself in short mode. One test did observe the
-symptom---it logged 9 Black wins in 188 games with identical
+Two things hid these defects. The repository's continuous integration runs
+\code{go test ./... -short}, and every arena-scale test skips itself in short
+mode; and the unit tests all use boards small enough that the node array never
+reallocates, so the defect that mattered most could not appear in them. One test
+did observe a symptom---it logged 9 Black wins in 188 games with identical
 evaluators---but it asserted only on role balance and explained the colour skew
-away in a comment. We added a unit test of the selection rule that runs in short
-mode: given two root children with equal priors and visits, selection must
-prefer the one whose subtree is worse for the opponent. It is instant and
-deterministic, and it fails on the old code by construction, where the search at
-200 and 600 playouts could not be told apart from noise in twenty games.
+away in a comment.
+
+Three tests now run in short mode and fail on the old code: root children must
+be visited at all, the visits must spread over more than a handful of moves, and
+selection, given two root children with equal priors and visits, must prefer the
+one whose subtree is worse for the opponent. All three are unit tests, instant
+and deterministic. We first wrote a game-playing version instead---three times
+the search must win a majority---and it did fail on the broken engine, reporting
+4 wins in 11 decisive games; but at these playout counts the outcome is noisy
+enough that we would not trust it as a gate in continuous integration.
+
+\paragraph{And six in the orchestrator.}
+\label{sec:pipeline-eval-review}
+An adversarial review of the orchestrator, run as a separate exercise against the
+resume and publish paths, found six defects of its own. Four concerned failure
+handling: an interrupt left the trainer and the arena running, because the
+process wrapper never signalled the child and the code meant to stop background
+self-play was unreachable; a job killed mid-write left a truncated arena report,
+which the gate then cached forever and crashed on at every resume; a prefetched
+shard could enter the previous cycle's training window, because the learner reads
+its shard directory newest-first, so overlap silently changed what a cycle
+trained on depending on wall-clock timing; and replaying an interrupted publish
+after a failed regression check promoted the failed generation back over its
+replacement. Two concerned publishing: the regression baseline picked the most
+recently appended matching generation rather than the highest-numbered one, which
+after a rollback is an older network than intended, and the seed gate's result
+against the heuristic---the only evidence about generation~1---was dropped from
+the lineage because it was not a scalar. All six are fixed and covered by tests.
+None would have been caught by a passing test suite; they needed someone to ask
+what happens when the machine is killed at each point in the cycle.
 
 \paragraph{Consequences for this report.}
 Every strength number produced before these fixes is void, including the
-committed baseline and the gate scores in \cref{sec:pipeline-eval}. No long
-training run had been done, so no trained model was lost; the self-play data
-generated so far carries policy targets from a search that preferred the
-opponent's reply, and is not worth training on.
+committed baseline and the gate scores in \cref{sec:pipeline-eval}, which were
+measured while the search was still stopping at the root. No long training run
+had been done, so no trained model was lost; the self-play data generated so far
+carries policy targets from a search that never descended, and is not worth
+training on.
 
 \subsection{Pipeline end to end}
 \label{sec:pipeline-eval}
 
 \paragraph{Tests.}
-The Go shard writer has 4 tests:
-\begin{itemize}
-  \item NPY header layout and alignment;
-  \item a round trip of real self-play output through the ZIP container, checking
-        \cref{eq:score-identity} on every row;
-  \item next-ply policy labelling, including rows after a fast search;
-  \item rejection of shards that would mix board sizes.
-\end{itemize}
-The orchestrator has 23 tests. They replace Go, PyTorch and ONNX Runtime with a fake
+The Go side has 20 tests across three files. Seven cover the shard writer: the NPY
+header layout, a round trip of real self-play output through the ZIP container
+checking \cref{eq:score-identity} on every row, next-ply policy labelling, and
+rejection of rows that would mix board sizes, carry non-finite floats or omit
+ownership. Seven cover the search defects of \cref{sec:pipeline-found}. Six cover
+atomic artifact writes, including the Windows rename retry.
+
+The orchestrator has 37 tests. They replace Go, PyTorch and ONNX Runtime with a fake
 executor that writes the same output files the real tools would. They cover:
 \begin{itemize}
   \item a three-cycle run with a seeded first champion, an SPRT acceptance that stops before
@@ -134,7 +183,12 @@ executor that writes the same output files the real tools would. They cover:
   \item skipping training below the row threshold; hold mode; background self-play;
         in-process and sidecar command lines; pruning of old outputs;
   \item the window formula; shard archiving; configuration parsing and validation; the
-        Elo and SPRT arithmetic;
+        Elo and SPRT arithmetic, including the exact gate model of \cref{sec:orch-gate}
+        cross-checked against an independent Monte Carlo simulation;
+  \item the defects of \cref{sec:pipeline-eval-review}: an interrupt must not orphan a
+        background job, a prefetched shard must not enter the current cycle's window, a
+        truncated arena report must be replayed, and a replayed publish must not restore a
+        demoted generation;
   \item publishing: every champion kept in the registry, the alias and latest release
         moving forward, a failed regression match holding back or demoting a champion,
         failed uploads retried, and rollback that renumbers nothing.
@@ -144,58 +198,60 @@ executor that writes the same output files the real tools would. They cover:
 We ran the real loop with the smoke configuration on the machine described in
 \cref{sec:eval} (an Intel Core i7-1185G7 with 16\,GB of memory). It used the real Go
 engine, learner, exporter and arena, with tiny settings: 8 games per cycle, 24/8 playouts
-with $p=0.25$, one or two training epochs, and gates of 20 games at 16 playouts. We ran it
-once with sidecar inference for three cycles, and once with in-process inference for two.
-The inference backend was the only difference; configuration, seeds and code were the
-same. \Cref{tab:pipeline-e2e} lists stage times.
+with $p=0.25$, one or two training epochs, and gates of 20 games at 16 playouts.
+\Cref{tab:pipeline-e2e} lists stage times for a three-cycle run on the repaired engine.
+An earlier pair of runs, one per inference backend, is what the backend comparison below
+reports; their gate results are void (\cref{sec:pipeline-found}), but the timings and the
+backend ratio are not affected by the search defects.
 
 \begin{table}[htbp]
 \centering
 \small
-\begin{tabular}{@{}llrrrrrr@{}}
+\begin{tabular}{@{}lrrrrrr@{}}
 \toprule
-Backend & Cycle & Self-play & Train & Export & Gate & Rows & Window \\
+Cycle & Self-play & Train & Export & Gate & Rows & Window \\
 \midrule
-sidecar    & 1 & 22.8 & 23.0 & 7.7 & 5.7 & 659 & 561 \\
-sidecar    & 2 &  0.0 & 17.7 & 8.4 & 8.9 & 663 & 786 \\
-sidecar    & 3 & 20.9 & 15.1 & 7.9 & 9.1 & 380 & 901 \\
-in-process & 1 & 17.4 & 21.9 & 6.7 & 3.1 & 659 & 561 \\
-in-process & 2 &  0.0 & 15.9 & 7.4 & 1.6 & 663 & 786 \\
+1 & 20.8 & 26.9 & 4.7 & 17.5 & 655 & 559 \\
+2 &  0.0 & 20.2 & 8.7 & 12.7 & 661 & 784 \\
+3 &  0.0 & 13.0 & 7.2 & 12.9 & 180 & 839 \\
 \bottomrule
 \end{tabular}
-\caption{Wall-clock seconds per stage in the end-to-end smoke runs, with self-play rows
-produced and the replay window used for training. Self-play time is the time the cycle
-waited; with overlap, cycle~2's games were already generated during cycle~1. Cycle~1
-gates against the heuristic evaluator; later cycles use SPRT against the champion.
-Promotion and publishing each took under 0.2\,s.}
+\caption{Wall-clock seconds per stage in a three-cycle smoke run on the repaired engine,
+with self-play rows produced and the replay window used for training. Self-play time is
+the time the cycle waited: with overlap, both later cycles' games had already been
+generated in the background. Cycle~1 gates against the heuristic evaluator; later cycles
+use SPRT against the champion. Promotion and publishing each took under 0.2\,s.}
 \label{tab:pipeline-e2e}
 \end{table}
 
 \paragraph{Observations.}
 \begin{itemize}
-  \item \emph{Overlap.} Cycle~2's self-play wait was at most 0.01\,s in both runs, because
-        its games were played in the background during cycle~1's training, export and
-        gate. In cycle~3 of the sidecar run, the wait was 20.9\,s. That cycle's games
-        started during cycle~2 but took longer than cycle~2's training and gating, so
-        overlap hides self-play only up to the length of the other stages.
-  \item \emph{Backend.} The same 20-game gate took 1.6\,s in-process and 8.9\,s with
+  \item \emph{Overlap.} Both later cycles waited at most 0.04\,s for self-play, because
+        their games had been produced in the background while the previous cycle trained,
+        exported and gated. In an earlier run one cycle waited 20.9\,s: overlap hides
+        self-play only up to the length of the other stages.
+  \item \emph{Backend.} The same 20-game gate took 1.6\,s in-process and 8.9\,s over
         sidecars. The sidecar figure includes starting two inference servers and waiting
-        for them to be healthy, which dominates at this tiny scale.
-  \item \emph{Reproducibility.} The same seeds gave identical row counts with both
-        backends (659 and 663), including cycle~2, where self-play used the network. This
-        is consistent with the per-game seeding of \cref{sec:selfplay-search}, but it is
-        not a proof of bit-identical games.
-  \item \emph{Gate behaviour.} The smoke networks are deliberately weak: the first seeded
-        champion lost all 10 games to the heuristic evaluator. Each later candidate scored
-        exactly 10--10 against it. The likelihood ratio stayed near zero ($-0.10$),
-        the 20-game cap was reached, and the fallback rule rejected, which is the intended
-        outcome for a candidate with no detectable gain.
-  \item \emph{Data.} Shards took 21--41\,KB per cycle. The generated shards were loaded by
-        the learner without conversion, and the parity-checked export succeeded in every
-        cycle.
+        for them to report healthy, which dominates at this scale.
+  \item \emph{Reproducibility.} The same seeds gave identical row counts under both
+        backends (659 and 663), including the cycles where self-play used the network.
+        This is consistent with the per-game seeding of \cref{sec:selfplay-search}, but it
+        is not proof of bit-identical games.
+  \item \emph{Gate behaviour.} The smoke networks are deliberately worthless---one or two
+        epochs on a few hundred positions---and the gate says so. The seeded champion lost
+        all 10 games to the heuristic evaluator, and each later candidate scored exactly
+        10--10 against it: with two equally weak networks and alternating colours, every
+        game goes to whoever holds White, so the score is 0.500 by construction. The
+        likelihood ratio stayed at $-0.10$, the cap was reached and the fallback rejected.
+        Before the search fixes this table looked the same, which is what made the defects
+        so hard to see; the difference is that the games now vary in length (6--24 moves
+        against the champion, up to 83 against the heuristic) instead of being 10 copies
+        of one game.
+  \item \emph{Data.} Shards took 12--38\,KB per cycle. They were loaded by the learner
+        without conversion, and the parity-checked export succeeded in every cycle.
 \end{itemize}
-A full smoke run took about 2.5 minutes of wall-clock time for three cycles, including the
-engine build.
+A full smoke run takes about three minutes of wall-clock time for three cycles, including
+the engine build.
 
 \paragraph{Gate length and error rates.}
 \Cref{tab:orch-gate-oc} in \cref{sec:orch-gate} gives the exact operating characteristics
