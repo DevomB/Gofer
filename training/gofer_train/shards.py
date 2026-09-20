@@ -196,7 +196,8 @@ def _iter_jsonl(path: Path) -> Iterator[dict]:
 def rows_from_jsonl(path: Path, board_size: int = 9) -> Rows:
     """Legacy JSONL -> Rows, normalizing conventions to the shard's.
 
-    * ownership: JSONL is absolute (Black=+1); shards are side-to-move.
+    * ownership: JSONL is absolute (Black=+1); shards are side-to-move. It is
+      required on every row, matching WriteSampleShard.
     * policy_opp: JSONL's ``policy_opp`` is the *previous* move's policy, not a
       reply target, so it is ignored; ``policy_next`` (if present) is used.
     * game ids: JSONL has none; a new game starts whenever move_num does not
@@ -236,8 +237,14 @@ def rows_from_jsonl(path: Path, board_size: int = 9) -> Rows:
         rows.full_search[i] = 1 if r.get("full_search", True) else 0
         sign = -1 if int(r.get("to_play", BLACK)) == WHITE else 1
         own = r.get("ownership")
-        if own and len(own) == board_size * board_size:
-            rows.ownership[i] = np.sign(np.asarray(own, np.float32) * sign).astype(np.int8)
+        if not own or len(own) != board_size * board_size:
+            raise ValueError(
+                f"{path}: row {i} has {len(own or ())} ownership labels, want "
+                f"{board_size * board_size}. The ownership loss is unmasked, so a "
+                f"zero-filled row trains the head toward neutral everywhere. "
+                f"WriteSampleShard rejects this too; regenerate the JSONL."
+            )
+        rows.ownership[i] = np.sign(np.asarray(own, np.float32) * sign).astype(np.int8)
         nxt = r.get("policy_next")
         if nxt and len(nxt) == pol:
             rows.policy_opp[i] = nxt

@@ -65,7 +65,9 @@ class GitHub:
 
     def _gh(self, *args: str) -> subprocess.CompletedProcess:
         cmd = ["gh", *args] + (["--repo", self.repo] if self.repo else [])
-        return subprocess.run(cmd, cwd=self.cwd, capture_output=True, text=True)
+        # check=False: callers inspect returncode (release_exists treats non-zero
+        # as "no such release"), so a failure here is not exceptional.
+        return subprocess.run(cmd, cwd=self.cwd, capture_output=True, text=True, check=False)
 
     def release_exists(self, tag: str) -> bool:
         return self._gh("release", "view", tag).returncode == 0

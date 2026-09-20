@@ -273,13 +273,6 @@ def test_elo_score_roundtrip_and_wilson():
     assert lo < 0.5 < hi and math.isclose(lo + hi, 1.0)
 
 
-def test_expected_games_shrinks_with_larger_gaps():
-    e = [stats.expected_games(0, 35, 0.05, 0.05, x) for x in (17.5, 100, 200)]
-    assert e[0] > e[1] > e[2] > 0
-
-
-# ------------------------------------------------------------------- config
-
 def test_config_overrides_and_validation(tmp_path):
     p = tmp_path / "c.toml"
     p.write_text('[gating]\nmax_games = 80\n[train.args]\nbatch-size = 128\n')

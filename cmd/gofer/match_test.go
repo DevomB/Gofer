@@ -50,10 +50,10 @@ func TestNoEarlyPromoteBeforeMinGames(t *testing.T) {
 	if reject {
 		t.Fatalf("30/46 hot streak must not reject early")
 	}
-	// Below accept floor: strong rate but not enough games.
+	// Below accept floor: a strong rate, but not enough games to decide either way.
 	accept, reject = promotionGateDecided(70, 99, 200, PromoteMin)
-	if accept {
-		t.Fatalf("70/99 must not accept before %d games", minGamesBeforePromote)
+	if accept || reject {
+		t.Fatalf("70/99 must not decide before %d games got accept=%v reject=%v", minGamesBeforePromote, accept, reject)
 	}
 	// Strong candidate still accepts once the floor is met.
 	accept, reject = promotionGateDecided(120, 200, 200, PromoteMin)

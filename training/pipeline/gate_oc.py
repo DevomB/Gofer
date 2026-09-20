@@ -164,7 +164,3 @@ def sprt_gate_oc(cfg: GatingConfig, elo: float, *, rule: ArenaRule | None = None
             if verdict == stats.ACCEPT or (verdict == stats.CONTINUE and final_rule(int(w), int(played), cfg.promote_win)):
                 p_accept += mass
     return GateOC(p_accept, games)
-
-
-def gate_curve(cfg: GatingConfig, elos: list[float]) -> list[tuple[float, GateOC]]:
-    return [(elo, sprt_gate_oc(cfg, elo)) for elo in elos]

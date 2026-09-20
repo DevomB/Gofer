@@ -47,8 +47,6 @@ def test_jsonl_to_rows_side_to_move_ownership() -> None:
     rows = rows_from_jsonl(FIXTURE)
     raw = [json.loads(line) for line in FIXTURE.read_text().splitlines()[1:] if line.strip()]
     for i, r in enumerate(raw[: len(rows)]):
-        if not r.get("ownership"):
-            continue
         sign = -1 if r["to_play"] == 2 else 1
         assert np.array_equal(rows.ownership[i], np.sign(np.asarray(r["ownership"]) * sign))
     # game ids increase whenever move_num resets
@@ -186,3 +184,17 @@ def test_export_gpool_from_trainer_checkpoint(tmp_path: Path) -> None:
     logits, value = sess.run(None, {"spatial_input": np.zeros((5, 8, 9, 9), np.float32),
                                     "global_input": np.zeros((5, 4), np.float32)})
     assert logits.shape == (5, 82) and value.shape == (5,)
+
+
+def test_jsonl_rejects_rows_without_ownership(tmp_path: Path) -> None:
+    """The ownership loss is unmasked, so an unlabelled row is not a neutral
+    board - it teaches the head that every point is neutral. WriteSampleShard
+    rejects this on the Go side; the JSONL path must agree."""
+    lines = FIXTURE.read_text().splitlines()
+    header, first = lines[0], json.loads(lines[1])
+    del first["ownership"]
+    bad = tmp_path / "no-ownership.jsonl"
+    bad.write_text("\n".join([header, json.dumps(first), *lines[2:]]))
+
+    with pytest.raises(ValueError, match="ownership labels"):
+        rows_from_jsonl(bad)

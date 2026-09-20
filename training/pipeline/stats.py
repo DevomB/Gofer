@@ -112,37 +112,3 @@ def tally_from_arena(report: dict) -> MatchTally:
         losses=int(report.get("wins_baseline", 0)),
         draws=int(report.get("draws", 0)),
     )
-
-
-def expected_games(elo0: float, elo1: float, alpha: float, beta: float, true_elo: float) -> float:
-    """Wald's approximation of the average SPRT sample size at a true Elo gap (for planning)."""
-    p0, p1, p = elo_to_score(elo0), elo_to_score(elo1), elo_to_score(true_elo)
-    a, b = sprt_bounds(alpha, beta)
-    step_w, step_l = math.log(p1 / p0), math.log((1 - p1) / (1 - p0))
-    drift = p * step_w + (1 - p) * step_l
-    if abs(drift) < 1e-9:
-        return -a * b / (step_w * step_w * p * (1 - p))
-    # Probability of ending at the upper bound under the true p (Wald's OC).
-    h = _oc_exponent(p, p0, p1)
-    if abs(h) < 1e-9:
-        pa = -a / (b - a)
-    else:
-        pa = (1 - math.exp(h * a)) / (math.exp(h * b) - math.exp(h * a))
-    return (pa * b + (1 - pa) * a) / drift
-
-
-def _oc_exponent(p: float, p0: float, p1: float) -> float:
-    """Solve p*(p1/p0)^h + (1-p)*((1-p1)/(1-p0))^h = 1 for h != 0 by bisection."""
-    rw, rl = p1 / p0, (1 - p1) / (1 - p0)
-
-    def f(h: float) -> float:
-        return p * rw**h + (1 - p) * rl**h - 1
-
-    lo, hi = (-50.0, -1e-6) if p * math.log(rw) + (1 - p) * math.log(rl) > 0 else (1e-6, 50.0)
-    for _ in range(200):
-        mid = (lo + hi) / 2
-        if (f(lo) < 0) == (f(mid) < 0):
-            lo = mid
-        else:
-            hi = mid
-    return (lo + hi) / 2

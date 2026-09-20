@@ -29,12 +29,15 @@ def softmax(x: np.ndarray) -> np.ndarray:
 def pick_providers() -> list[str]:
     available = set(ort.get_available_providers())
     if "CUDAExecutionProvider" in available:
+        # ORT advertising CUDA does not mean the driver works. torch is the
+        # cheapest probe we already depend on; if it is absent or cannot see a
+        # device, CPU is the right answer, not an error.
         try:
-            import torch  # noqa: F401
+            import torch
 
             if torch.cuda.is_available():
                 return ["CUDAExecutionProvider", "CPUExecutionProvider"]
-        except Exception:
+        except (ImportError, RuntimeError):
             pass
     return ["CPUExecutionProvider"]
 
