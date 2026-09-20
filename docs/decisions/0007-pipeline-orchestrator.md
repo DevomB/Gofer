@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted Sep 2026. Supersedes the loop mechanics of [ADR 0003](0003-iterative-training-loop.md). `scripts/train-loop-v3.sh` stays as the legacy path. The learner side is covered by [ADR 0006](0006-learner-v4.md).
+Accepted Sep 2026. Supersedes the loop mechanics of [ADR 0003](0003-iterative-training-loop.md). `scripts/train-loop-v3.sh` and its Python modules (`training/cycle.py`, `replay.py`, `manifest.py`) were removed in Sep 2026 once nothing referenced them; the v3 design is described below and in the git history. The learner side is covered by [ADR 0006](0006-learner-v4.md).
 
 ## Context
 

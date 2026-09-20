@@ -196,11 +196,14 @@ make bench-check    # compare before/after
 - Chinese + Tromp-Taylor rules, SGF import/export
 - PUCT MCTS, transposition table, parallel playouts
 - GTP subset, terminal play/analyze/watch, self-play samples
-- Arena gating, Wilson CI, training sample export
-- ONNX sidecar inference (`-eval onnx`), bootstrap 9×9 net
+- ONNX inference in-process via ONNX Runtime (default, `-tags=onnx`) or over an
+  HTTP sidecar (`-eval-backend sidecar`)
+- Self-play to binary shards, a multi-head learner, and a resumable training
+  loop with an SPRT promotion gate and a rollback-able champion registry
 
 ## Not yet
 
-- KataGo-level strength or full analysis API
-- In-process ONNX (CGO); sidecar is v2.5 default
+- KataGo-level strength. No long training run has been done; see
+  [`docs/known-issues.md`](docs/known-issues.md) for the current ceilings
+- A full analysis API (the GTP subset and `-analyze` are what exist)
 - Full time controls (byo-yomi); `time_left` uses remaining time as next-move budget

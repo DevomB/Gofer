@@ -11,7 +11,7 @@ champion we report, exactly:
 Gates compared:
   katago      200 games, promote on >= 100 wins (Wu 2020, App. E)
   gofer-v3    one 200-game arena with the Go arena's interim stops, then the
-              win-rate + Wilson rule (training/cycle.py)
+              win-rate + Wilson rule (the v3 loop; see ADR 0003)
   v4-default  the shipped defaults: SPRT(0, 35), alpha 0.05, beta 0.10,
               batches of 40, cap 600, v3 rule as fallback at the cap
   v4-actions  the free-runner budget: SPRT(0, 50), batches of 24, cap 240

@@ -217,14 +217,14 @@ Do not hallucinate answers; track in `research-traceability.md`.
 | search | `mcts.go`, `arena.go`, `tt.go` | MCTS/PUCT, playout caps, root noise — **no NN types** |
 | tree | `arena.go` | Node arena, visit counts, child slices |
 | eval | `evaluator.go` | `Evaluator` interface; heuristic, uniform, mock |
-| analysis | `cli.go` (`-analyze`) | Position analysis CLI (post-paper JSON API deferred) |
+| analysis | `interactive.go` (`-analyze`) | Position analysis CLI (post-paper JSON API deferred) |
 | gtp | `gtp.go` | GTP 2.x command loop |
 | selfplay | `selfplay.go`, `sample.go` | Game generation, cap randomization, sample export |
 | training | `sample.go`, `inference.go` (mock) | Sample schema, gating — not in-engine training |
 | bench | `cmd/bench` | Benchmark regression runner (exec, no import of gofer) |
 | model | `inference.go` (mock) | Feature/inference adapters (M11, external) |
 | sgf | `sgf.go`, `sgf_parse.go`, `game.go` | Parse/replay/export |
-| CLI | `main.go`, `cmdline.go`, `cli.go` | `-play`, `-analyze`, `-watch`, `-selfplay`, `-gtp`, `-sgf` |
+| CLI | `main.go`, `commands.go`, `interactive.go`, `evaluators.go` | `-play`, `-analyze`, `-watch`, `-selfplay`, `-gtp`, `-sgf` |
 
 **Dependency rule:** types compose in one `package main`; `eval` injected into `Engine`; never import training from hot board paths.
 

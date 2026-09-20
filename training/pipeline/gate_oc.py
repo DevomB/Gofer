@@ -41,7 +41,7 @@ class GateOC(NamedTuple):
 class ArenaRule:
     """The Go arena's in-call stopping rule (cmd/gofer/match.go)."""
 
-    promote_win: float = 0.55        # gating.go PromoteMin
+    promote_win: float = 0.55        # match.go PromoteMin
     min_games_before_stop: int = 20
     min_games_before_promote: int = 100
 

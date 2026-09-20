@@ -1,6 +1,6 @@
 # Training pipeline (orchestrator v4)
 
-`python -m training.pipeline` runs the whole reinforcement loop from one TOML config: self-play, train, export, gate, promote, publish. It is resumable at every stage, runs the same way on a laptop, a free CI runner, or a rented GPU, and replaces `scripts/train-loop-v3.sh`, which still works as the legacy path.
+`python -m training.pipeline` runs the whole reinforcement loop from one TOML config: self-play, train, export, gate, promote, publish. It is resumable at every stage, runs the same way on a laptop, a free CI runner, or a rented GPU, and replaces `scripts/train-loop-v3.sh`, whose Python side was removed once nothing depended on it.
 
 ```text
           ┌──────────── cycle N ─────────────────────────────────────────────┐
