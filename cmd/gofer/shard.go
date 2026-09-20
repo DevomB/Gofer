@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
+	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -38,6 +41,77 @@ type ShardMeta struct {
 
 func isShardPath(path string) bool {
 	return strings.HasSuffix(strings.ToLower(path), ".npz")
+}
+
+// writeFileAtomic writes data to a sibling temp file and renames it into place.
+//
+// The Python orchestrator caches hot-path artifacts by existence: run_match in
+// training/pipeline/runner.py reuses any arena report it finds instead of
+// replaying the match. A truncated file left behind by a kill mid-write is
+// therefore permanent — every resume skips the match and then fails to parse
+// the report. Renaming last means a reader sees either the previous file or
+// the complete new one.
+func writeFileAtomic(path string, data []byte, perm os.FileMode) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, perm); err != nil {
+		return err
+	}
+	if err := renameWithRetry(tmp, path); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return nil
+}
+
+// renameRetries and renameBackoff mirror write_json_atomic in
+// training/pipeline/state.py, which already retries for the same reason: on
+// Windows an indexer or AV scanner briefly holds the destination open and
+// MoveFileEx fails. Retrying beats failing a whole self-play or gating stage.
+const (
+	renameRetries = 10
+	renameBackoff = 50 * time.Millisecond
+)
+
+func renameWithRetry(oldpath, newpath string) error {
+	return retryRename(os.Rename, isTransientRenameErr, oldpath, newpath, renameRetries, renameBackoff)
+}
+
+// retryRename takes the rename and the predicate as arguments so the backoff
+// loop is testable without provoking a real sharing violation.
+func retryRename(rename func(string, string) error, transient func(error) bool,
+	oldpath, newpath string, attempts int, backoff time.Duration) error {
+	var err error
+	for attempt := 0; attempt < attempts; attempt++ {
+		if err = rename(oldpath, newpath); err == nil {
+			return nil
+		}
+		if !transient(err) {
+			return err
+		}
+		if attempt < attempts-1 {
+			time.Sleep(backoff * time.Duration(attempt+1))
+		}
+	}
+	return err
+}
+
+// isTransientRenameErr reports whether a failed rename is worth retrying. Only
+// Windows produces these: another handle on the destination yields a sharing,
+// lock or access error that clears on its own within milliseconds. Elsewhere a
+// rename failure is real, and retrying would only delay reporting it.
+func isTransientRenameErr(err error) bool {
+	if err == nil || runtime.GOOS != "windows" {
+		return false
+	}
+	var errno syscall.Errno
+	if !errors.As(err, &errno) {
+		return false
+	}
+	switch uintptr(errno) {
+	case 5, 32, 33: // ERROR_ACCESS_DENIED, ERROR_SHARING_VIOLATION, ERROR_LOCK_VIOLATION
+		return true
+	}
+	return false
 }
 
 // npyArray is one named column: dtype descr, shape, and little-endian payload.
@@ -88,7 +162,7 @@ func WriteSampleShard(path string, samples []Sample, meta ShardMeta) error {
 		return err
 	}
 	// Rename last so a crashed run never leaves a truncated shard for the trainer.
-	return os.Rename(tmp, path)
+	return renameWithRetry(tmp, path)
 }
 
 func buildShardArrays(samples []Sample) ([]npyArray, int, int, error) {
@@ -129,15 +203,34 @@ func buildShardArrays(samples []Sample) ([]npyArray, int, int, error) {
 			}
 			spatial = append(spatial, byte(v))
 		}
-		globals = appendF32(globals, s.FeaturesGlobal)
-		policy = appendF32(policy, s.Policy)
-		if len(s.PolicyNext) == pol {
-			policyNext = appendF32(policyNext, s.PolicyNext)
-		} else {
-			policyNext = appendF32(policyNext, zeroPolicy)
+		var err error
+		if globals, err = appendF32(globals, s.FeaturesGlobal, i, "features_global"); err != nil {
+			return nil, 0, 0, err
 		}
-		value = appendF32(value, []float32{s.Value})
-		score = appendF32(score, []float32{s.ScoreMargin})
+		if policy, err = appendF32(policy, s.Policy, i, "policy"); err != nil {
+			return nil, 0, 0, err
+		}
+		next := s.PolicyNext
+		if len(next) != pol {
+			next = zeroPolicy
+		}
+		if policyNext, err = appendF32(policyNext, next, i, "policy_opp"); err != nil {
+			return nil, 0, 0, err
+		}
+		if value, err = appendF32(value, []float32{s.Value}, i, "value"); err != nil {
+			return nil, 0, 0, err
+		}
+		if score, err = appendF32(score, []float32{s.ScoreMargin}, i, "score"); err != nil {
+			return nil, 0, 0, err
+		}
+		// Ownership is required on every row. The learner applies its ownership
+		// loss to all rows unmasked (training/gofer_train/losses.py), so a
+		// zero-filled row is indistinguishable from a genuinely neutral board
+		// and would train the head toward "neutral everywhere". Self-play always
+		// labels it (labelGameSamples); -convert-sgf writes JSONL, not shards.
+		if len(s.Ownership) != points {
+			return nil, 0, 0, fmt.Errorf("shard: sample %d has %d ownership labels, want %d; shard v1 requires ownership on every row", i, len(s.Ownership), points)
+		}
 		// Ownership labels are absolute (Black=+1); flip to the side-to-move frame
 		// to match value, score, and the own/opp input planes.
 		sign := float32(1)
@@ -145,11 +238,7 @@ func buildShardArrays(samples []Sample) ([]npyArray, int, int, error) {
 			sign = -1
 		}
 		for p := 0; p < points; p++ {
-			var o float32
-			if len(s.Ownership) == points {
-				o = s.Ownership[p] * sign
-			}
-			ownership = append(ownership, byte(int8(clampOwnership(o))))
+			ownership = append(ownership, byte(int8(clampOwnership(s.Ownership[p]*sign))))
 		}
 		if s.FullSearch {
 			full = append(full, 1)
@@ -187,11 +276,18 @@ func clampOwnership(o float32) int {
 	}
 }
 
-func appendF32(dst []byte, vals []float32) []byte {
+// appendF32 encodes a float32 column, rejecting NaN and Inf. The spatial planes
+// are already validated value-by-value above; the float columns deserve the same
+// guard, because one non-finite label silently poisons a whole training batch's
+// loss with nothing on disk to trace it back to.
+func appendF32(dst []byte, vals []float32, sample int, field string) ([]byte, error) {
 	for _, v := range vals {
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+			return nil, fmt.Errorf("shard: sample %d has non-finite %s value %v; shard v1 stores finite float32 columns", sample, field, v)
+		}
 		dst = binary.LittleEndian.AppendUint32(dst, math.Float32bits(v))
 	}
-	return dst
+	return dst, nil
 }
 
 func writeNPZ(f *os.File, arrays []npyArray) error {

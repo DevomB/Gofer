@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -130,10 +131,98 @@ func TestLabelGameSamplesPolicyNext(t *testing.T) {
 	}
 }
 
+// validShardSample is a minimal row that passes every buildShardArrays check,
+// so a test can invalidate exactly one field and know that is what failed.
+func validShardSample(size int) Sample {
+	points := size * size
+	return Sample{
+		ToPlay:          Black,
+		Policy:          make([]float32, points+1),
+		FeaturesSpatial: make([]float32, 8*points),
+		FeaturesGlobal:  make([]float32, 4),
+		Ownership:       make([]float32, points),
+	}
+}
+
 func TestWriteSampleShardRejectsMixedSizes(t *testing.T) {
-	a := Sample{Policy: make([]float32, 82), FeaturesSpatial: make([]float32, 8*81), FeaturesGlobal: make([]float32, 4)}
-	b := Sample{Policy: make([]float32, 170), FeaturesSpatial: make([]float32, 8*169), FeaturesGlobal: make([]float32, 4)}
-	if err := WriteSampleShard(filepath.Join(t.TempDir(), "x.npz"), []Sample{a, b}, ShardMeta{}); err == nil {
+	a, b := validShardSample(9), validShardSample(13)
+	err := WriteSampleShard(filepath.Join(t.TempDir(), "x.npz"), []Sample{a, b}, ShardMeta{})
+	if err == nil {
 		t.Fatal("expected mixed-size error")
+	}
+	if !strings.Contains(err.Error(), "shape differs") {
+		t.Fatalf("want the shape error, got %v", err)
+	}
+}
+
+// A row without ownership must not be written as zeros: the learner applies its
+// ownership loss unmasked, so zeros train the head toward "neutral everywhere".
+func TestWriteSampleShardRejectsMissingOwnership(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		own  []float32
+	}{
+		{"absent", nil},
+		{"empty", []float32{}},
+		{"wrong length", make([]float32, 80)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := validShardSample(9)
+			s.Ownership = tc.own
+			err := WriteSampleShard(filepath.Join(t.TempDir(), "x.npz"), []Sample{s}, ShardMeta{})
+			if err == nil {
+				t.Fatal("expected an ownership error, shard was written")
+			}
+			if !strings.Contains(err.Error(), "ownership") {
+				t.Fatalf("want an ownership error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestWriteSampleShardRejectsNonFiniteFloats(t *testing.T) {
+	nan, inf := float32(math.NaN()), float32(math.Inf(1))
+	for _, tc := range []struct {
+		name  string
+		field string
+		spoil func(*Sample)
+	}{
+		{"value NaN", "value", func(s *Sample) { s.Value = nan }},
+		{"score +Inf", "score", func(s *Sample) { s.ScoreMargin = inf }},
+		{"score -Inf", "score", func(s *Sample) { s.ScoreMargin = float32(math.Inf(-1)) }},
+		{"policy NaN", "policy", func(s *Sample) { s.Policy[3] = nan }},
+		{"globals NaN", "features_global", func(s *Sample) { s.FeaturesGlobal[1] = nan }},
+		{"policy_opp NaN", "policy_opp", func(s *Sample) {
+			s.PolicyNext = make([]float32, len(s.Policy))
+			s.PolicyNext[0] = nan
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := validShardSample(9)
+			tc.spoil(&s)
+			path := filepath.Join(t.TempDir(), "x.npz")
+			err := WriteSampleShard(path, []Sample{s}, ShardMeta{})
+			if err == nil {
+				t.Fatal("expected a non-finite error, shard was written")
+			}
+			if !strings.Contains(err.Error(), "non-finite") || !strings.Contains(err.Error(), tc.field) {
+				t.Fatalf("want a non-finite %s error, got %v", tc.field, err)
+			}
+			if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+				t.Fatal("a rejected shard must not be left on disk")
+			}
+		})
+	}
+}
+
+// The validation must not reject anything self-play legitimately produces.
+func TestWriteSampleShardAcceptsRealSelfplayRows(t *testing.T) {
+	cfg := testSelfplayConfig("heuristic", 2)
+	samples, _ := RunSelfplayWithLogs(cfg)
+	if len(samples) == 0 {
+		t.Fatal("no samples")
+	}
+	if err := WriteSampleShard(filepath.Join(t.TempDir(), "s.npz"), samples, ShardMeta{}); err != nil {
+		t.Fatalf("self-play rows must pass validation: %v", err)
 	}
 }

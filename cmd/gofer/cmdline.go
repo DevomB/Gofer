@@ -213,7 +213,9 @@ func runArenaCLI(f cliFlags) {
 		os.Exit(1)
 	}
 	if f.arenaJSON != "" {
-		if err := os.WriteFile(f.arenaJSON, data, 0644); err != nil {
+		// Atomic: the gating stage caches batch reports by existence, so a
+		// report truncated by a kill mid-write would fail every later resume.
+		if err := writeFileAtomic(f.arenaJSON, data, 0644); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -332,7 +334,7 @@ func writeSelfplayJSON(path string, samples []Sample) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := writeFileAtomic(path, data, 0644); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
