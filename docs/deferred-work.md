@@ -72,7 +72,7 @@ concurrency change; batch size is the cheap 80%.
 
 ## 2. Three `-run` omissions in the Makefile, one of which ships
 
-**Status:** evidenced, unassigned, not done.
+**Status:** done (`2d12a58`). Kept for the reasoning, which generalises.
 
 `go test` defaults `-run` to `.*`, so `go test -bench=X` executes the entire
 test suite before reaching the benchmark. Fixed in
@@ -94,7 +94,24 @@ engine paths — but it is not the profile the target claims to produce, and
 nobody can say what is in it. Regenerating `default.pgo` after the fix makes
 the production binary a genuinely different artifact.
 
-**Fix:** insert `-run '^$'` (matches no test) in all three.
+**Fixed** by inserting `-run '^$'` in all three, and by changing what
+`pgo-profile` profiles. PGO wants a profile of what the binary does, which is
+search; legal-move generation is a leaf inside it. The target now runs
+`BenchmarkBestMove` and `BenchmarkSearchParallel` alongside `BenchmarkLegalMoves`.
+
+The `default.pgo` found in the working tree was dated 29 June: `removeDeadGroups`
+at 26% of samples, no MCTS anywhere in its top twelve, and samples attributed to
+`Board.Neighbors`, deleted the same day it was found. So it profiled a test
+suite, running on the pre-[ADR 0008](decisions/0008-search-correctness.md) engine
+whose search never left the root, partly against symbols that no longer exist.
+Deleted and regenerated. A clean checkout never had one; it is gitignored.
+
+**Worth keeping from this:** a profile is an artifact with a provenance, and
+nothing in the toolchain will tell you it describes a binary that no longer
+exists. The regenerated one also measured something previously only suspected —
+roughly 22% of search samples land in synchronisation (`procyieldAsm`,
+`semasleep`, `semawakeup`, `preemptM`), which is the root-parallel contention in
+[known-issues](known-issues.md).
 
 ---
 
@@ -191,3 +208,93 @@ The Go side now fails with a clear error above 2 GiB rather than being killed
 by the OS. The Python side has no bound; the right fix there is a batched
 reader in the learner, which is not worth a speculative rewrite until a 19x19
 run is actually planned.
+
+---
+
+## 7. `main` and this branch have diverged, and the website links to `main`
+
+**Status:** structural, needs a decision rather than a fix.
+
+`origin/main` still carries the twenty documents this branch reduced to fifteen,
+including the four backlogs, both optimization files and the v3 plans. It has
+ADRs 0001–0005; this branch has 0001–0008 plus this file. The engine on `main`
+predates every fix in ADR 0008.
+
+`web/index.html` links to `blob/main/...`. That is currently the only reason its
+links resolve: it pointed at `docs/implementation-blueprint.md` for hours after
+that file was deleted here. The links were changed to paths that exist in both
+states, and the ADR count was removed from the prose because five is right on
+one branch and eight on the other.
+
+That is a patch over the real issue. Until the branch merges, the public site
+describes a project state that is not on the branch it links to, and every new
+document is unreachable from it.
+
+**Decision needed, not a fix:** merge, or point the site at the branch and
+accept churn at merge time. Whoever merges should re-check the site's links and
+counts, which are measured in `54fcd93` and will drift again.
+
+---
+
+## 8. The fallback threshold is a guess
+
+**Status:** shipped at 2%, never calibrated.
+
+`maxEvalFallbackRate` in `cmd/gofer/eval_health.go` is 2%. Above it the arena
+refuses to report and self-play refuses to write a shard. The number was chosen
+so a handful of timeouts across a 600-game gate would not make gating flaky, not
+from any measurement of what the fallback rate actually is in healthy operation.
+
+**The data now exists to calibrate it.** Every gate report carries
+`eval_fallback_rate` and every shard carries it in `ShardMeta`. The baseline run
+at commit `0f93a7d` produced fifteen gate reports with a rate of exactly `0` — so
+in a healthy in-process run the true rate is zero, not "small", and 2% may be
+two orders of magnitude too generous.
+
+**How to settle it:** read the distribution across a completed run, then set the
+bar just above whatever healthy operation actually produces. Check the sidecar
+backend separately before tightening: it crosses a process boundary and has a
+real timeout, so its healthy rate is probably not zero.
+
+---
+
+## 9. The loop has not yet been shown to close
+
+**Status:** the open question. Everything else is in service of it.
+
+This is not a defect and not a task; it is what the current run is for, recorded
+so the next person knows what the run was asking.
+
+As of cycle 4 of the baseline run (`0f93a7d`, 32 vCPU, `pipeline-cpu.toml`,
+`engine.batch_size=8`):
+
+| cycle | outcome | games | note |
+|---|---|---|---|
+| 1 | seed promote → gen 1 | 40 vs heuristic | score 0.425, **−52 Elo**: the first net is weaker than the heuristic it learned from |
+| 2 | **REJECT** | 320 | SPRT accepted H0 |
+| 3 | **REJECT** | 160 | SPRT accepted H0 |
+| 4 | in progress | — | first batch positive (0.600, LLR +0.60) |
+
+Two consecutive rejections is not yet evidence of failure — 200 games and ~16k
+rows per cycle is very little data, and gen 1 is itself weak. But it is the
+thing to watch, and it is the reason the batch-size optimisation was deferred:
+making an unvalidated loop faster buys a faster unvalidated loop.
+
+**What would settle it:** the anchor curve in §3. If the vs-heuristic score
+climbs toward and past 0.5, the loop closes and the net stops being a worse
+evaluator than the hand-written one. If it is flat at cycle 20 while the SPRT
+keeps promoting, the gate is measuring drift.
+
+**Cycle cost at this configuration,** for anyone sizing a future run:
+
+| stage | cycle 2 | share |
+|---|---|---|
+| self-play | 287s | 17% |
+| train | 27s | 2% |
+| gate | 1343s | 81% |
+
+The gate dominates, and it is inference-bound for the same reason self-play is
+(§1). Cycle 1 is not representative: it is heuristic-only, and at 229s it is the
+cheapest cycle a run will ever have. Do not extrapolate from it — that mistake
+produced a confident and wrong conclusion that a GPU would not help this
+workload.
