@@ -116,7 +116,7 @@ func newSelfplayEvalPool(cfg SelfplayConfig) (evalPool, func()) {
 	if minBatch < 1 {
 		minBatch = 1
 	}
-	onnx := newONNXEvaluator(minBatch)
+	onnx := newONNXEvaluator(champion, minBatch)
 	pool.onnx = onnx
 	return pool, func() {
 		if c, ok := onnx.(*BatchedEvaluator); ok {

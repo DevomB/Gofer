@@ -143,3 +143,39 @@ func TestBatchedEvaluatorSidecarParallel(t *testing.T) {
 		t.Fatal("deadlock in parallel sidecar batched eval")
 	}
 }
+
+// The challenger slot must reach the second sidecar. It previously could not:
+// the constructor resolved the model for onnx2 but then built the backend
+// against evalConfig.ONNXURL unconditionally, so `-eval-backend sidecar` played
+// the champion against itself and every candidate gated at about 0.500.
+func TestChallengerSlotUsesSecondSidecar(t *testing.T) {
+	saved := evalConfig
+	t.Cleanup(func() { evalConfig = saved })
+	evalConfig = EvalConfig{
+		ModelPath:  "champion.onnx",
+		ModelPath2: "candidate.onnx",
+		ONNXURL:    "http://127.0.0.1:8080",
+		ONNXURL2:   "http://127.0.0.1:8081",
+		Backend:    "sidecar",
+	}
+
+	if model, url := resolveONNXSlot(champion); model != "champion.onnx" || url != "http://127.0.0.1:8080" {
+		t.Errorf("champion resolved to (%q, %q)", model, url)
+	}
+	if model, url := resolveONNXSlot(challenger); model != "candidate.onnx" || url != "http://127.0.0.1:8081" {
+		t.Errorf("challenger resolved to (%q, %q), want the second model and sidecar", model, url)
+	}
+}
+
+// With no second model or URL configured, onnx2 is the same engine as onnx.
+// Arena runs rely on this to compare two playout budgets on one net.
+func TestChallengerSlotFallsBackToChampion(t *testing.T) {
+	saved := evalConfig
+	t.Cleanup(func() { evalConfig = saved })
+	evalConfig = EvalConfig{ModelPath: "only.onnx", ONNXURL: "http://host:9000", Backend: "sidecar"}
+
+	model, url := resolveONNXSlot(challenger)
+	if model != "only.onnx" || url != "http://host:9000" {
+		t.Errorf("challenger fallback resolved to (%q, %q)", model, url)
+	}
+}

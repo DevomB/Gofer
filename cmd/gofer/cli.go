@@ -27,9 +27,9 @@ func parseEvaluator(name string) Evaluator {
 			evalConfig.EvalTimeout,
 		)
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
-		return newONNXEvaluator(evalConfig.BatchSize)
+		return newONNXEvaluator(champion, evalConfig.BatchSize)
 	case strings.EqualFold(name, "onnx2"):
-		return newONNXEvaluatorSecondary(evalConfig.BatchSize)
+		return newONNXEvaluator(challenger, evalConfig.BatchSize)
 	case strings.EqualFold(name, "heuristic2"):
 		return Heuristic{}
 	default:
@@ -37,70 +37,66 @@ func parseEvaluator(name string) Evaluator {
 	}
 }
 
-// newONNXEvaluator builds a batched ONNX evaluator (sidecar or in-process).
-func newONNXEvaluator(minBatch int) Evaluator {
-	return newONNXEvaluatorModel(evalConfig.ModelPath, minBatch)
-}
+// onnxSlot selects which of the two configured ONNX evaluators to build. Arena
+// gating runs the champion in one slot and the challenger in the other.
+type onnxSlot int
 
-// newONNXEvaluatorSecondary builds the second ONNX evaluator (onnx2 / challenger model).
-func newONNXEvaluatorSecondary(minBatch int) Evaluator {
-	model := evalConfig.ModelPath2
-	if model == "" {
-		model = evalConfig.ModelPath
-	}
-	return newONNXEvaluatorModel(model, minBatch)
-}
+const (
+	champion onnxSlot = iota
+	challenger
+)
 
-// newONNXEvaluatorURL builds a batched sidecar evaluator against an explicit URL.
-func newONNXEvaluatorURL(url string, minBatch int) Evaluator {
-	if evalBackendInprocess() {
-		model := evalConfig.ModelPath
-		if url == evalConfig.ONNXURL2 {
+// resolveONNXSlot returns the model path and sidecar URL configured for a slot.
+// The challenger falls back to the champion's setting for each independently, so
+// a single-model run can still name onnx2 without configuring a second of
+// everything.
+func resolveONNXSlot(slot onnxSlot) (model, url string) {
+	model, url = evalConfig.ModelPath, evalConfig.ONNXURL
+	if slot == challenger {
+		if evalConfig.ModelPath2 != "" {
 			model = evalConfig.ModelPath2
-			if model == "" {
-				model = evalConfig.ModelPath
-			}
 		}
-		return newONNXEvaluatorModel(model, minBatch)
+		if evalConfig.ONNXURL2 != "" {
+			url = evalConfig.ONNXURL2
+		}
 	}
-	if url == "" {
-		url = "http://127.0.0.1:8080"
-	}
+	return model, url
+}
+
+// newONNXEvaluator builds a batched evaluator for one slot, backed either by
+// in-process ONNX Runtime or by an HTTP sidecar according to evalConfig.Backend.
+// The heuristic is the fallback on both paths.
+func newONNXEvaluator(slot onnxSlot, minBatch int) Evaluator {
 	if minBatch < 1 {
 		minBatch = evalConfig.BatchSize
 	}
-	return NewBatchedEvaluatorWithTimeout(
-		SidecarBackend{
+	model, url := resolveONNXSlot(slot)
+
+	var backend EvalBackend
+	if evalBackendInprocess() {
+		ort, err := newORTBackend(model, Heuristic{})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "in-process ONNX: %v\n", err)
+			os.Exit(1)
+		}
+		backend = ort
+	} else {
+		if url == "" {
+			url = "http://127.0.0.1:8080"
+		}
+		backend = SidecarBackend{
 			URL:      url,
 			Fallback: Heuristic{},
 			Client:   &http.Client{Timeout: evalConfig.EvalTimeout},
-		},
+		}
+	}
+	return NewBatchedEvaluatorWithTimeout(
+		backend,
 		Heuristic{},
 		minBatch,
 		evalConfig.MaxWait,
 		evalConfig.EvalTimeout,
 	)
-}
-
-func newONNXEvaluatorModel(modelPath string, minBatch int) Evaluator {
-	if minBatch < 1 {
-		minBatch = evalConfig.BatchSize
-	}
-	if evalBackendInprocess() {
-		backend, err := newORTBackend(modelPath, Heuristic{})
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "in-process ONNX: %v\n", err)
-			os.Exit(1)
-		}
-		return NewBatchedEvaluatorWithTimeout(
-			backend,
-			Heuristic{},
-			minBatch,
-			evalConfig.MaxWait,
-			evalConfig.EvalTimeout,
-		)
-	}
-	return newONNXEvaluatorURL(evalConfig.ONNXURL, minBatch)
 }
 
 func newSearchEngine(r Ruleset, playouts int, think time.Duration, evalName string) *Engine {

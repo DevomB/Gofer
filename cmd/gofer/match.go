@@ -421,9 +421,9 @@ func buildArenaEvaluators(cfg MatchConfig) (map[string]Evaluator, func()) {
 func buildSharedEvaluator(name string, minBatch int) Evaluator {
 	switch {
 	case strings.EqualFold(name, "onnx"), strings.EqualFold(name, "onnx-batch"):
-		return newONNXEvaluator(minBatch)
+		return newONNXEvaluator(champion, minBatch)
 	case strings.EqualFold(name, "onnx2"):
-		return newONNXEvaluatorSecondary(minBatch)
+		return newONNXEvaluator(challenger, minBatch)
 	case strings.EqualFold(name, "heuristic2"):
 		return Heuristic{} // alias for symmetric arena bias tests (same strength as heuristic)
 	default:
