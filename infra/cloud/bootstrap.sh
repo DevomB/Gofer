@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Prepare a fresh Linux x86-64 box (rented GPU VM, RunPod/Vast container, home
-# server) to run the Gofer pipeline without Docker. Idempotent: safe to rerun.
+# Prepare a fresh Linux box, x86-64 or arm64 (rented GPU VM, RunPod/Vast
+# container, Graviton, home server) to run the Gofer pipeline without Docker.
+# Idempotent: safe to rerun.
 #
 #   bash infra/cloud/bootstrap.sh            # from a checkout
 #   GOFER_CONFIG=configs/pipeline-gpu.toml bash infra/cloud/bootstrap.sh --run
@@ -19,6 +20,18 @@ ART="$ROOT/.tectonix/artifacts"
 
 log() { echo "[bootstrap] $*"; }
 
+# Go and ONNX Runtime spell the same machine differently, so resolve both once.
+# Mirrors ORT_BUILDS in training/pipeline/procs.py; keep the two in step.
+case "$(uname -m)" in
+  x86_64|amd64)  GO_ARCH=amd64; ORT_NAME="onnxruntime-linux-x64-${ORT_VERSION}" ;;
+  aarch64|arm64) GO_ARCH=arm64; ORT_NAME="onnxruntime-linux-aarch64-${ORT_VERSION}" ;;
+  *)
+    log "no pinned Go / ONNX Runtime build for $(uname -m)."
+    log "The sidecar backend runs anywhere Python onnxruntime installs:"
+    log "  python -m training.pipeline run --config <cfg> --set 'engine.backend=\"sidecar\"'"
+    exit 1 ;;
+esac
+
 need_go() {
   command -v go >/dev/null 2>&1 || return 0
   local have; have="$(go env GOVERSION | sed 's/^go//')"
@@ -27,17 +40,17 @@ need_go() {
 
 if need_go; then
   log "installing Go ${GO_VERSION}"
-  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" -o /tmp/go.tgz
+  curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tgz
   sudo_cmd=""; [[ $EUID -ne 0 ]] && sudo_cmd="sudo"
   $sudo_cmd rm -rf /usr/local/go && $sudo_cmd tar -C /usr/local -xzf /tmp/go.tgz
 fi
 export PATH="/usr/local/go/bin:$PATH"
 
-ORT_LIB="$ART/onnxruntime-linux-x64-${ORT_VERSION}/lib/libonnxruntime.so.${ORT_VERSION}"
+ORT_LIB="$ART/${ORT_NAME}/lib/libonnxruntime.so.${ORT_VERSION}"
 if [[ ! -f "$ORT_LIB" ]]; then
   log "downloading ONNX Runtime ${ORT_VERSION}"
   mkdir -p "$ART"
-  curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz" | tar -xz -C "$ART"
+  curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/${ORT_NAME}.tgz" | tar -xz -C "$ART"
 fi
 export ONNXRUNTIME_SHARED_LIBRARY_PATH="$ORT_LIB"
 

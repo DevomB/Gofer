@@ -1,6 +1,11 @@
 # syntax=docker/dockerfile:1
 # Gofer training image: engine (Go + in-process ONNX Runtime) + learner (PyTorch)
-# + orchestrator. One image runs the whole loop on any GPU/CPU host.
+# + orchestrator. One image runs the whole loop on a GPU or CPU host.
+#
+# linux/amd64 only, deliberately: the ORT archive below is pinned to one
+# architecture, as is the CUDA base. An image is built against a specific base,
+# so pinning is honest here. For arm64 (Graviton, Apple Silicon) provision the
+# host directly with infra/cloud/bootstrap.sh, which resolves the architecture.
 #
 #   GPU (default):  docker build -f infra/docker/Dockerfile -t gofer-train .
 #   CPU only:       docker build -f infra/docker/Dockerfile -t gofer-train:cpu \
