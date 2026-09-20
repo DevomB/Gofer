@@ -32,6 +32,29 @@ case "$(uname -m)" in
     exit 1 ;;
 esac
 
+sudo_cmd() { [[ $EUID -eq 0 ]] || echo sudo; }
+
+# A bare cloud image has neither a C toolchain nor, on Debian, the separate
+# venv package. cgo needs the first for -tags=onnx and this script needs the
+# second three lines later, so check both before doing any work.
+ensure_build_deps() {
+  local missing=()
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || missing+=("a C compiler")
+  python3 -c "import ensurepip" >/dev/null 2>&1 || missing+=("python venv support")
+  (( ${#missing[@]} )) || return 0
+  log "installing: ${missing[*]}"
+  if command -v apt-get >/dev/null 2>&1; then
+    $(sudo_cmd) apt-get update -qq
+    $(sudo_cmd) apt-get install -y -qq build-essential python3-venv
+  elif command -v dnf >/dev/null 2>&1; then
+    $(sudo_cmd) dnf install -y -q gcc
+  else
+    log "no apt-get or dnf; install ${missing[*]} by hand and rerun"
+    exit 1
+  fi
+}
+ensure_build_deps
+
 need_go() {
   command -v go >/dev/null 2>&1 || return 0
   local have; have="$(go env GOVERSION | sed 's/^go//')"
@@ -41,8 +64,7 @@ need_go() {
 if need_go; then
   log "installing Go ${GO_VERSION}"
   curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz" -o /tmp/go.tgz
-  sudo_cmd=""; [[ $EUID -ne 0 ]] && sudo_cmd="sudo"
-  $sudo_cmd rm -rf /usr/local/go && $sudo_cmd tar -C /usr/local -xzf /tmp/go.tgz
+  $(sudo_cmd) rm -rf /usr/local/go && $(sudo_cmd) tar -C /usr/local -xzf /tmp/go.tgz
 fi
 export PATH="/usr/local/go/bin:$PATH"
 
