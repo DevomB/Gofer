@@ -211,9 +211,6 @@ func (e *Engine) runSearch(b *Board) int {
 		e.root = e.arena.Root()
 	}
 	e.ensureRootExpanded(b)
-	if e.cfg.ForcedRootPlayouts > 0 {
-		e.runForcedRootPlayouts(b)
-	}
 	if e.cfg.ThinkTime > 0 {
 		deadline := time.Now().Add(e.cfg.ThinkTime)
 		n := 0
@@ -224,6 +221,9 @@ func (e *Engine) runSearch(b *Board) int {
 		return n
 	}
 	e.runPlayouts(b, e.cfg.Playouts)
+	if e.cfg.ForcedRootPlayouts > 0 {
+		e.runForcedRootPlayouts(b)
+	}
 	return e.cfg.Playouts
 }
 
@@ -284,8 +284,15 @@ func (e *Engine) runForcedRootPlayouts(b *Board) {
 	for _, cidx := range children {
 		e.mu.Lock()
 		c := e.arena.Get(cidx)
-		target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
-		need := target - int(c.Visits)
+		need := 0
+		// "for each child c of the root that has received any playouts" (Wu 2020,
+		// SS3.2). Forcing a floor on every child instead floods the root: on 9x9
+		// that is 82 children times k, which at a 200-playout budget outnumbers the
+		// search itself and flattens the visit distribution -- the policy target.
+		if c.Visits > 0 {
+			target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
+			need = target - int(c.Visits)
+		}
 		e.mu.Unlock()
 		for need > 0 {
 			e.runPlayoutForced(b, cidx)

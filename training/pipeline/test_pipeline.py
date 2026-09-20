@@ -245,6 +245,7 @@ def test_inprocess_backend_passes_models(tmp_path, monkeypatch):
     build = ex.calls[0]
     assert "-tags=onnx" in build
     arena = [c for c in ex.calls if ex.kind(c) == "arena"][-1]
+    assert "-arena-play-all" in arena  # batches must be the fixed size the SPRT assumes
     assert _arg(arena, "-model").endswith("gen-0001.onnx")
     assert _arg(arena, "-model-2").endswith("candidate-0002.onnx")
     assert not ex.sidecars

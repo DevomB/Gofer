@@ -44,6 +44,7 @@ type cliFlags struct {
 	arenaParallel                              int
 	arenaOpeningMoves                          int
 	arenaTemp                                  float64
+	arenaPlayAll                               bool
 }
 
 func parseCLIFlags() cliFlags {
@@ -97,6 +98,7 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.arenaParallel, "arena-parallel", 8, "concurrent arena games (shared evaluators feed real batches to the sidecars)")
 	flag.IntVar(&f.arenaOpeningMoves, "arena-opening-moves", 8, "opening plies sampled from the visit distribution so match games differ (0 = deterministic, identical games)")
 	flag.Float64Var(&f.arenaTemp, "arena-temp", 1.0, "sampling temperature for arena opening plies")
+	flag.BoolVar(&f.arenaPlayAll, "arena-play-all", false, "play every arena game: no in-match promotion stop (measurement runs, and callers running their own sequential test)")
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
 		ModelPath:   f.modelPath,
@@ -205,6 +207,7 @@ func runArenaCLI(f cliFlags) {
 		Parallel:      f.arenaParallel,
 		OpeningMoves:  f.arenaOpeningMoves,
 		OpeningTemp:   f.arenaTemp,
+		PlayAllGames:  f.arenaPlayAll,
 	}
 	result := RunMatch(cfg)
 	data, err := json.MarshalIndent(result, "", "  ")

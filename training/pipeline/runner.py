@@ -387,6 +387,10 @@ class Pipeline:
             "-arena-opening-moves", str(g.opening_moves),
             "-eval-timeout", self.cfg.engine.eval_timeout,
             "-arena-enhanced", "none",
+            # The engine has its own in-match promotion stop, which fires on the same
+            # win/loss stream this batch feeds to the SPRT. Two stopping rules stacked
+            # on one stream is not a test with known error rates, so batches play out.
+            "-arena-play-all",
             "-seed", str(seed),
             "-json", str(report),
         ]

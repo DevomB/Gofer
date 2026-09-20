@@ -24,6 +24,21 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
   and finished positions were scored by the evaluator instead of the rules, so the engine
   walked into lost endings. Terminal results are never cached in the transposition table,
   whose key does not cover pass history.
+- **Forced playouts flooded the root.** Wu (2020) forces extra playouts only on root
+  children that already have visits; Gofer forced a floor on every child, before the search
+  instead of after it. On 9x9 that is 82 children, outnumbering a 200-playout budget, and it
+  flattened the visit distribution that becomes the policy target. At identical settings the
+  top move now holds 0.199 of the visits instead of 0.159, over 24.3 moves instead of 41.5.
+- **`-arena-enhanced baseline` silently meant "both".** The mode was resolved by comparing
+  evaluator names, and the project's own baseline command uses the same name on both sides.
+  Because forced playouts act at the root, this masked the root defects in the very
+  measurement meant to detect them. It now follows the baseline role across the colour swap,
+  and the baseline command uses `-arena-enhanced none`.
+- **Measurement runs stopped early on the statistic they measured.** A match ends when its
+  promotion gate decides; `minGamesBeforePromote` guards only the accept branch, so a
+  200-game bias test silently played 169, stopping when the challenger fell behind. The same
+  rule ran inside every gate batch, stacking a second stopping rule under the SPRT.
+  `-arena-play-all` disables it, and the gate and the measurement tests both pass it.
 - **Arena role attribution was biased.** Per-game seeds were linear in the game index while
   colours swapped on the same parity, so one role systematically drew correlated openings.
   With two evaluators that are literally the same code, roles split 36/64, 55/26 and 55/30

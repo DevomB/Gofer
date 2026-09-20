@@ -29,6 +29,11 @@ type MatchConfig struct {
 	Parallel      int     // concurrent games sharing one evaluator per role
 	OpeningMoves  int     // opening plies sampled from the visit distribution (0 = deterministic argmax)
 	OpeningTemp   float64 // sampling temperature for those opening plies
+	// PlayAllGames disables the in-match promotion stop. Measurement runs need it:
+	// the stop fires on the same win/loss stream the caller is measuring, so it
+	// truncates the sample exactly when the challenger is losing. Callers that run
+	// their own sequential test (the v4 gate) also need a fixed batch size.
+	PlayAllGames bool
 }
 
 // GameSummary is one arena game outcome.
@@ -118,7 +123,8 @@ const promoteCILow = 0.5
 const minGamesBeforeStop = 20
 
 // minGamesBeforePromote blocks early promotion on short runs; reject can still
-// fire once the win-rate bar is unreachable.
+// fire once the win-rate bar is unreachable. Raising it therefore does NOT make a
+// match play every game -- use MatchConfig.PlayAllGames for that.
 var minGamesBeforePromote = 100
 
 // promotionGateDecided reports whether the head-to-head gate is already
@@ -210,7 +216,7 @@ func RunMatch(cfg MatchConfig) MatchResult {
 				cfg, summary, prog.baselineWins, prog.challengerWins,
 			)
 			prog.played++
-			if cfg.BlackEval != cfg.WhiteEval {
+			if cfg.BlackEval != cfg.WhiteEval && !cfg.PlayAllGames {
 				accept, reject := promotionGateDecided(
 					prog.challengerWins, prog.played, maxGames, PromoteMin,
 				)
@@ -285,8 +291,9 @@ func runArenaSummary(r Ruleset, cfg MatchConfig, gameIdx int, evals map[string]E
 	blackEval, whiteEval := arenaEvalsForGame(cfg, gameIdx)
 	bp, wp := arenaPlayouts(cfg)
 	// Evaluators are shared across games; do not Close() the per-game engines.
-	blackEng := newArenaEngineEval(r, bp, cfg.ThinkTime, evals[blackEval], mixSeed(cfg.Seed, gameIdx, 0), arenaEnhancedFor(blackEval, cfg))
-	whiteEng := newArenaEngineEval(r, wp, cfg.ThinkTime, evals[whiteEval], mixSeed(cfg.Seed, gameIdx, 1), arenaEnhancedFor(whiteEval, cfg))
+	enhBlack, enhWhite := arenaEnhancedForGame(cfg, gameIdx)
+	blackEng := newArenaEngineEval(r, bp, cfg.ThinkTime, evals[blackEval], mixSeed(cfg.Seed, gameIdx, 0), enhBlack)
+	whiteEng := newArenaEngineEval(r, wp, cfg.ThinkTime, evals[whiteEval], mixSeed(cfg.Seed, gameIdx, 1), enhWhite)
 
 	b := NewBoard(cfg.Size, cfg.Komi)
 	// Per-game RNG seeds opening-move sampling so the games in a match are
@@ -367,14 +374,20 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openin
 	return moves
 }
 
-func arenaEnhancedFor(evalName string, cfg MatchConfig) bool {
+// arenaEnhancedForGame reports forced-root-playout use for (black, white) in one
+// game. "baseline" follows the baseline ROLE across the colour swap. Resolving it
+// by evaluator name instead meant that a match with the same name on both sides
+// -- which is exactly what the reproducible 9x9 baseline command uses -- enhanced
+// both players, so "baseline" silently behaved as "both".
+func arenaEnhancedForGame(cfg MatchConfig, gameIdx int) (black, white bool) {
 	switch strings.ToLower(cfg.ArenaEnhanced) {
 	case "both":
-		return true
+		return true, true
 	case "baseline":
-		return evalIsBaseline(evalName, cfg.BlackEval)
+		baselineIsBlack := !(cfg.SwapColors && gameIdx%2 == 1)
+		return baselineIsBlack, !baselineIsBlack
 	default:
-		return false
+		return false, false
 	}
 }
 
@@ -428,8 +441,4 @@ func newArenaEngineEval(r Ruleset, playouts int, think time.Duration, ev Evaluat
 		scfg.ForcedRootPlayouts = defaultForcedRoot
 	}
 	return NewEngine(r, ev, scfg)
-}
-
-func evalIsBaseline(evalName, baselineName string) bool {
-	return evalName == baselineName
 }

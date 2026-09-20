@@ -54,7 +54,7 @@ train-bootstrap:
 reproduce-9x9-baseline:
 	go test ./... -count=1
 	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
-	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-playouts 600 -white-playouts 200 -black-eval heuristic -white-eval heuristic -seed 42 -arena-enhanced baseline -json .tectonix/reports/arena-9x9-baseline.json
+	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-playouts 600 -white-playouts 200 -black-eval heuristic -white-eval heuristic -seed 42 -arena-enhanced none -arena-play-all -json .tectonix/reports/arena-9x9-baseline.json
 
 reproduce-9x9-onnx-gate:
 	go test ./... -count=1

@@ -127,18 +127,35 @@ func TestForcedRootPlayouts(t *testing.T) {
 	cfg.Workers = 1
 	e := NewEngine(r, Uniform{}, cfg)
 	b := NewBoard(5, 6.5)
-	legal := r.LegalMoves(b)
 	_ = e.BestMove(b)
 	e.mu.Lock()
+	defer e.mu.Unlock()
 	root := e.arena.Get(e.root)
+	// Wu (2020) SS3.2 forces playouts on "each child of the root that has received
+	// any playouts", so a move the search never looked at stays at zero. Forcing a
+	// floor on every child instead costs (children x k) playouts per move -- more
+	// than the whole search budget on 9x9 -- and flattens the visit distribution
+	// that becomes the policy target.
+	explored, untouched := 0, 0
 	for _, cidx := range root.Children {
 		c := e.arena.Get(cidx)
-		if c.Visits < uint32(cfg.ForcedRootPlayouts) {
-			t.Fatalf("child %+v visits %d < forced %d", c.Move, c.Visits, cfg.ForcedRootPlayouts)
+		switch {
+		case c.Visits == 0:
+			untouched++
+		case c.Visits < uint32(cfg.ForcedRootPlayouts):
+			t.Fatalf("visited child %+v has %d visits, below the forced minimum %d",
+				c.Move, c.Visits, cfg.ForcedRootPlayouts)
+		default:
+			explored++
 		}
 	}
-	e.mu.Unlock()
-	_ = legal
+	if explored == 0 {
+		t.Fatal("no root child was explored")
+	}
+	if untouched == 0 {
+		t.Fatalf("all %d children were forced: the floor is being applied to unvisited moves",
+			len(root.Children))
+	}
 }
 
 func TestRootPolicyPruned(t *testing.T) {
