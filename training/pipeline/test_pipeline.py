@@ -466,3 +466,34 @@ def test_unsupported_platform_points_at_the_sidecar(tmp_path, monkeypatch):
     monkeypatch.setattr(procs.platform, "machine", lambda: "x86_64")
     with pytest.raises(procs.CommandError, match="sidecar"):
         procs.ensure_ort_library(tmp_path)
+
+
+def test_batch_size_matches_stage_parallelism(tmp_path):
+    """Both inference stages must size the batch to their own concurrency.
+
+    The batched evaluator runs one worker goroutine that gathers a batch and
+    then blocks on the inference call, so nothing else is evaluated while it is
+    in flight. Throughput is therefore capped at batch-size evaluations per
+    serialised dispatch. Left at the engine default of 8 while the stage runs 32
+    games, a 32-way stage does the work of roughly one thread - and the symptom
+    is only slowness, so nothing fails and nobody looks.
+    """
+    pipe = make_pipe(tmp_path, FakeExecutor(),
+                     selfplay__parallel=32, gating__parallel=16)
+
+    sp = pipe.selfplay_command(1)
+    assert "-batch-size" in sp, "self-play never sized the batch"
+    assert sp[sp.index("-batch-size") + 1] == sp[sp.index("-selfplay-parallel") + 1] == "32"
+
+    ar = pipe.arena_command(40, 1, tmp_path / "r.json", None, tmp_path / "c.onnx")
+    assert "-batch-size" in ar, "the arena never sized the batch, and it is 81% of a cycle"
+    assert ar[ar.index("-batch-size") + 1] == ar[ar.index("-arena-parallel") + 1] == "16"
+
+
+def test_batch_size_override_is_honoured(tmp_path):
+    """engine.batch_size pins it explicitly; 0 means follow the stage."""
+    pipe = make_pipe(tmp_path, FakeExecutor(),
+                     selfplay__parallel=32, engine__batch_size=64)
+    sp = pipe.selfplay_command(1)
+    assert sp[sp.index("-batch-size") + 1] == "64"
+    assert sp[sp.index("-selfplay-parallel") + 1] == "32"

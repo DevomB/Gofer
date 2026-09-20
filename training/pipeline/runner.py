@@ -280,6 +280,7 @@ class Pipeline:
             "-selfplay-cap-randomize-p", str(sp.cap_randomize_p),
             "-selfplay-temp-moves", str(sp.temp_moves),
             "-selfplay-parallel", str(self.cfg.selfplay_parallel()),
+            "-batch-size", str(self.cfg.engine.batch_size or self.cfg.selfplay_parallel()),
             "-seed", str(self.cfg.run.seed + cycle * 100_003),
             "-o", str(out_path or self._shard_path(cycle)),
         ]
@@ -405,6 +406,7 @@ class Pipeline:
             "-games", str(games), "-size", str(sp.board_size), "-komi", str(sp.komi),
             "-playouts", str(g.playouts),
             "-arena-parallel", str(self.cfg.gating_parallel()),
+            "-batch-size", str(self.cfg.engine.batch_size or self.cfg.gating_parallel()),
             "-arena-opening-moves", str(g.opening_moves),
             "-eval-timeout", self.cfg.engine.eval_timeout,
             "-arena-enhanced", "none",

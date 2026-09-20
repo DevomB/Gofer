@@ -38,6 +38,14 @@ class EngineConfig:
     python: str = ""                    # "" = current interpreter
     sidecar_base_port: int = 8080
     eval_timeout: str = "2s"
+    # Evaluations per inference call. The batched evaluator runs ONE worker
+    # goroutine that gathers a batch and then blocks on it, so nothing else is
+    # evaluated while a call is in flight: throughput is capped at this many
+    # evaluations per serialised dispatch. Left at the engine's default of 8 it
+    # throttles a 32-way stage to roughly one runnable thread. 0 means match the
+    # stage's own parallelism, which is the only value that cannot be wrong by
+    # construction.
+    batch_size: int = 0
 
 
 @dataclass
