@@ -22,7 +22,9 @@ jobs:
       - name: Sidecar unit tests
         run: go test ./cmd/gofer/ -count=1 -run 'Sidecar|FeatureGolden|Batched'
       - name: Bench smoke
-        run: go test -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
+        # -run '^$' matches no test: without it the default -run is '.*', so this
+        # step ran the entire suite before reaching the benchmark.
+        run: go test -run '^$' -bench=BenchmarkLegalMoves -benchtime=100ms ./cmd/gofer/
       - name: Bench regression
         run: go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
       - name: Export ONNX fixture (policy+value)
