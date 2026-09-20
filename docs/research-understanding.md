@@ -135,39 +135,7 @@ Initialize random weights → loop:
 
 ---
 
-## 4. Features To Build
-
-### Must-build v1 (M0–M3)
-- Chinese rules engine (legal moves, capture, ko, scoring)
-- Board state + undo + Zobrist hash
-- GTP skeleton (M8 but protocol design now)
-- Benchmark harness
-- Evaluator interface + heuristic/mock
-
-### Should-build v2 (M4–M9)
-- PUCT MCTS with root noise
-- Transposition table
-- SGF import/replay validation
-- Basic analysis CLI
-- Bench regression tracking
-
-### Advanced / later (M10–M12)
-- Self-play with playout cap randomization
-- Policy target pruning + forced playouts
-- Training sample schema + gating harness
-- Neural inference integration
-- Tromp-Taylor rules + paper-aligned features (ladders, pass-alive)
-
-### Research / optional
-- Global pooling in custom training net (training pipeline, not engine core)
-- Score maximization play objective **[POST-PAPER]**
-- Graph search / transposition-aware DAG search
-- JSON batched analysis API **[POST-PAPER]**
-- Policy surprise weighting **[POST-PAPER KataGoMethods]**
-
----
-
-## 5. Important Algorithms And Mechanisms
+## 4. Important Algorithms And Mechanisms
 
 | Mechanism | What | Why | Signal improved | Runtime / Training / Both | Difficulty | Dependencies |
 |-----------|------|-----|-----------------|---------------------------|------------|--------------|
@@ -187,7 +155,7 @@ Initialize random weights → loop:
 
 ---
 
-## 6. What We Can Implement Without Full ML Infrastructure
+## 5. What We Can Implement Without Full ML Infrastructure
 
 Immediately buildable:
 - **Rules engine** — Chinese v1, Tromp-Taylor hooks
@@ -201,7 +169,7 @@ Immediately buildable:
 
 ---
 
-## 7. What Requires ML / GPU / External Tooling
+## 6. What Requires ML / GPU / External Tooling
 
 Requires external stack:
 - **Training data generation at scale** — GPU self-play farm (M10+)
@@ -221,7 +189,7 @@ Requires external stack:
 
 ---
 
-## 8. Ambiguities / Open Questions
+## 7. Ambiguities / Open Questions
 
 | Question | Severity | Resolution path | Impact on order |
 |----------|----------|-----------------|-----------------|
@@ -238,7 +206,7 @@ Do not hallucinate answers; track in `research-traceability.md`.
 
 ---
 
-## 9. Implementation Implications For A Go Codebase
+## 8. Implementation Implications For A Go Codebase
 
 > **v1 layout (2026-06):** All engine code is in `cmd/gofer` (`package main`). Logical boundaries below map to files, not separate packages.
 
@@ -262,7 +230,7 @@ Do not hallucinate answers; track in `research-traceability.md`.
 
 ---
 
-## 10. Performance Implications
+## 9. Performance Implications
 
 Likely hotspots:
 1. **Legal move generation** — O(n²) naive; dominates if unoptimized
@@ -278,57 +246,7 @@ Likely hotspots:
 
 ---
 
-## 11. Optimization Opportunities
-
-**Algorithmic:** TT, playout caps, policy pruning (training), better move ordering
-
-**Data structure:** Flat board, incremental groups, index-based tree nodes, open-addressing TT
-
-**Memory:** Arena allocators, pre-sized child slices, avoid board copy per node
-
-**Concurrency:** Root parallel only first; batched inference worker; avoid channels in select loop
-
-**Compiler/build:** `-trimpath`, PGO with representative `pprof` CPU profile (Go docs: ~2–14% on representative programs)
-
-**Profiling-informed:** Every hot-path change needs `pprof` + `benchmem` before/after
-
----
-
-## 12. Optimization Risks
-
-- Premature abstraction (interface every function)
-- Pointer-heavy MCTS tree → GC pressure
-- `map` in innermost playout loop
-- Goroutine per playout
-- Channel-based search coordination
-- Hidden board copies in `Play()` API
-- Copy-make trees without measuring undo alternative
-- Claiming optimization without benchmarks
-- Gaming Tectonix score (scope manipulation)
-
----
-
-## 13. Development Order Recommendation
-
-1. **M0** — `go.mod`, Makefile, package skeleton, Tectonix rules
-2. **M1** — Chinese rules + undo + tests + first benches
-3. **M2** — Tromp-Taylor + superko options + SGF replay tests
-4. **M3** — Fast move gen + liberty incremental experiments (benchmarked)
-5. **M4** — Search skeleton (no NN)
-6. **M5** — PUCT MCTS + root noise
-7. **M6** — Transposition table
-8. **M7** — Evaluator abstraction + heuristic
-9. **M8** — GTP + basic analysis
-10. **M9** — Bench suite + regression thresholds
-11. **M10** — Self-play + cap randomization
-12. **M11** — Model integration + training sample export
-13. **M12** — Profile-guided optimization passes
-
-Rationale: correctness before search; search before ML; measurement throughout.
-
----
-
-## 14. Glossary
+## 10. Glossary
 
 | Term | Definition |
 |------|------------|

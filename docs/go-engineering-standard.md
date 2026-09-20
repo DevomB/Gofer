@@ -41,10 +41,10 @@ Non-trivial logic ships with the smallest test or bench that fails if logic brea
 ## Style Rules
 
 - **Naming:** `MixedCaps`, no stuttering (`board.Board` ok as package type `Board`).
-- **Packages:** one responsibility; name matches directory; no `util` junk drawer.
+- **Packages:** one responsibility; no `util` junk drawer. The engine is deliberately one `package main` under `cmd/gofer`; split it only when a second consumer appears.
 - **Errors:** return `error`; wrap with `%w` at boundaries; no panic in rules engine except impossible internal states in tests.
 - **Constructors:** `NewBoard(size)` when zero value insufficient; prefer useful zero values for DTOs.
-- **Interfaces:** at system boundaries (`eval.Evaluator`, `rules.Ruleset`); not in select loop.
+- **Interfaces:** at system boundaries (`Evaluator`, `Ruleset`); not in select loop.
 - **Receivers:** pointer receiver if mutation; value if small immutable.
 - **Slices:** preallocate with known capacity `make([]T, 0, maxMoves)`.
 - **Arrays:** use for fixed topology when it helps (e.g. `[362]float32` policy later).
