@@ -29,7 +29,7 @@ Document intentional shortcuts with a known ceiling:
 ```go
 // Naive liberty flood-fill per capture check.
 // Ceiling: O(n) per candidate move on dense boards.
-// Upgrade: incremental group liberties (backlog-core-engine).
+// Upgrade: incremental group liberties.
 ```
 
 ### One runnable check
@@ -130,34 +130,4 @@ Workflow:
 - Reject "looks faster" without data.
 - Tradeoff note required when code becomes less obvious.
 - Document known ceilings for intentional shortcuts.
-- Tectonix: no acyclicity/modularity regression without justification.
 - No new dependencies without reason in decision log.
-
----
-
-## Tectonix Integration
-
-| When | Action |
-|------|--------|
-| Session start | `tectonix session-start .` |
-| Before refactor | `tectonix health .`, `git-stats` on hotspots |
-| Before risky edit | `tectonix test-gaps .` |
-| Architecture change | `tectonix dsm .`, `check-rules .` |
-| Session end | `tectonix session-end .` |
-| Milestone done | `quality_signal >= 9000` at repo root |
-
-Report weakest root cause and what structural fix was applied.
-
----
-
-## Makefile Conventions (M0+)
-
-```makefile
-test:  go test ./...
-bench: go test -bench=. -benchmem ./...
-race:  go test -race ./...
-lint:  go vet ./...
-profile: go test -bench=BenchmarkLegalMoves -cpuprofile=cpu.prof ./cmd/gofer/
-```
-
-Extend as packages land; no fake targets.

@@ -140,17 +140,6 @@ bin/gofer -selfplay -games 5 -size 9 -playouts 200 -selfplay-eval mix -o samples
 bin/gofer -selfplay -games 3 -size 9 -sgf-dir games/
 ```
 
-### ML training loop v3
-
-Persistent replay buffer, resume training, monotonic arena promote:
-
-```bash
-SEED_FROM_CYCLE2=1 WEEK_DAYS=14 bash scripts/train-loop-v3.sh
-# Lightsail: bash scripts/aws-run-arena.sh IP start-v3
-```
-
-See [docs/decisions/0003-iterative-training-loop.md](docs/decisions/0003-iterative-training-loop.md).
-
 ### SGF replay
 
 ```bash
@@ -192,13 +181,15 @@ make bench-check    # compare before/after
 | `cmd/bench/` | Benchmark regression runner |
 | `training/` | PyTorch bootstrap trainer + ONNX sidecar |
 | `models/` | Exported ONNX weights |
-| `docs/` | Blueprint, traceability, scorecard |
+| `docs/` | Decision records, pipeline and data-format reference |
 
 ## Docs
 
-- [`docs/implementation-blueprint.md`](docs/implementation-blueprint.md) — milestones
+- [`docs/decisions/`](docs/decisions/) — why the engine and pipeline are shaped the way they are
+- [`docs/pipeline.md`](docs/pipeline.md) — running the v4 training loop
+- [`docs/training-data-format.md`](docs/training-data-format.md) — the shard format
 - [`docs/research-traceability.md`](docs/research-traceability.md) — paper ↔ code
-- [`docs/optimization-scorecard.md`](docs/optimization-scorecard.md) — benches & quality gate
+- [`docs/known-issues.md`](docs/known-issues.md) — open problems and accepted limits
 
 ## Included
 
