@@ -13,7 +13,15 @@ much later. Change one thing at a time and measure the same way twice.
 
 ## 1. The inference batcher serves one batch at a time
 
-**Status:** evidenced, not done. Highest-value performance change available.
+**Status:** wiring implemented (`a61f155`), deliberately **pinned off** for the
+baseline run. Highest-value performance change available.
+
+`EngineConfig.batch_size` exists and defaults to `0`, meaning "match the stage's
+parallelism". The baseline run pins the old behaviour explicitly with
+`--set engine.batch_size=8` so the loop being measured is the one that has
+always run. Flipping it on is a config change, not a code change: drop that
+`--set` and the stage parallelism is used. Do that only after the baseline
+lands, and measure it as below.
 
 `BatchedEvaluator.worker()` (`cmd/gofer/inference.go`) is a single goroutine:
 
@@ -38,11 +46,11 @@ computing, the rest blocked on response channels. CPU-bound games would show
 heuristic-only against 287.0s at `onnx_fraction 0.7`, same 200 games), and the
 gate — same evaluator, more of it — was 81% of a ~28 minute cycle.
 
-**The change.** `EngineConfig` gains `batch_size: int = 0` (0 = match the
-stage's parallelism); `selfplay_command` and `arena_command` pass
-`-batch-size`. Nothing in `cmd/gofer` needs to change: the flag exists and
-`evaluators.go` already threads `evalConfig.BatchSize` into both the in-process
-and sidecar constructors.
+**The change (done).** `EngineConfig.batch_size`, passed by both
+`selfplay_command` and `arena_command`. Nothing in `cmd/gofer` changed: the flag
+already existed and `evaluators.go` already threaded `evalConfig.BatchSize` into
+the in-process and sidecar constructors. Two tests pin the wiring, because the
+failure mode is only slowness - nothing fails, so nobody looks.
 
 **Safe to do.** `reqTimeout` comes from `-eval-timeout` (2s), not from the
 `maxWait*4` default, so a slower large batch cannot silently fall back to the
