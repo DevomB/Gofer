@@ -59,6 +59,18 @@ The project's reproducible baseline (`make reproduce-9x9-baseline`: 200 games, i
 | after defects 1-2 | 133 | 67 | 0.665 | +119 | ~20 moves |
 | after defects 3-5 | 133 | 67 | 0.665 | +119 | 21 moves |
 | after defects 6-8 | 149 | 51 | 0.745 | +186 | 76 moves |
+| after the transposition-key fix | 136 | 64 | 0.680 | +131 | 55 moves |
+
+The last row is the same command after the transposition table was made to compare keys
+(Sep 2026). The drop from +186 is **not** distinguishable from sampling noise: a second
+seed on the fixed engine gives 142/200, the two pool to 278/400 = +143 Elo with a 95%
+interval of [+106, +180], and the before/after difference tests at p = 0.19. What the two
+post-fix runs do agree on is the median game length, 55 moves in both against 76 before.
+
+More directly: +186 is [+131, +241] and +131 is [+80, +182]. Those overlap over almost
+their entire length, so there was never a 55-Elo drop to account for. A single 200-game
+arena carries a 95% interval about **105 Elo wide**; 400 games narrows it to 74. Any Elo
+figure from this project should be quoted with its interval.
 
 The middle two rows are identical in aggregate although every game differs: `-arena-enhanced` was silently enhancing both sides, so the measurement was not sensitive to the root defects that had just been fixed. The longest game in either middle run (33 moves) is shorter than the median game of the final run (76). A controlled 40-game pair at identical settings gives 0/40 before and 24/40 after.
 

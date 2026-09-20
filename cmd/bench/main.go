@@ -42,11 +42,12 @@ func regressionLimit(baselineNs float64) float64 {
 func main() {
 	jsonOut := flag.String("json", "", "write regression JSON to path")
 	baselinePath := flag.String("baseline", "", "baseline JSON for -check")
-	check := flag.Bool("check", false, "fail if >10% regression vs -baseline")
+	check := flag.Bool("check", false, "fail on regression vs -baseline (10%, or 25% for sub-microsecond benches)")
 	flag.Parse()
 
 	results, err := runBenchesMax(benchSampleRuns)
 	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 

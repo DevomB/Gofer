@@ -45,8 +45,12 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
   across three seeds; after mixing the seeds they split 55/53, 51/69 and 55/61.
 
 The project's reproducible baseline (200 games, identical heuristics, Black 600 playouts
-vs White 200) went from **7/200** to **149/200** for the deeper search: -576 Elo to +186,
-a sign flip, with the median game going from 11 moves to 76. A controlled 40-game pair at
+vs White 200) went from **7/200** to **136/200** for the deeper search: -576 Elo to +131,
+a sign flip, with the median game going from 11 moves to 55. Repeated on a second seed it
+gives 142/200; pooled over both, **278/400** = +143 Elo, 95% CI [+106, +180]. A single
+200-game arena carries a 95% interval about 105 Elo wide (+186 is [+131, +241]; +131 is
+[+80, +182] -- they overlap over nearly their whole length), so no number in this entry
+from one 200-game run should be read as exact. Doubling to 400 games narrows it to 74. A controlled 40-game pair at
 identical settings gives 0/40 before and 24/40 after. With fair komi and identical
 evaluators, 200 games now split 99-101 by colour.
 

@@ -217,10 +217,12 @@ Engine state & Black & White & win rate & Elo & median game \\
 original, as committed              & 7   & 193 & 0.035 & $-576$ & 11 moves \\
 after defects 1--2                  & 133 & 67  & 0.665 & $+119$ & ${\sim}20$ moves \\
 after defects 3--5                  & 133 & 67  & 0.665 & $+119$ & 21 moves \\
-after defects 6--8 (current)        & 149 & 51  & 0.745 & $+186$ & 76 moves \\
+after defects 6--8                  & 149 & 51  & 0.745 & $+186$ & 76 moves \\
+after the transposition fix         & 136 & 64  & 0.680 & $+131$ & 55 moves \\
 \bottomrule
 \end{tabular}
-\caption{The same 200-game command, run as each group of defects came off. Elo is
+\caption{The same 200-game command, run as each group of defects came off and
+again after the transposition fix. Elo is
 $-400\log_{10}(1/p-1)$ on the Black win rate. The second run's file was
 overwritten by the third, so its median is from the summary recorded at the time.}
 \label{tab:baseline-progression}
@@ -229,7 +231,7 @@ overwritten by the third, so its median is from the summary recorded at the time
 Three things in that table are worth stating rather than leaving to the reader.
 
 First, the answer to ``is three times the search worth anything'' moved from
-$-576$ to $+186$ Elo. That is not an error of magnitude but of sign: the
+$-576$ to $+131$ Elo. That is not an error of magnitude but of sign: the
 committed reference baseline asserted that tripling the search was
 catastrophically harmful, and that file sat in the repository as the project's
 strength record.
@@ -247,8 +249,33 @@ the median game of the final run, 76}. The final run's distribution is 8 games
 under 20 moves, 39 from 20 to 49, 62 from 50 to 79 and 91 at 80 or more, against
 an original mean of 12.9. Those are not two samples from a shifted distribution;
 they are two different processes. Throughout, Black concedes komi 6.5, which at
-these playout counts favours White (\cref{sec:pipeline-found-komi}), so $+186$
-Elo is measured against a handicap and understates the search advantage.
+these playout counts favours White (\cref{sec:pipeline-found-komi}), so the
+figure is measured against a handicap and understates the search advantage.
+
+Fourth, the last row is a warning about reading any of the others too closely.
+It is the same command after the transposition table was repaired
+(\cref{sec:pipeline-eval-codereview}), and its win rate is lower than the row
+above. That difference is not resolvable: a second seed on the repaired engine
+returns 142 of 200, the two pool to 278 of 400, and the before-and-after
+comparison tests at $p = 0.19$. Pooled, the deeper search is worth $+143$ Elo
+with a 95\% interval of $[+106, +180]$. Put more directly: $+186$ carries the
+interval $[+131, +241]$ and $+131$ carries $[+80, +182]$, which overlap over
+almost their whole length, so there was never a 55-Elo drop to account for. A
+single 200-game arena gives a 95\% interval roughly \emph{105} Elo wide;
+doubling to 400 narrows it to 74. These numbers separate $-576$ from $+131$
+reliably and separate nothing within the repaired engine at all. The two
+repaired runs do agree on the median game length, 55 moves each.
+
+There is a methodological trap here worth naming, because we fell into it. The
+$+186$ had been quoted as settled on the strength of a reproducibility
+argument: the configuration hash matched, the command was deterministic, the
+tree had not moved underneath the measurement. All of that was true and none of
+it bears on precision. Establishing that a number is reproducible is a claim
+about provenance; establishing that it is precise is a claim about sample size,
+and the first can be mistaken for the second exactly because it feels rigorous
+and is usually the harder discipline to maintain. The rule we would take from
+it: no Elo figure leaves this project without its interval, and no
+single-sample number goes onto a public surface at all.
 
 Two further checks: with identical evaluators at fair komi, 200 games split
 99--101 by colour, and a 200-playout search spreads its visits over many moves

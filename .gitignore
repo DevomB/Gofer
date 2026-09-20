@@ -24,7 +24,9 @@ models/*.onnx
 !.tectonix/reports/bench-regression.json
 # Tracked so the strength baseline the paper cites is reviewable, and so a
 # regression in it shows up as a diff (it recorded a search bug for months).
+# The seed-43 companion is the second sample the interval is computed from.
 !.tectonix/reports/arena-9x9-baseline.json
+!.tectonix/reports/arena-9x9-baseline-seed43.json
 train-v3.log
 
 # Pipeline v4 run dirs (state, shards, checkpoints) and local champion registry
