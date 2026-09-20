@@ -30,7 +30,7 @@ min_rows_to_train = 200
 [train]
 epochs_fresh = 2
 epochs_resume = 1
-args = {batch-size = 64, quiet = true}
+args = {batch_size = 64, quiet = true}
 
 [gating]
 playouts = 16

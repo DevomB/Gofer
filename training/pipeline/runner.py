@@ -530,7 +530,11 @@ class Pipeline:
 
 
 def trainer_flags(args: dict[str, Any]) -> list[str]:
-    """{batch-size: 256, amp: true, compile: false} -> ['--batch-size', '256', '--amp']."""
+    """{batch_size: 256, amp: true, compile: false} -> ['--batch-size', '256', '--amp'].
+
+    TOML keys are snake_case like every other key in the configs; the trainer's
+    own flags are kebab, so they are translated here rather than in the config.
+    """
     out: list[str] = []
     for key, val in args.items():
         flag = "--" + key.replace("_", "-")

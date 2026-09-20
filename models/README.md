@@ -1,27 +1,30 @@
-# Bootstrap ONNX model
+# Models
 
-9×9 ResNet-small for Gofer. Production artifacts (v3):
+## Tracked
 
-| File | Role |
-|------|------|
-| `gofer-9x9-best.onnx` | Arena-verified deployed model |
-| `gofer-9x9-candidate.onnx` | Pre-arena export this cycle |
-| `gofer-9x9-bootstrap.onnx` | CLI compat alias → `best.onnx` |
-
-State on disk: `training/state/best.pt` (matches deployed ONNX weights).
-
-Regenerate fixture:
+`gofer-9x9-bootstrap.onnx` is the only model in git. It is a fixture, not a
+trained net: random weights at the current export shape. Its job is to give the
+default `-model` flag, `make sidecar`, `TestONNXParity` and CI something with
+the right input and output signature to load. Regenerate it whenever the export
+shape changes:
 
 ```bash
 pip install -r training/requirements.txt
 python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
 ```
 
-Trained export (resume from state):
+Input shapes: `spatial_input [N,8,9,9]`, `global_input [N,4]`. Full contract in
+[docs/model-input-schema.md](../docs/model-input-schema.md).
 
-```bash
-python training/train_bootstrap.py --data training/data/replay.jsonl --resume training/state/best.pt --out-dir training/state
-python training/export_onnx.py --checkpoint training/state/best.pt --out models/gofer-9x9-candidate.onnx
-```
+## Everything else here is local
 
-Input shapes: `spatial_input [N,8,9,9]`, `global_input [N,4]`. See [docs/model-input-schema.md](../docs/model-input-schema.md).
+`models/champions/*.onnx` and any `gofer-9x9-{best,candidate}.onnx` are
+gitignored build output. The pipeline writes a promoted champion into
+`models/champions/` beside a `.json` card holding its gate statistics, Elo and
+sha256, and records it in `index.json`, which names both `best` and
+`previous_best` so a promotion can be rolled back
+(`python -m training.pipeline rollback`). The card and index are trackable; the
+weights are not, because published champions live in GitHub Releases.
+
+A local champion is therefore reproducible from `index.json` plus a release
+download, and a stale `.onnx` sitting in this directory is never authoritative.
