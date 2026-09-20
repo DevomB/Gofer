@@ -43,6 +43,15 @@ removes children with fewer than two visits and renormalizes. This is cruder: it
 single-visit noise but keeps any extra visits that forcing added to a child that stayed
 bad. Both mechanisms predate v4 and are unchanged by it.
 
+\paragraph{Two corrections to the search.}
+Validating the v4 gate uncovered two defects in this search, both predating v4.
+Selection used a child's mean without negating it, although node values are kept
+from each node's own side to move, so the engine was choosing the move best for
+its opponent; and two consecutive passes were not treated as the end of the
+game, so a finished position was scored by the evaluator rather than by the
+rules. \Cref{sec:pipeline-found} gives the evidence and the measured effect.
+Everything described in this section is the corrected search.
+
 \paragraph{Move selection and parallelism.}
 For the first 16 plies the move is sampled in proportion to visit counts ($\tau=1$); after
 that the most-visited move is played. The policy target is always the full visit
@@ -51,7 +60,10 @@ evaluator, so the neural network sees real batches. Each game's random generator
 from the run seed and the game index only, so the output does not depend on how many games
 run in parallel. It can still depend on the inference backend if two backends return
 different network outputs; in our runs the two backends produced identical row counts
-from the same seeds (\cref{sec:pipeline-eval}).
+from the same seeds (\cref{sec:pipeline-eval}). Seeds are derived by mixing the run seed
+with the game index rather than by adding them: consecutive seeds draw correlated
+openings, which costs game diversity here and, in the arena, biased results outright
+(\cref{sec:pipeline-found}).
 
 \subsection{Labels and a common frame}
 \label{sec:selfplay-labels}

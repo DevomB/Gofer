@@ -1,3 +1,116 @@
+\subsection{What the pipeline found: two defects in the engine}
+\label{sec:pipeline-found}
+
+The first thing the v4 gate did was refuse to work. Running it on real networks,
+every net-versus-net game was won by White in 12--32 moves, at every playout
+count we tried. Because the arena alternates colours, the candidate's score was
+then mechanically $0.500$ and no gate could ever decide anything. Chasing that
+led to two defects in the engine, both older than v4 and both invisible to the
+test suite.
+
+\paragraph{The search preferred the opponent's best move.}
+Node values are stored from each node's own side to move: the backup negates the
+value at every level, and evaluators return the value from the side to move. A
+child's mean is therefore the \emph{opponent's} view, and selection must negate
+it. It did not. The search maximised the opponent's value, so more search made
+the engine weaker.
+
+The project's own reference baseline measures exactly this: 200 games, identical
+heuristic evaluators, Black searching 600 playouts against White's 200
+(\code{make reproduce-9x9-baseline}). It had been sitting in the repository
+recording \textbf{7 Black wins in 200 games}. Re-running the same command after
+the fix gives \textbf{133 of 200}, a win rate of $0.665$, or about $+119$ Elo for
+tripling the search:
+
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+Black at 600 playouts vs White at 200 & Black wins & mean game length & games under 10 moves \\
+\midrule
+before (committed baseline) & 7/200 & 12.9 moves & all won by White \\
+after  & 133/200 & 20.0 moves & 5, split 3--2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Black wins two thirds of the games while also conceding komi 6.5, which at these
+playout counts favours White (\cref{sec:pipeline-found-komi}), so the search
+advantage is larger than the win rate alone suggests. The game-length
+distribution is the clearer evidence that play is no longer degenerate: the
+handful of remaining short games are split between the colours instead of being
+uniformly White wins.
+
+\paragraph{The search could not see the end of the game.}
+Two consecutive passes end a game in every game loop, but the search did not
+treat them as terminal, and scored finished positions with the evaluator instead
+of the rules. Passing into a pass therefore looked ordinary, and with komi the
+engine walked into lost endings. We added the two-pass rule and exact terminal
+scoring, and kept terminal results out of the transposition table, whose key
+covers stones but not pass history. Fixing this alone changed no measurable
+outcome; the sign error dominated.
+
+\paragraph{A third defect, in the arena itself.}
+With both engine fixes in, a 200-game match between two evaluators that are
+\emph{literally the same code} still split 126--74 by role. Per-game seeds were
+linear in the game index (\code{seed}\,$+2i$, \code{seed}\,$+2i+1$, and
+\code{seed}\,$+(i{+}1)k$ for the opening sampler), while the colour swap
+alternates on the same parity $i \bmod 2$. Neighbouring seeds draw correlated
+openings, so one parity class---which is exactly one role---was systematically
+decided. Measured with identical evaluators over 120 games, one parity class won
+100\% of its games as White, and \emph{which} class flipped with the seed:
+
+\begin{center}\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& \multicolumn{2}{c}{White wins by parity class} & Role split \\
+\cmidrule(lr){2-3}
+Seed & unswapped & swapped & (baseline--challenger) \\
+\midrule
+99   & 51/51 (100\%) & 36/49 & 36--64 \\
+7    & 26/41 & 40/40 (100\%) & 55--26 \\
+2024 & 30/42 & 43/43 (100\%) & 55--30 \\
+\midrule
+\multicolumn{4}{@{}l@{}}{\emph{after deriving each seed with a mixing function}} \\
+99   & 46/53 & 48/55 & 55--53 \\
+7    & 55/60 & 46/60 & 51--69 \\
+2024 & 46/59 & 42/57 & 55--61 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This mattered more than the raw numbers suggest: the gate attributes wins by
+role, so a biased role split is a biased promotion decision. Self-play used the
+same consecutive seeds and now uses the same mixing.
+
+\paragraph{Fair komi moved with the fix.}
+\label{sec:pipeline-found-komi}
+Two tests in the repository encoded a "fair komi" of $-1$ for equal heuristic
+engines, with a comment explaining that tournament komi was not fair at test
+playout counts. That constant had been fitted to the broken search, which ended
+games near-empty in about eleven moves and let komi alone decide them. Measured
+again after the fix, at 50 playouts over 120--200 games per point, Black scores
+$70\%$ at komi 0, $70\%$ at $1.5$, $53\%$ at $2.0$, $38\%$ at $2.5$, $28\%$ at
+$3.5$ and $15\%$ at $6.5$. Fair komi for these engines is therefore near $2.0$,
+and the tests were updated to use it.
+
+\paragraph{Why nothing caught it.}
+The repository's continuous integration runs \code{go test ./... -short}, and
+every arena-scale test skips itself in short mode. One test did observe the
+symptom---it logged 9 Black wins in 188 games with identical
+evaluators---but it asserted only on role balance and explained the colour skew
+away in a comment. We added a unit test of the selection rule that runs in short
+mode: given two root children with equal priors and visits, selection must
+prefer the one whose subtree is worse for the opponent. It is instant and
+deterministic, and it fails on the old code by construction, where the search at
+200 and 600 playouts could not be told apart from noise in twenty games.
+
+\paragraph{Consequences for this report.}
+Every strength number produced before these fixes is void, including the
+committed baseline and the gate scores in \cref{sec:pipeline-eval}. No long
+training run had been done, so no trained model was lost; the self-play data
+generated so far carries policy targets from a search that preferred the
+opponent's reply, and is not worth training on.
+
 \subsection{Pipeline end to end}
 \label{sec:pipeline-eval}
 

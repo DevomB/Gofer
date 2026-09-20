@@ -44,6 +44,17 @@ training pipeline for \gofer{}, a small open-source Go engine. The goal is diffe
 the infrastructure so a \katago{}-style run can start on free CPU runners and move to a
 single rented, preemptible GPU without losing work.
 
+Building the gate turned out to be the most valuable part. Asked to decide whether one
+network was stronger than another, it could not: the answer was exactly $0.500$ every
+time. Chasing that exposed three defects, all older than this work and all invisible to
+the test suite. The search selected the move best for its \emph{opponent}, so more search
+made the engine weaker; it never treated two passes as the end of the game, so it scored
+finished positions with the network instead of the rules; and the arena drew correlated
+openings for one of the two roles, biasing the comparison it existed to make. On the
+project's own reference baseline---identical evaluators, one side searching three times
+harder---the deeper search had been winning 7 games in 200. After the fixes it wins 133,
+about $+119$ Elo. Every strength number the project had recorded was measuring these bugs.
+
 We describe the full loop. Go self-play writes compact binary shards. A new learner masks
 the policy loss to full-search positions, splits train and validation by game, augments
 with the eight board symmetries, keeps an exponential moving average of the weights, and

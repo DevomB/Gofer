@@ -1,8 +1,16 @@
 \section{Limitations}\label{sec:limitations}
 
+\paragraph{Everything measured before the engine fixes is void.}
+The defects in \cref{sec:pipeline-found} invalidate every strength number this project
+had recorded, including its committed reference baseline and the gate scores from the
+end-to-end runs reported here. The numbers in this report were taken after the fixes,
+except where explicitly labelled as ``before''. The fixes themselves are verified only by
+the measurements in \cref{sec:pipeline-found}: a corrected search wins where it used to
+lose, and role attribution is balanced between identical players. They have not been
+validated by a training run.
+
 \paragraph{No strength results.}
-The most important limitation comes first. No v4 training run has been done at a scale
-that could measure playing strength. The end-to-end runs in \cref{sec:pipeline-eval}
+No v4 training run has been done at a scale that could measure playing strength. The end-to-end runs in \cref{sec:pipeline-eval}
 check that the machinery works; they say nothing about learning efficiency. Every
 difference from \katago{} marked $\sim$ or ``new'' in \cref{tab:overview-compare} could
 help, do nothing, or hurt. In particular, we make no claim that \gofer{} v4 learns faster

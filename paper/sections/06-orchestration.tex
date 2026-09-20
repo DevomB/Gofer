@@ -66,10 +66,13 @@ orchestrator starts cycle $N{+}1$'s self-play in the background as soon as cycle
 self-play finishes, using the champion at that moment. The games are therefore at most one
 generation stale, and the stage-$N{+}1$ self-play step only waits for whatever is left.
 Overlap is off in the CPU-only configurations, because there both workloads compete for the
-same cores. Overlap has one side effect: if the background self-play finishes first, the
-trainer of cycle $N$ also sees the new shard. This is harmless, since it is newer data from
-the same champion, but it makes cycles less reproducible, so controlled experiments should
-turn it off.
+same cores.
+
+Prefetched games are written to a staging directory and moved into the replay
+directory only when their own cycle begins. Without that, the trainer of cycle $N$ could
+see cycle $N{+}1$'s shard: the learner reads the shard directory newest-first, so a
+prefetch that finished early displaced the very data the cycle was meant to learn from,
+and whether it did so depended on wall-clock timing.
 
 \subsection{Replay as a window over immutable shards}
 \label{sec:orch-replay}
@@ -126,14 +129,15 @@ ratio
 where draws, if there were any, count as half a win and half a loss. The test accepts
 $H_1$ when $\Lambda \ge \log\frac{1-\beta}{\alpha}$ and accepts $H_0$ when
 $\Lambda \le \log\frac{\beta}{1-\alpha}$. The defaults are $\Delta_0=0$, $\Delta_1=35$ and
-$\alpha=\beta=0.05$, which puts the bounds at $\pm 2.94$. Two practical details:
+$\alpha=0.05$, $\beta=0.10$, which puts the bounds at $-2.25$ and $+2.89$. Two
+practical details:
 \begin{itemize}
   \item \emph{Batches.} The test is checked after arena batches of 40 games, not after
         every game. A full batch has equal numbers of games with each colour, and the
         engine can batch its network evaluations. Each batch is one Go arena call, so the arena's in-batch early reject
         still applies. Stopping a batch early does not bias the likelihood ratio, because
         the next batch simply continues the same sequence of games.
-  \item \emph{Cap.} The gate plays at most 400 games. If the test is still undecided
+  \item \emph{Cap.} The gate plays at most 600 games by default. If the test is still undecided
         there, the v3 rule decides.
 \end{itemize}
 
@@ -153,8 +157,8 @@ parallel. \Cref{tab:orch-gate-oc,fig:orch-gate-oc} show the results.
 \caption{Exact acceptance probability and expected games for four gates as a function of
 the candidate's true advantage. v3 includes the Go arena's interim stops. The v4 columns
 use SPRT$(0,\Delta_1)$ with $\alpha=\beta=0.05$: the default configuration ($\Delta_1=35$,
-batches of 40, cap 400) and the free-runner configuration of \cref{sec:infra-actions}
-($\Delta_1=40$, batches of 24, cap 192).}
+batches of 40, cap 600, $\beta=0.10$) and the free-runner configuration of
+\cref{sec:infra-actions} ($\Delta_1=50$, batches of 24, cap 240).}
 \label{tab:orch-gate-oc}
 \end{table}
 
@@ -201,17 +205,19 @@ candidate's true advantage.}
 Three findings stand out.
 \begin{itemize}
   \item \emph{Error control.} SPRT keeps the false-promotion rate close to its nominal
-        level: $2.7\%$ at $\Delta=0$, against v3's $8.0\%$. It also has more power for
-        real gains: at $\Delta=+50$ it promotes $82\%$ of candidates, against $67\%$.
+        level: $2.4\%$ at $\Delta=0$, against v3's $8.0\%$. It also has more power for
+        real gains: at $\Delta=+50$ it promotes $90\%$ of candidates, against $67\%$.
   \item \emph{Not uniformly cheaper.} Clearly worse candidates are rejected sooner than
-        in v3 (105 against 142 expected games at $-100$), and very strong ones are
-        accepted sooner at $+200$. But near the indifference region SPRT plays about twice
-        as many games (348 against 175 at $\Delta=0$). The v4 gate is an error-control
-        improvement, not a saving in games.
-  \item \emph{The cap matters.} With the default cap of 400 games, a candidate that is
-        truly $+35$ Elo stronger is promoted only $52\%$ of the time, far below the
-        nominal $1-\beta=0.95$, because many such tests reach the cap undecided. The
-        free-runner configuration's cap of 192 is weaker still ($28\%$ at $+35$). On a
+        in v3 (84 against 142 expected games at $-100$), and very strong ones are
+        accepted sooner at $+200$ (84 against 100). But near the indifference region SPRT
+        plays more than twice as many games (380 against 175 at $\Delta=0$). The v4 gate is
+        an error-control improvement, not a saving in games.
+  \item \emph{The cap matters.} With the default cap of 600 games, a candidate that is
+        truly $+35$ Elo stronger is promoted $61\%$ of the time, below the nominal
+        $1-\beta=0.90$, because many such tests reach the cap undecided. Raising the cap
+        is the main lever: at 800 games the same candidate is promoted $74\%$ of the time,
+        which is what the GPU configuration uses. The free-runner configuration's cap of
+        240 can only detect large gains ($36\%$ at $+35$, $61\%$ at $+50$). On a
         small budget, that configuration can only reliably detect large gains. This is
         acceptable early in a run, when each generation typically gains a lot, but it
         should be revisited once gains become small.
@@ -244,7 +250,7 @@ own GitHub Release, so older champions remain downloadable. A failed upload is r
 retried later; it never stops training.
 
 \paragraph{Guarding against a false best.}
-A gate can pass by chance ($2.7\%$ at $\Delta=0$ in \cref{tab:orch-gate-oc}), or a
+A gate can pass by chance ($2.4\%$ at $\Delta=0$ in \cref{tab:orch-gate-oc}), or a
 candidate can beat the current champion while losing to earlier ones. Before publishing, an
 optional \emph{regression match} plays the new champion against the champion
 \code{regression\_lookback} generations earlier. If the new champion scores below a

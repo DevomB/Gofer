@@ -49,8 +49,16 @@ The v4 pipeline improves on its predecessor in four concrete ways, and it differ
   \item \textbf{Controlled promotion errors.} Gating uses a sequential probability ratio
         test~\citep{wald1945sequential}. It stops early on clearly worse or clearly better
         candidates, and it cuts the false-promotion rate at zero true gain from 8.0\% for
-        v3 to 2.7\%. The price is \emph{longer} gates near zero gain
+        v3 to 2.4\%, while promoting a $+50$ Elo candidate 90\% of the time against v3's
+        67\%. The price is \emph{longer} gates near zero gain
         (\cref{sec:orchestration}), so this is an error-control gain, not a cost saving.
+  \item \textbf{Three engine defects, found by building the gate.} An inverted value sign
+        in search selection, a search that never saw the end of a game, and an arena whose
+        per-game seeds were correlated with the colour swap. The first made more search
+        strictly weaker: on the project's own baseline, the side searching three times
+        harder went from 7 wins in 200 games to 133 (\cref{sec:pipeline-found}). This is
+        the strongest argument in this report for building the measurement apparatus
+        before spending money on compute.
   \item \textbf{Robustness to cheap hardware.} Every stage can resume after a crash or
         preemption, the trainer can continue mid-run, and champions are immutable and
         never pruned (\cref{sec:orchestration,sec:infra}). A distillation path lets the
@@ -65,7 +73,9 @@ $9\times9$ Go, from Go self-play to a gated, published ONNX champion. (ii)~An ex
 technique-by-technique comparison with \citet{wu2019accelerating}
 (\cref{tab:overview-compare}). (iii)~Measurements of what can be measured without a
 training run: data size, load time, parameter and compute budgets, CPU inference latency,
-export parity, expected gate length, and end-to-end cycle timings (\cref{sec:eval}).
+export parity, exact gate operating characteristics, and end-to-end cycle timings
+(\cref{sec:eval}), together with the engine defects that apparatus exposed
+(\cref{sec:pipeline-found}).
 (iv)~An ablation protocol, modelled on \katago{}'s, for the experiments that would settle
 the open questions (\cref{sec:conclusion}).
 

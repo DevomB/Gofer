@@ -73,7 +73,8 @@ At most $4 \times 320$ minutes of runner time per day gives about 21 runner-hour
 about 85 vCPU-hours, per day, with no GPU. We do not claim this is fast. It is a way to
 make steady progress on a small network at zero cost, and to keep the whole loop
 exercised continuously. The gating configuration for this environment is necessarily weak
-(\cref{sec:orch-gate}): with a 192-game cap it can only reliably detect large gains.
+(\cref{sec:orch-gate}): with a 240-game cap it promotes a $+50$ Elo candidate $61\%$ of
+the time and a $+75$ Elo one $92\%$, but has little chance against smaller gains.
 
 \subsection{Estimating time and cost}
 \label{sec:infra-estimate}

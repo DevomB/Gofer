@@ -16,6 +16,16 @@ robustness, and control of false promotions at the gate (which costs longer gate
 near-neutral candidates). Measured against \katago{}, v4 is a partial adoption with
 different engineering priorities: it is built for a project with no compute budget.
 
+The result we did not expect is \cref{sec:pipeline-found}. A gate is a measuring
+instrument, and pointing a new one at the engine showed that its search had been
+selecting the opponent's best move, could not see a game end, and was being compared in
+an arena that favoured one role. None of this needed a GPU to find; it needed an
+experiment whose outcome was predictable enough that a wrong answer was recognisable as
+wrong. For a project that cannot yet afford to train, that is the cheapest possible
+lesson: build the measurement before buying the compute, because a training run on the
+old engine would have burned its entire budget teaching a network to imitate a search
+that preferred losing moves.
+
 \paragraph{Experiment protocol.}
 The open questions are empirical, and the pipeline was built to answer them cheaply. We
 propose a protocol modelled on \citeauthor{wu2019accelerating}'s ablations: a main run,
