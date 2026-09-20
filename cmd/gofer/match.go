@@ -115,9 +115,16 @@ func normalizeMatchConfig(cfg MatchConfig) MatchConfig {
 	return cfg
 }
 
-// promoteCILow is the Wilson CI lower bound required for promotion
-// (see training/cycle.py should_promote).
-const promoteCILow = 0.5
+// The head-to-head promotion gate. A challenger replaces the champion only when
+// it clears PromoteMin over at least minGamesBeforePromote games AND its Wilson
+// lower bound is above promoteCILow, so a short hot streak cannot promote. There
+// is no win-target early stop.
+const (
+	// PromoteMin is the win rate a challenger must clear against the champion.
+	PromoteMin = 0.55
+	// promoteCILow is the Wilson lower bound required alongside it.
+	promoteCILow = 0.5
+)
 
 // minGamesBeforeStop avoids stopping micro-arenas before enough evidence accumulates.
 const minGamesBeforeStop = 20
