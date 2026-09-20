@@ -129,6 +129,13 @@ def make_pipe(tmp_path: Path, ex: FakeExecutor, **overrides) -> Pipeline:
     return pipe
 
 
+def arena_losing_regression():
+    """Gates pass, the regression match (batch 900) loses."""
+    def play(cycle, batch, games):
+        return (0, games, 0) if batch == 900 else (games, 0, 0)
+    return play
+
+
 # Candidate cycle 2 crushes the champion; cycle 3 loses badly.
 def scripted_arena(cycle, batch, games):
     if cycle == 2:
@@ -196,7 +203,7 @@ def test_resumed_gate_reuses_finished_batches(tmp_path):
     pipe.run(max_cycles=1)
     gdir = pipe.gating_dir / "cycle-0002"
     gdir.mkdir(parents=True)
-    (gdir / "batch-01.json").write_text(json.dumps({"wins_challenger": 9, "wins_baseline": 1, "draws": 0}))
+    (gdir / "batch-01.json").write_text(json.dumps({"wins_challenger": 9, "wins_baseline": 1, "draws": 0, "game_count": 10}))
     pipe.run(max_cycles=1)
     arena_calls = [c for c in ex.calls if ex.kind(c) == "arena"]
     assert all(not _arg(c, "-json").endswith("batch-01.json") for c in arena_calls)
@@ -345,3 +352,91 @@ def test_prune_keeps_champions(tmp_path):
     assert [d.name for d in pipe.train_dir.glob("cycle-*")] == ["cycle-0003"]
     assert [f.name for f in pipe.models_dir.glob("candidate-*.onnx")] == ["candidate-0003.onnx"]
     assert sorted(f.name for f in pipe.models_dir.glob("gen-*.pt")) == ["gen-0001.pt", "gen-0002.pt"]
+
+
+# ---------------------------------------------- regressions found in review
+
+def test_prefetched_shard_stays_out_of_the_current_window(tmp_path):
+    """Overlap must not let the next cycle's games into this cycle's training data."""
+    ex = FakeExecutor(arena=scripted_arena)
+    pipe = make_pipe(tmp_path, ex, run__overlap_selfplay=True, gating__max_games=100)
+    pipe.run_cycle(1, prefetch_next=True)
+    # Cycle 2 was generated during cycle 1; it must be staged, not in selfplay/.
+    assert [p.name for p in pipe.selfplay_dir.glob("*.npz")] == ["cycle-0001.npz"]
+    assert (pipe.selfplay_dir / "pending" / "cycle-0002.npz").exists()
+    pipe.run_cycle(2, prefetch_next=False)
+    assert sorted(p.name for p in pipe.selfplay_dir.glob("*.npz")) == ["cycle-0001.npz", "cycle-0002.npz"]
+    assert ex.count("selfplay") == 2  # cycle 2 came from the prefetch, not a rerun
+
+
+def test_truncated_arena_report_is_replayed(tmp_path):
+    ex = FakeExecutor(arena=scripted_arena)
+    pipe = make_pipe(tmp_path, ex, gating__max_games=100)
+    pipe.run(max_cycles=1)
+    gdir = pipe.gating_dir / "cycle-0002"
+    gdir.mkdir(parents=True)
+    (gdir / "batch-01.json").write_text('{"wins_challenger": 4, "wins_base')  # killed mid-write
+    pipe.run(max_cycles=1)  # must not raise JSONDecodeError
+    assert json.loads((gdir / "batch-01.json").read_text())["game_count"] == 10
+
+
+def test_cached_report_from_a_bigger_batch_is_not_reused(tmp_path):
+    ex = FakeExecutor()
+    pipe = make_pipe(tmp_path, ex)
+    report = pipe.gating_dir / "stale.json"
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(json.dumps({"wins_challenger": 30, "wins_baseline": 10, "draws": 0, "game_count": 40}))
+    rep = pipe.run_match(report, 10, 1, None, pipe.models_dir / "x.onnx", log_name="t")
+    assert rep["game_count"] == 10
+
+
+def test_regression_baseline_is_the_highest_generation(tmp_path):
+    from training.pipeline.publish import Publisher
+    from training.pipeline.state import Generation
+
+    ex = FakeExecutor(arena=scripted_arena)
+    pipe = make_pipe(tmp_path, ex, publish__regression_lookback=2)
+    pipe.state.generations = [
+        Generation(g, g, f"models/gen-{g:04d}.onnx", f"models/gen-{g:04d}.pt", 0.0, "t") for g in (1, 2, 3, 4)
+    ]
+    # A rollback to gen 2 appends a duplicate carrying the older number.
+    pipe.state.generations.append(Generation(2, 5, "models/gen-0002.onnx", "models/gen-0002.pt", 0.0, "t"))
+    champ = Generation(5, 6, "models/gen-0005.onnx", "models/gen-0005.pt", 0.0, "t")
+    pipe.state.generations.append(champ)
+    assert Publisher(pipe)._regression_baseline(champ).generation == 3
+
+
+def test_demote_is_not_replayed_onto_a_newer_champion(tmp_path):
+    from training.pipeline.publish import Publisher
+    from training.pipeline.state import Generation
+
+    ex = FakeExecutor(arena=arena_losing_regression())
+    pipe = make_pipe(tmp_path, ex, publish__regression_games=10, publish__regression_lookback=1,
+                     publish__regression_action="demote")
+    gens = [Generation(g, g, f"models/gen-{g:04d}.onnx", f"models/gen-{g:04d}.pt", 0.0, "t") for g in (1, 2)]
+    pipe.state.generations = list(gens)
+    pipe.state.begin_cycle(3)
+    pub = Publisher(pipe)
+    first = pub.publish_champion(3, generation=2)
+    assert first["published"] == "held"
+    assert [g.generation for g in pipe.state.generations] == [1, 2, 1]
+    # Replaying the interrupted stage must not make the failed generation champion again.
+    again = pub.publish_champion(3, generation=2)
+    assert again["published"] == "held"
+    assert [g.generation for g in pipe.state.generations] == [1, 2, 1]
+    assert pipe.state.champion.generation == 1
+
+
+def test_seed_gate_result_survives_into_the_lineage(tmp_path):
+    ex = FakeExecutor(arena=lambda c, b, g: (g, 0, 0))
+    pipe = make_pipe(tmp_path, ex)
+    pipe.run(max_cycles=1)
+    gate = load_state(pipe.state_path).generations[0].gate
+    assert gate["vs_heuristic_games"] == 10 and gate["vs_heuristic_score"] == 1.0
+
+
+def test_config_rejects_odd_bootstrap_games_and_empty_cycles(tmp_path):
+    with pytest.raises(ValueError, match="bootstrap_games"):
+        make_cfg(tmp_path, gating__bootstrap_games=7)
+    with pytest.raises(ValueError, match="games_per_cycle"):
+        make_cfg(tmp_path, selfplay__games_per_cycle=0)

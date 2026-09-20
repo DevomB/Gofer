@@ -50,6 +50,12 @@ class _ProcJob:
     def wait(self) -> None:
         try:
             code = self.proc.wait()
+        except BaseException:
+            # Ctrl-C, SIGTERM, spot preemption: the child does not get the signal
+            # when we are the ones being interrupted, so stop it explicitly
+            # instead of leaving a trainer on the GPU or an arena still playing.
+            self.terminate()
+            raise
         finally:
             for c in self.cleanup:
                 c.terminate()

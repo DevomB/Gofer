@@ -49,6 +49,9 @@ class _Bundle:
     def wait(self) -> None:
         try:
             self.job.wait()
+        except BaseException:
+            self.job.terminate()   # an interrupt here must not orphan background self-play
+            raise
         finally:
             self.terminate_sidecars()
 
@@ -95,7 +98,7 @@ class Pipeline:
         for d in (self.selfplay_dir, self.train_dir, self.models_dir, self.gating_dir, self.history_dir, self.logs_dir):
             d.mkdir(parents=True, exist_ok=True)
         (self.dir / "config.toml").write_text(dump_toml(self.cfg), encoding="utf-8")
-        for stale in self.selfplay_dir.glob("*.npz.tmp"):
+        for stale in list(self.selfplay_dir.glob("*.npz.tmp")) + list((self.selfplay_dir / "pending").glob("*.npz.tmp")):
             stale.unlink()
         eng = self.cfg.engine
         if eng.backend == "inprocess":
@@ -156,9 +159,9 @@ class Pipeline:
         if not st.is_done("selfplay"):
             self._timed(cycle, "selfplay", self.stage_selfplay)
         if prefetch_next and self.cfg.run.overlap_selfplay and cycle + 1 not in self.prefetch:
-            if not self._shard_path(cycle + 1).exists():
+            if not self._shard_path(cycle + 1).exists() and not self._pending_path(cycle + 1).exists():
                 self.log(f"prefetch self-play for cycle {cycle + 1} in background")
-                self.prefetch[cycle + 1] = self._spawn_selfplay(cycle + 1)
+                self.prefetch[cycle + 1] = self._spawn_selfplay(cycle + 1, self._pending_path(cycle + 1))
 
         if st.lifetime_rows < self.cfg.replay.min_rows_to_train:
             self.log(f"only {st.lifetime_rows} rows < min_rows_to_train={self.cfg.replay.min_rows_to_train}; skip training this cycle")
@@ -209,6 +212,16 @@ class Pipeline:
     def _shard_path(self, cycle: int) -> Path:
         return self.selfplay_dir / f"cycle-{cycle:04d}.npz"
 
+    def _pending_path(self, cycle: int) -> Path:
+        """Where background self-play writes before its cycle starts.
+
+        Prefetched games must not sit in selfplay/ while an earlier cycle trains:
+        the trainer reads the whole directory newest-first, so a finished
+        prefetch would displace the very data the cycle is meant to learn from,
+        and would do it depending on wall-clock timing.
+        """
+        return self.selfplay_dir / "pending" / f"cycle-{cycle:04d}.npz"
+
     def _eval_args(self, model1: Path, model2: Path | None, ports: tuple[int, int]) -> list[str]:
         if self.cfg.engine.backend == "inprocess":
             args = ["-eval-backend", "inprocess", "-model", str(model1)]
@@ -233,7 +246,7 @@ class Pipeline:
             raise
         return started
 
-    def selfplay_command(self, cycle: int) -> list[str]:
+    def selfplay_command(self, cycle: int, out_path: Path | None = None) -> list[str]:
         sp = self.cfg.selfplay
         champ = self.state.champion
         games = sp.games_per_cycle if champ else (sp.bootstrap_games or sp.games_per_cycle)
@@ -247,7 +260,7 @@ class Pipeline:
             "-selfplay-temp-moves", str(sp.temp_moves),
             "-selfplay-parallel", str(self.cfg.selfplay_parallel()),
             "-seed", str(self.cfg.run.seed + cycle * 100_003),
-            "-o", str(self._shard_path(cycle)),
+            "-o", str(out_path or self._shard_path(cycle)),
         ]
         if champ is None:
             return cmd + ["-selfplay-eval", "heuristic"]
@@ -258,12 +271,14 @@ class Pipeline:
             "-eval-timeout", self.cfg.engine.eval_timeout,
         ] + self._eval_args(self._abs(Path(champ.onnx)), None, (port, port))
 
-    def _spawn_selfplay(self, cycle: int) -> _Bundle:
+    def _spawn_selfplay(self, cycle: int, out_path: Path | None = None) -> _Bundle:
         champ = self.state.champion
         port = self.cfg.engine.sidecar_base_port
         sidecars = self._sidecars([self._abs(Path(champ.onnx))], [port], "selfplay") if champ else []
+        if out_path is not None:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
         try:
-            job = self.x.spawn(self.selfplay_command(cycle), log=self.logs_dir / f"selfplay-{cycle:04d}.log", env=self.env)
+            job = self.x.spawn(self.selfplay_command(cycle, out_path), log=self.logs_dir / f"selfplay-{cycle:04d}.log", env=self.env)
         except Exception:
             for s in sidecars:
                 s.terminate()
@@ -272,12 +287,22 @@ class Pipeline:
 
     def stage_selfplay(self, cycle: int) -> dict[str, Any]:
         path = self._shard_path(cycle)
-        bundle = self.prefetch.pop(cycle, None)
+        bundle = self.prefetch.get(cycle)
         if bundle is not None:
             self.log(f"waiting for prefetched self-play of cycle {cycle}")
-            bundle.wait()
-        elif not path.exists():
+            try:
+                bundle.wait()
+            finally:
+                # Popped only after waiting, so an interrupt during the wait still
+                # finds the job in self.prefetch and terminates it.
+                self.prefetch.pop(cycle, None)
+        elif not path.exists() and not self._pending_path(cycle).exists():
             self._spawn_selfplay(cycle).wait()
+        pending = self._pending_path(cycle)
+        if pending.exists() and not path.exists():
+            # This cycle's turn has come: its prefetched games join the replay
+            # buffer now, never while an earlier cycle was training.
+            pending.replace(path)
         if not path.exists():
             raise CommandError(f"self-play finished but {path} is missing")
         meta = replay_index.read_shard_meta(path)
@@ -371,6 +396,8 @@ class Pipeline:
 
     def run_match(self, report: Path, games: int, seed: int, baseline: Path | None, challenger: Path, *, log_name: str) -> dict:
         """Play one arena match, or reuse its report: matches are idempotent across resumes."""
+        if report.exists() and not self._usable_report(report, games):
+            report.unlink(missing_ok=True)
         if not report.exists():
             base = self.cfg.engine.sidecar_base_port
             models = [challenger] if baseline is None else [baseline, challenger]
@@ -382,6 +409,24 @@ class Pipeline:
                 for s in sidecars:
                     s.terminate()
         return json.loads(report.read_text(encoding="utf-8"))
+
+    def _usable_report(self, report: Path, games: int) -> bool:
+        """Is a cached arena report complete and still valid for this batch size?
+
+        A crash while the engine wrote the report leaves a truncated file, and a
+        report from a larger batch must not be reused after the configuration
+        shrank; either way the match is replayed. Arenas may stop early, so the
+        recorded game count is only required not to exceed what we asked for.
+        """
+        try:
+            played = int(json.loads(report.read_text(encoding="utf-8")).get("game_count", 0))
+        except (json.JSONDecodeError, OSError, ValueError):
+            self.log(f"discarding unreadable arena report {report.name}; replaying that match")
+            return False
+        if not 0 < played <= games:
+            self.log(f"discarding arena report {report.name}: {played} games recorded, {games} requested")
+            return False
+        return True
 
     def _run_arena(self, cycle: int, batch: int, games: int, report: Path, *, vs_heuristic: bool) -> dict:
         champ = self.state.champion
@@ -396,8 +441,12 @@ class Pipeline:
         if self.state.champion is None:
             rep = self._run_arena(cycle, 0, g.bootstrap_games, gdir / "vs-heuristic.json", vs_heuristic=True)
             tally = stats.tally_from_arena(rep)
+            # Flattened as well as nested: the lineage keeps scalars only, and this
+            # match is the only evidence recorded about generation 1's strength.
             decision = {"kind": "seed", "promote": True, "would_promote": True, "reason": "first network seeds the lineage",
-                        "vs_heuristic": tally.to_dict()}
+                        "vs_heuristic": tally.to_dict(),
+                        "vs_heuristic_score": tally.score, "vs_heuristic_games": tally.games,
+                        "vs_heuristic_elo": tally.elo()[0]}
             self.log(f"gate cycle {cycle}: seed champion (vs heuristic score {tally.score:.3f} over {tally.games} games)")
         else:
             decision = self._sprt_gate(cycle, gdir)
@@ -470,9 +519,10 @@ class Pipeline:
         from training.pipeline.publish import Publisher
 
         assert self.state.in_progress is not None
-        if not self.state.in_progress.data.get("promoted") or not self.cfg.publish.enabled:
+        data = self.state.in_progress.data
+        if not data.get("promoted") or not self.cfg.publish.enabled:
             return {"published": False}
-        return Publisher(self).publish_champion(cycle)
+        return Publisher(self).publish_champion(cycle, generation=data.get("generation"))
 
 
 def trainer_flags(args: dict[str, Any]) -> list[str]:

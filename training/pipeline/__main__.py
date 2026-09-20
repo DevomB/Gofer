@@ -100,13 +100,32 @@ def cmd_estimate(args: argparse.Namespace) -> int:
 
 
 def cmd_plan_sprt(args: argparse.Namespace) -> int:
+    """Exact operating characteristics of the configured gate (no simulation)."""
+    from training.pipeline.gate_oc import sprt_gate_oc, v3_gate_oc
+
     cfg = load_config(args.config, args.overrides).gating
     lo, hi = stats.sprt_bounds(cfg.alpha, cfg.beta)
-    print(f"SPRT elo0={cfg.elo0:g} elo1={cfg.elo1:g} alpha={cfg.alpha:g} beta={cfg.beta:g} LLR bounds [{lo:.2f}, {hi:.2f}] max_games={cfg.max_games}")
-    print(f"{'true Elo':>9} {'E[games]':>9}  (vs fixed {cfg.max_games})")
-    for elo in (-100, -50, -20, 0, 17.5, 35, 50, 100, 200):
-        n = stats.expected_games(cfg.elo0, cfg.elo1, cfg.alpha, cfg.beta, elo)
-        print(f"{elo:>9g} {min(n, cfg.max_games):>9.0f}")
+    print(f"SPRT elo0={cfg.elo0:g} elo1={cfg.elo1:g} alpha={cfg.alpha:g} beta={cfg.beta:g} "
+          f"LLR bounds [{lo:+.2f}, {hi:+.2f}] batch={cfg.batch_games} cap={cfg.max_games} "
+          f"fallback: score>={cfg.promote_win:g} and Wilson low>0.5")
+    print("computing exact operating characteristics...", flush=True)
+    elos = [float(e) for e in args.elos] if args.elos else [-100, -50, -20, 0, 20, 35, 50, 100, 200]
+    print(f"\n{'true Elo':>9} {'promoted':>9} {'E[games]':>9}" + (f" {'v3 promoted':>12} {'v3 E[games]':>12}" if args.compare else ""))
+    rows = []
+    for elo in elos:
+        oc = sprt_gate_oc(cfg, elo)
+        row = f"{elo:>9g} {oc.accept:>9.3f} {oc.games:>9.0f}"
+        if args.compare:
+            v3 = v3_gate_oc(elo)
+            row += f" {v3.accept:>12.3f} {v3.games:>12.0f}"
+        rows.append((elo, oc))
+        print(row, flush=True)
+    zero = next((oc for e, oc in rows if e == 0), None)
+    if zero:
+        print(f"\nfalse promotion at no real gain: {zero.accept:.1%} (costing {zero.games:.0f} games)")
+    detect = next((e for e, oc in rows if e > 0 and oc.accept >= 0.8), None)
+    print("smallest listed gain promoted at least 80% of the time: "
+          + (f"{detect:+.0f} Elo" if detect is not None else "none in this range -- raise max_games or lower elo1"))
     return 0
 
 
@@ -169,8 +188,10 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--json", action="store_true")
     e.set_defaults(fn=cmd_estimate)
 
-    ps = sub.add_parser("plan-sprt", help="expected gate length for the configured SPRT")
+    ps = sub.add_parser("plan-sprt", help="exact promotion rate and gate length for the configured SPRT")
     _add_config_args(ps)
+    ps.add_argument("--compare", action="store_true", help="also show the v3 gate (200 games, Wilson, interim stops)")
+    ps.add_argument("--elos", nargs="*", type=float, help="true Elo gaps to evaluate (default: -100..200)")
     ps.set_defaults(fn=cmd_plan_sprt)
 
     pub = sub.add_parser("publish", help="list published champions; --retry failed GitHub releases")

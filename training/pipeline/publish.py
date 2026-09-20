@@ -95,12 +95,22 @@ class Publisher:
     def _stem(self, generation: int) -> str:
         return f"{self.cfg.release_prefix}{self.run_name}-gen{generation:04d}"
 
+    def _generation(self, generation: int) -> Generation | None:
+        """The newest lineage entry for this generation number."""
+        return next((g for g in reversed(self.pipe.state.generations) if g.generation == generation), None)
+
     # ------------------------------------------------------------ regression
 
     def _regression_baseline(self, champ: Generation) -> Generation | None:
+        """The newest generation at least `regression_lookback` behind the champion.
+
+        Chosen by generation number, not by position: rollbacks and demotions
+        append a duplicate entry carrying an older number, so the last matching
+        element of the list can be far older than intended.
+        """
         older = [g for g in self.pipe.state.generations
                  if g.generation <= champ.generation - self.cfg.regression_lookback]
-        return older[-1] if older else None
+        return max(older, key=lambda g: g.generation, default=None)
 
     def regression_check(self, cycle: int, champ: Generation) -> dict[str, Any] | None:
         if self.cfg.regression_games <= 0:
@@ -109,6 +119,7 @@ class Publisher:
         if base is None:
             return None
         report = self.pipe.gating_dir / f"cycle-{cycle:04d}" / f"regression-vs-gen{base.generation:04d}.json"
+        report.parent.mkdir(parents=True, exist_ok=True)
         rep = self.pipe.run_match(report, self.cfg.regression_games, self.pipe.cfg.run.seed + cycle * 1000 + 900,
                                   self.pipe._abs(Path(base.onnx)), self.pipe._abs(Path(champ.onnx)),
                                   log_name=f"regression-{cycle:04d}")
@@ -120,9 +131,15 @@ class Publisher:
 
     # --------------------------------------------------------------- publish
 
-    def publish_champion(self, cycle: int) -> dict[str, Any]:
+    def publish_champion(self, cycle: int, generation: int | None = None) -> dict[str, Any]:
+        """Publish the generation this cycle promoted.
+
+        `generation` comes from the promote stage rather than from the current
+        champion, so replaying an interrupted publish still refers to the
+        generation under test even if a demotion already moved the champion.
+        """
         st = self.pipe.state
-        champ = st.champion
+        champ = self._generation(generation) if generation is not None else st.champion
         assert champ is not None
         reg = self.regression_check(cycle, champ)
         self.registry.mkdir(parents=True, exist_ok=True)
@@ -140,12 +157,18 @@ class Publisher:
         }
         if reg is not None and not reg["passed"]:
             entry["status"] = "held"
-            if self.cfg.regression_action == "demote" and len(st.generations) >= 2:
-                prev = st.generations[-2]
-                st.generations.append(replace(prev, cycle=cycle, promoted_at=utc_now(),
-                                              gate={"demoted": champ.generation, "reason": "failed regression check"}))
-                save_state(self.pipe.state_path, st)
-                entry["demoted_to"] = prev.generation
+            demote = self.cfg.regression_action == "demote" and st.champion is not None
+            # Only demote while the failed generation is still champion: replaying
+            # an interrupted publish must not promote it back over its replacement.
+            if demote and st.champion.generation == champ.generation:
+                prev = next((g for g in reversed(st.generations[:-1]) if g.generation != champ.generation), None)
+                if prev is not None:
+                    st.generations.append(replace(prev, cycle=cycle, promoted_at=utc_now(),
+                                                  gate={"demoted": champ.generation, "reason": "failed regression check"}))
+                    save_state(self.pipe.state_path, st)
+                    entry["demoted_to"] = prev.generation
+            elif demote:
+                entry["demoted_to"] = st.champion.generation
             self.pipe.log(f"gen {champ.generation} HELD: not published (regression check failed)")
         else:
             onnx = self.registry / f"{stem}.onnx"

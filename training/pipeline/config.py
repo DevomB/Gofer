@@ -87,15 +87,20 @@ class GatingConfig:
     mode: str = "normal"                # normal | hold (arena runs, never promotes)
     playouts: int = 400
     batch_games: int = 40               # arena games per SPRT step (even: colors alternate)
-    max_games: int = 400
+    max_games: int = 600
     bootstrap_games: int = 40           # sanity arena vs heuristic for the first net
     opening_moves: int = 8
     parallel: int = 0
     # SPRT on Elo: H0 candidate is elo0 better, H1 it is elo1 better.
+    # These defaults were chosen from the exact operating characteristics
+    # (`python -m training.pipeline plan-sprt`): they promote a no-gain candidate
+    # 2.4% of the time, a +35 Elo candidate 61%, and a +50 Elo candidate 90%,
+    # for about 380 games when the candidate is worthless. Raising max_games is
+    # the main way to buy power; beta=0.10 trades a little of it for shorter gates.
     elo0: float = 0.0
     elo1: float = 35.0
     alpha: float = 0.05
-    beta: float = 0.05
+    beta: float = 0.10
     # Fallback when SPRT is inconclusive at max_games (legacy v3 rule).
     promote_win: float = 0.55
 
@@ -157,6 +162,12 @@ class PipelineConfig:
             errors.append(f"gating.mode must be normal|hold, got {self.gating.mode!r}")
         if self.gating.batch_games <= 0 or self.gating.batch_games % 2:
             errors.append("gating.batch_games must be a positive even number (colors alternate)")
+        if self.gating.bootstrap_games <= 0 or self.gating.bootstrap_games % 2:
+            errors.append("gating.bootstrap_games must be a positive even number (colors alternate)")
+        if self.selfplay.games_per_cycle <= 0:
+            errors.append("selfplay.games_per_cycle must be positive")
+        if self.selfplay.bootstrap_games < 0:
+            errors.append("selfplay.bootstrap_games must be >= 0 (0 = use games_per_cycle)")
         if self.gating.max_games < self.gating.batch_games:
             errors.append("gating.max_games must be >= gating.batch_games")
         if not 0 < self.gating.alpha < 0.5 or not 0 < self.gating.beta < 0.5:
