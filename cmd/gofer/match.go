@@ -247,6 +247,22 @@ func RunMatch(cfg MatchConfig) MatchResult {
 	return out
 }
 
+// mixSeed derives an independent seed for one (match seed, game, slot). The
+// arena alternates which player holds which colour with game parity, so seeds
+// must carry no parity structure of their own: with seeds linear in the game
+// index, consecutive games drew correlated openings and one parity class could
+// be decided systematically, which showed up as a role split between two
+// evaluators that were literally the same code. This is splitmix64.
+func mixSeed(seed int64, gameIdx, slot int) int64 {
+	x := uint64(seed)*0x9E3779B97F4A7C15 + uint64(gameIdx)*0xBF58476D1CE4E5B9 + uint64(slot)*0x94D049BB133111EB
+	x ^= x >> 30
+	x *= 0xBF58476D1CE4E5B9
+	x ^= x >> 27
+	x *= 0x94D049BB133111EB
+	x ^= x >> 31
+	return int64(x >> 1)
+}
+
 func arenaEvalsForGame(cfg MatchConfig, gameIdx int) (string, string) {
 	if cfg.SwapColors && gameIdx%2 == 1 {
 		return cfg.WhiteEval, cfg.BlackEval
@@ -269,14 +285,14 @@ func runArenaSummary(r Ruleset, cfg MatchConfig, gameIdx int, evals map[string]E
 	blackEval, whiteEval := arenaEvalsForGame(cfg, gameIdx)
 	bp, wp := arenaPlayouts(cfg)
 	// Evaluators are shared across games; do not Close() the per-game engines.
-	blackEng := newArenaEngineEval(r, bp, cfg.ThinkTime, evals[blackEval], cfg.Seed+int64(gameIdx)*2, arenaEnhancedFor(blackEval, cfg))
-	whiteEng := newArenaEngineEval(r, wp, cfg.ThinkTime, evals[whiteEval], cfg.Seed+int64(gameIdx)*2+1, arenaEnhancedFor(whiteEval, cfg))
+	blackEng := newArenaEngineEval(r, bp, cfg.ThinkTime, evals[blackEval], mixSeed(cfg.Seed, gameIdx, 0), arenaEnhancedFor(blackEval, cfg))
+	whiteEng := newArenaEngineEval(r, wp, cfg.ThinkTime, evals[whiteEval], mixSeed(cfg.Seed, gameIdx, 1), arenaEnhancedFor(whiteEval, cfg))
 
 	b := NewBoard(cfg.Size, cfg.Komi)
 	// Per-game RNG seeds opening-move sampling so the games in a match are
 	// actually distinct; without it the deterministic MCTS replays one identical
 	// game N times and the win rate is decided by komi symmetry, not strength.
-	rng := rand.New(rand.NewSource(cfg.Seed + int64(gameIdx+1)*0x9E3779B1))
+	rng := rand.New(rand.NewSource(mixSeed(cfg.Seed, gameIdx, 2)))
 	moves := playArenaGame(r, b, blackEng, whiteEng, cfg.Size, cfg.OpeningMoves, cfg.OpeningTemp, rng)
 	bl, wl := r.Score(b)
 	summary := GameSummary{Game: gameIdx + 1, BlackEval: blackEval, WhiteEval: whiteEval, Moves: moves}

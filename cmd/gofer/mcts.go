@@ -352,17 +352,26 @@ func (e *Engine) runPlayout(b *Board, root int) {
 
 	e.mu.Lock()
 	n := e.arena.Get(node)
+	// An expanded node with no children is a finished game (expandLocked adds no
+	// moves there); its result is known exactly and must not be re-estimated.
+	terminal := n.Expanded && len(n.Children) == 0
 	if !n.Expanded {
-		if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 {
+		// The transposition key covers stones, not pass history, so a finished
+		// position can collide with a live one: never serve it from the table.
+		if v, ok := e.TT.Get(br.Hash()); ok && v.Depth != 0 && !twoPasses(br) {
 			e.backupLocked(path, v.Value)
 			e.mu.Unlock()
 			return
 		}
 		e.expandLocked(node, br)
+		terminal = len(e.arena.Get(node).Children) == 0
 	}
 	e.mu.Unlock()
 
 	value := e.leafValue(br)
+	if terminal {
+		value = terminalValue(e.Rules, br)
+	}
 	e.backup(path, value)
 }
 
@@ -397,7 +406,7 @@ func (e *Engine) expandLocked(node int, b *Board) {
 	if n.Expanded {
 		return
 	}
-	if e.isTerminal(b) {
+	if e.gameOver(b) {
 		n.Expanded = true
 		return
 	}
@@ -440,6 +449,14 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 }
 
 func (e *Engine) leafValue(b *Board) float64 {
+	// A finished game has a known result; asking the evaluator for one would let
+	// the search walk into a lost endgame it cannot see. Only the O(1) two-pass
+	// test runs here: a board with no legal move is caught at expansion, and this
+	// is the hot path. Checked before the transposition table, whose key covers
+	// stones but not pass history.
+	if twoPasses(b) {
+		return terminalValue(e.Rules, b)
+	}
 	hash := b.Hash()
 	e.mu.Lock()
 	if v, ok := e.TT.Get(hash); ok && v.Depth != 0 {
@@ -506,4 +523,35 @@ func (e *Engine) isTerminal(b *Board) bool {
 		}
 	}
 	return true
+}
+
+// gameOver reports whether play has ended under the same rule the game loops
+// use: two consecutive passes, or no legal move other than pass.
+func (e *Engine) gameOver(b *Board) bool {
+	if twoPasses(b) {
+		return true
+	}
+	return e.isTerminal(b)
+}
+
+func twoPasses(b *Board) bool {
+	h := b.historyMoves(2)
+	return len(h) == 2 && h[0].move.Pass && h[1].move.Pass
+}
+
+// terminalValue scores a finished board from the side to move's perspective.
+func terminalValue(rs Ruleset, b *Board) float64 {
+	black, white := rs.Score(b)
+	diff := black - white
+	if b.Player() == White {
+		diff = -diff
+	}
+	switch {
+	case diff > 0:
+		return 1
+	case diff < 0:
+		return -1
+	default:
+		return 0
+	}
 }

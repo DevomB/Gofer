@@ -208,7 +208,11 @@ func TestIdenticalEvalColorBalance(t *testing.T) {
 	res := RunMatch(MatchConfig{
 		Games:         games,
 		Size:          9,
-		Komi:          -1.0, // heuristic fair komi at test playouts; not the arena remap
+		// Fair komi for equal heuristic engines at 50 playouts, measured after the
+		// ADR 0008 search fix: 200 games give Black 53.1%. The old value (-1.0) was
+		// fitted to the broken search, which ended games near-empty in ~11 moves
+		// and let komi alone decide them.
+		Komi:          2.0,
 		Playouts:      50,
 		BlackEval:     "heuristic",
 		WhiteEval:     "heuristic",
@@ -222,8 +226,7 @@ func TestIdenticalEvalColorBalance(t *testing.T) {
 		t.Fatalf("want %d games got %d", games, res.Games)
 	}
 	assertWinsNearExpected(t, res.WinsBlack, res.Games, 0.5, 3.0)
-	t.Logf("black=%d white=%d draws=%d komi=%.1f",
-		res.WinsBlack, res.WinsWhite, res.Draws, -1.0)
+	t.Logf("black=%d white=%d draws=%d komi=2.0", res.WinsBlack, res.WinsWhite, res.Draws)
 }
 
 

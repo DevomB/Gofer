@@ -139,12 +139,15 @@ func normalizeSelfplayPlayouts(cfg *SelfplayConfig) {
 
 func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, pool evalPool) ([]Sample, *GameLog) {
 	// Per-game RNG keyed only by gameIdx keeps output deterministic under Parallel.
-	rng := rand.New(rand.NewSource(cfg.Seed + int64(gameIdx)))
+	// Seeds are mixed rather than consecutive: neighbouring seeds draw correlated
+	// openings, which costs game diversity (and in the arena skewed results; see
+	// mixSeed in match.go).
+	rng := rand.New(rand.NewSource(mixSeed(cfg.Seed, gameIdx, 3)))
 	rs, size := selfplayRuleset(cfg, rng)
 	b := NewBoard(size, cfg.Komi)
 	log := NewGameLog(size, cfg.Komi)
 	scfg := DefaultConfig()
-	scfg.Seed = cfg.Seed + int64(gameIdx)
+	scfg.Seed = mixSeed(cfg.Seed, gameIdx, 4)
 	scfg.Workers = 1 // concurrency comes from parallel games feeding the shared batcher
 	eval := selfplayEvaluator(cfg, gameIdx, rng, pool)
 	eng := NewEngine(rs, eval, scfg)

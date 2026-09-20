@@ -2,6 +2,36 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+
+- **MCTS selected the move best for the opponent.** `puctScore` used a child's mean
+  without negating it, but node values are stored from each node's own side to move.
+  More search made the engine weaker: on the project's own baseline command (Black 600
+  playouts vs White 200, identical heuristics) Black won **0 of 20** before and **13 of 20**
+  after, with games going from 11–13 moves to 20–69. See
+  [ADR 0008](docs/decisions/0008-mcts-value-sign-and-terminal-scoring.md).
+- **The search never saw the end of the game.** Two consecutive passes were not treated as
+  terminal and finished positions were scored by the evaluator instead of the rules, so the
+  search walked into lost endings. Terminal results are never cached in the transposition
+  table, whose key does not cover pass history.
+- **Arena role attribution was biased.** Per-game seeds were linear in the game index while
+  colours swapped on the same parity, so one role systematically drew correlated openings.
+  With two evaluators that are literally the same code, roles split 36/64, 55/26 and 55/30
+  across three seeds; after mixing the seeds they split 55/53, 51/69 and 55/61.
+- Every strength number recorded before these fixes is void, including
+  `.tectonix/reports/arena-9x9-baseline.json`.
+
+### Added
+
+- Training pipeline v4: `.npz` self-play shards, a resumable orchestrator
+  (`python -m training.pipeline`), SPRT gating, a champion registry with rollback, Docker /
+  SkyPilot / free-CI deployment, and a paper in `paper/`. See
+  [docs/pipeline.md](docs/pipeline.md) and [ADR 0007](docs/decisions/0007-pipeline-orchestrator.md).
+- `plan-sprt` reports a gate's exact promotion rate and expected length
+  (`training/pipeline/gate_oc.py`), and a short-mode test asserts that more playouts win.
+
 ## [2.7.1] - 2026-07-07
 
 ### Added

@@ -57,9 +57,13 @@ func (n *Node) Mean() float64 {
 }
 
 func puctScore(c *Node, parentVisits float64, isRoot bool, cfg SearchConfig) float64 {
-	q := c.Mean()
+	// Node means are stored from that node's own side to move (backupLocked flips
+	// the sign at every level), so a child's mean is the OPPONENT's view. Negate
+	// it to score the move from the parent's side: without this the search picks
+	// the move that is best for the opponent, and more playouts make it weaker.
+	q := -c.Mean()
 	if c.Visits == 0 {
-		q = -cfg.FPU
+		q = -cfg.FPU // first-play urgency: assume an unseen move is slightly bad for us
 	}
 	u := cfg.CPUCT * c.Prior * math.Sqrt(parentVisits) / (1 + float64(c.Visits))
 	if isRoot && cfg.RootTemperature != 1 && c.Visits > 0 {
