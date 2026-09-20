@@ -131,6 +131,32 @@ from $0.159$ to $0.199$ of the visits, the number of moves with any visits from
 $41.5$ to $24.3$, and the entropy from $2.98$ to $2.60$ nats, against $4.41$ for
 a uniform distribution over 82 moves.
 
+The same fix also returns the compute the flood was consuming. Because the
+forced pass cost roughly (children $\times$ $k$) playouts per move---about 164 on
+$9\times9$---regardless of the search budget, the saving is largest where the
+budget is smallest. Measured on self-play with every move at the full cap, one
+seed, cost per move:
+
+\begin{center}\small
+\begin{tabular}{@{}rrrr@{}}
+\toprule
+Playouts per move & before & after & \\
+\midrule
+6   & 53.3\,ms & 16.1\,ms & $3.3\times$ \\
+50  & 84.8\,ms & 31.0\,ms & $2.7\times$ \\
+200 & 171.4\,ms & 95.3\,ms & $1.8\times$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent At 200 playouts that matches what the arithmetic predicts, since 164 of
+364 playouts were forced. At 6 playouts the arithmetic predicts far more than the
+measured $3.3\times$, because per-move costs that do not scale with the budget---
+building features, generating legal moves, cloning the board---dominate there,
+and because the repaired search descends deeper, so each remaining playout does
+more work. This is a saving on work that should never have been done, not a
+faster implementation of the same work.
+
 \paragraph{7. The reference baseline enhanced both players.}
 Forced-playout mode (\code{-arena-enhanced}) was resolved by comparing evaluator
 \emph{names}: the enhanced side was whichever engine's name matched the baseline's.
