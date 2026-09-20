@@ -423,7 +423,7 @@ tailwind.config = {
         <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">-play</button>
         <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-gtp</button>
         <button data-tab="selfplay" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-selfplay</button>
-        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">the loop</button>
+        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">the gate</button>
       </div>
     </div>
 
@@ -566,8 +566,8 @@ tailwind.config = {
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bash scripts/train-loop-v3.sh</pre>
-            <button data-copy="bash scripts/train-loop-v3.sh" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> python -m training.pipeline run --config configs/pipeline-smoke.toml</pre>
+            <button data-copy="python -m training.pipeline run --config configs/pipeline-smoke.toml" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
           <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop: self-play → train → export → arena → gate</p>
         </div>
@@ -1191,22 +1191,20 @@ tailwind.config = {
       ]
     },
     loop: {
-      title: 'scripts/train-loop-v3.sh',
+      title: 'python -m training.pipeline plan-sprt',
       lines: [
-        { t: 'cmd', s: 'bash scripts/train-loop-v3.sh' },
-        { t: 'com', s: '# self-play → replay buffer → train → export → arena → gate …' },
-        { t: 'cmd', s: 'cat .tectonix/manifest.json' },
-        { t: 'out', s: '{' },
-        { t: 'out', s: '  "version": 3,' },
-        { t: 'out', s: '  "cycle": 7,' },
-        { t: 'gold', s: '  "best_win_rate": 0.305,' },
-        { t: 'out', s: '  "best_cycle": 3,' },
-        { t: 'gold', s: '  "replay_rows": 45243,' },
-        { t: 'out', s: '  "last_promoted_at": "2026-07-02T20:46:46Z",' },
-        { t: 'out', s: '  "seed": "fresh"' },
-        { t: 'out', s: '}' },
-        { t: 'com', s: '# the champion still holds the gate. that’s the ledger —' },
-        { t: 'com', s: '# a challenger has to pass a sequential test on Elo to rewrite it.' },
+        { t: 'cmd', s: 'python -m training.pipeline plan-sprt --config configs/pipeline-cpu.toml' },
+        { t: 'out', s: 'SPRT elo0=0 elo1=35 alpha=0.05 beta=0.1  LLR bounds [-2.25, +2.89]  batch=40 cap=600' },
+        { t: 'out', s: '' },
+        { t: 'out', s: ' true Elo  promoted  E[games]' },
+        { t: 'out', s: '     -100     0.000        94' },
+        { t: 'out', s: '      -20     0.001       254' },
+        { t: 'out', s: '        0     0.023       397' },
+        { t: 'gold', s: '       35     0.605       444' },
+        { t: 'gold', s: '       50     0.899       339' },
+        { t: 'out', s: '      100     1.000       154' },
+        { t: 'com', s: '# false promotion at no real gain: 2.3%' },
+        { t: 'com', s: '# that is the ledger — a challenger has to pass it to rewrite it.' },
       ]
     }
   };
