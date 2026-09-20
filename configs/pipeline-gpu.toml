@@ -30,7 +30,7 @@ args = {config = "training/configs/train-gpu.toml"}
 playouts = 400
 batch_games = 40
 # A GPU box can afford long gates, so buy power: this promotes a +35 Elo
-# candidate 74% of the time and a +50 Elo one 96%, for ~420 games when the
+# candidate 74% of the time and a +50 Elo one 96%, for ~441 games when the
 # candidate is worthless (python -m training.pipeline plan-sprt).
 max_games = 800
 elo0 = 0

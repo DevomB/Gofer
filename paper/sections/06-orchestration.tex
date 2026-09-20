@@ -133,10 +133,11 @@ $\alpha=0.05$, $\beta=0.10$, which puts the bounds at $-2.25$ and $+2.89$. Two
 practical details:
 \begin{itemize}
   \item \emph{Batches.} The test is checked after arena batches of 40 games, not after
-        every game. A full batch has equal numbers of games with each colour, and the
-        engine can batch its network evaluations. Each batch is one Go arena call, so the arena's in-batch early reject
-        still applies. Stopping a batch early does not bias the likelihood ratio, because
-        the next batch simply continues the same sequence of games.
+        every game. A batch has equal numbers of games with each colour, and the engine can
+        batch its network evaluations. Batches run with \code{-arena-play-all}: the engine
+        has its own in-match promotion stop, and leaving it enabled would put a second
+        stopping rule on the same stream this test is already reading sequentially
+        (\cref{sec:pipeline-found}).
   \item \emph{Cap.} The gate plays at most 600 games by default. If the test is still undecided
         there, the v3 rule decides.
 \end{itemize}
@@ -205,19 +206,19 @@ candidate's true advantage.}
 Three findings stand out.
 \begin{itemize}
   \item \emph{Error control.} SPRT keeps the false-promotion rate close to its nominal
-        level: $2.4\%$ at $\Delta=0$, against v3's $8.0\%$. It also has more power for
+        level: $2.3\%$ at $\Delta=0$, against v3's $8.0\%$. It also has more power for
         real gains: at $\Delta=+50$ it promotes $90\%$ of candidates, against $67\%$.
   \item \emph{Not uniformly cheaper.} Clearly worse candidates are rejected sooner than
-        in v3 (84 against 142 expected games at $-100$), and very strong ones are
-        accepted sooner at $+200$ (84 against 100). But near the indifference region SPRT
-        plays more than twice as many games (380 against 175 at $\Delta=0$). The v4 gate is
+        in v3 (94 against 142 expected games at $-100$), and very strong ones are
+        accepted sooner at $+200$ (85 against 100). But near the indifference region SPRT
+        plays more than twice as many games (397 against 175 at $\Delta=0$). The v4 gate is
         an error-control improvement, not a saving in games.
   \item \emph{The cap matters.} With the default cap of 600 games, a candidate that is
         truly $+35$ Elo stronger is promoted $61\%$ of the time, below the nominal
         $1-\beta=0.90$, because many such tests reach the cap undecided. Raising the cap
         is the main lever: at 800 games the same candidate is promoted $74\%$ of the time,
         which is what the GPU configuration uses. The free-runner configuration's cap of
-        240 can only detect large gains ($36\%$ at $+35$, $61\%$ at $+50$). On a
+        240 can only detect large gains ($35\%$ at $+35$, $61\%$ at $+50$). On a
         small budget, that configuration can only reliably detect large gains. This is
         acceptable early in a run, when each generation typically gains a lot, but it
         should be revisited once gains become small.
@@ -250,7 +251,7 @@ own GitHub Release, so older champions remain downloadable. A failed upload is r
 retried later; it never stops training.
 
 \paragraph{Guarding against a false best.}
-A gate can pass by chance ($2.4\%$ at $\Delta=0$ in \cref{tab:orch-gate-oc}), or a
+A gate can pass by chance ($2.3\%$ at $\Delta=0$ in \cref{tab:orch-gate-oc}), or a
 candidate can beat the current champion while losing to earlier ones. Before publishing, an
 optional \emph{regression match} plays the new champion against the champion
 \code{regression\_lookback} generations earlier. If the new champion scores below a

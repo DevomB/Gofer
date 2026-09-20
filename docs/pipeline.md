@@ -30,7 +30,7 @@ python -m training.pipeline report --config configs/pipeline-smoke.toml  # runs/
 |---|---|---|
 | Self-play data | JSONL, full-search rows only | `.npz` shards (~40x smaller); fast rows kept for value/ownership |
 | Replay | one `replay.jsonl`, rewritten on every trim | immutable shards; window grows with total data (KataGo power law) |
-| Gating | Wilson bound re-checked after every game (~8% false promotions at zero gain) | SPRT in arena batches: ~2.4% false promotions and more power (90% at +50 Elo vs 67%); longer gates near zero gain |
+| Gating | Wilson bound re-checked after every game (~8% false promotions at zero gain) | SPRT over fixed-size arena batches: ~2.3% false promotions and more power (90% at +50 Elo vs 67%); longer gates near zero gain |
 | Arena fairness | seeds linear in the game index, correlated with the colour swap | seeds mixed per game, so role attribution is unbiased ([ADR 0008](decisions/0008-search-correctness.md)) |
 | Throughput | stages strictly serial | next cycle's self-play overlaps training and gating |
 | Crash / preemption | restart the cycle | per-stage checkpoints; resumes mid-cycle; the trainer continues with `--continue` |
@@ -63,11 +63,11 @@ Sections: `[run]` (name, deadline, overlap, pruning), `[engine]` (backend `inpro
 
 ```text
  true Elo  promoted  E[games]      (defaults: elo0=0 elo1=35 alpha=0.05 beta=0.10, batch 40, cap 600)
-     -100     0.000        84      clearly worse: rejected fast
-        0     0.024       380      no real gain: almost never promoted, but it costs the most games
-      +35     0.611       439
-      +50     0.902       337
-     +100     1.000       153      clearly better: accepted fast
+     -100     0.000        94      clearly worse: rejected fast
+        0     0.023       397      no real gain: almost never promoted, but it costs the most games
+      +35     0.605       444
+      +50     0.899       339
+     +100     1.000       154      clearly better: accepted fast
 ```
 
 These are exact, not estimates: `plan-sprt` runs the same decision code the gate

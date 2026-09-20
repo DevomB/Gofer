@@ -94,8 +94,8 @@ class GatingConfig:
     # SPRT on Elo: H0 candidate is elo0 better, H1 it is elo1 better.
     # These defaults were chosen from the exact operating characteristics
     # (`python -m training.pipeline plan-sprt`): they promote a no-gain candidate
-    # 2.4% of the time, a +35 Elo candidate 61%, and a +50 Elo candidate 90%,
-    # for about 380 games when the candidate is worthless. Raising max_games is
+    # 2.3% of the time, a +35 Elo candidate 61%, and a +50 Elo candidate 90%,
+    # for about 397 games when the candidate is worthless. Raising max_games is
     # the main way to buy power; beta=0.10 trades a little of it for shorter gates.
     elo0: float = 0.0
     elo1: float = 35.0

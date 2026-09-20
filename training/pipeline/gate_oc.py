@@ -6,11 +6,10 @@ how often does the gate promote it, and how many arena games does that cost?
 Both are computed exactly, by dynamic programming over (games played, wins) --
 no simulation. The model covers what the pipeline actually runs:
 
-  * each SPRT step is one ``gofer -arena`` call, which has its own early stop
-    (cmd/gofer/match.go ``promotionGateDecided``): after `min_games_before_stop`
-    games it rejects once the win bar is unreachable, and after
-    `min_games_before_promote` games it accepts once the bar is cleared with a
-    Wilson lower bound above 0.5;
+  * each SPRT step is one ``gofer -arena -arena-play-all`` call, i.e. a batch of
+    a fixed size (the engine's own in-match stop is disabled for the gate, so
+    only one stopping rule acts on the stream; `ArenaRule` still models that
+    stop, which the v3 gate used and which measurement runs must avoid);
   * the orchestrator's SPRT decision after every batch (training.pipeline.stats);
   * the win-rate + Wilson fallback applied at `max_games`.
 
@@ -124,8 +123,12 @@ def v3_gate_oc(elo: float, *, max_games: int = 200, rule: ArenaRule = ArenaRule(
 
 
 def sprt_gate_oc(cfg: GatingConfig, elo: float, *, rule: ArenaRule | None = None) -> GateOC:
-    """The v4 gate: SPRT over arena batches, with the v3 rule as fallback at the cap."""
-    rule = rule or ArenaRule(promote_win=cfg.promote_win)
+    """The v4 gate: SPRT over arena batches, with the v3 rule as fallback at the cap.
+
+    Batches run with ``-arena-play-all``, so each one is the fixed size the test
+    assumes; `rule` models the engine's in-match stop for the legacy behaviour,
+    where a second stopping rule ran inside every batch.
+    """
     p = stats.elo_to_score(elo)
     cap = cfg.max_games
     live = np.zeros((cap + 1, cap + 1))   # live[played, wins], undecided mass
@@ -138,7 +141,11 @@ def sprt_gate_oc(cfg: GatingConfig, elo: float, *, rule: ArenaRule | None = None
             batch -= batch % 2                       # colours alternate
             if batch <= 0:
                 continue
-            dist, _ = _arena_outcomes(batch, p, rule)  # in-batch accept needs >=100 games
+            if rule is None:
+                dist = np.zeros((batch + 1, batch + 1))
+                dist[batch] = binom_pmf(batch, p)   # the batch always plays out
+            else:
+                dist, _ = _arena_outcomes(batch, p, rule)
             row = live[played]
             for k in range(batch + 1):
                 if not dist[k].any():

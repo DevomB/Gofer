@@ -27,7 +27,7 @@ args = {config = "training/configs/train-cpu.toml"}
 [gating]
 playouts = 400
 batch_games = 40
-# Promotes +35 Elo 61% of the time, +50 Elo 90%, ~380 games at no real gain.
+# Promotes +35 Elo 61% of the time, +50 Elo 90%, ~397 games at no real gain.
 max_games = 600
 beta = 0.10
 

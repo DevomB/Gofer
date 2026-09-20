@@ -34,7 +34,7 @@ args = {config = "training/configs/train-cpu.toml"}
 playouts = 200
 batch_games = 24
 # A free CPU runner cannot afford a gate that detects small gains: this setting
-# promotes +50 Elo 61% of the time and +75 Elo 92%, for ~173 games at no gain.
+# promotes +50 Elo 61% of the time and +75 Elo 91%, for ~176 games at no gain.
 # Anything smaller than about +50 Elo will mostly slip through unpromoted.
 max_games = 240
 bootstrap_games = 24
