@@ -64,7 +64,8 @@ The project's reproducible baseline (`make reproduce-9x9-baseline`: 200 games, i
 The last row is the same command after the transposition table was made to compare keys
 (Sep 2026). The drop from +186 is **not** distinguishable from sampling noise: a second
 seed on the fixed engine gives 142/200, the two pool to 278/400 = +143 Elo with a 95%
-interval of [+106, +180], and the before/after difference tests at p = 0.19. What the two
+interval of [+106, +180], and a two-proportion z-test on the before/after difference,
+using the pooled variance under H0, gives z = 1.27, p = 0.20. What the two
 post-fix runs do agree on is the median game length, 55 moves in both against 76 before.
 
 More directly: +186 is [+131, +241] and +131 is [+80, +182]. Those overlap over almost

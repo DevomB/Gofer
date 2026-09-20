@@ -257,7 +257,8 @@ It is the same command after the transposition table was repaired
 (\cref{sec:pipeline-eval-codereview}), and its win rate is lower than the row
 above. That difference is not resolvable: a second seed on the repaired engine
 returns 142 of 200, the two pool to 278 of 400, and the before-and-after
-comparison tests at $p = 0.19$. Pooled, the deeper search is worth $+143$ Elo
+comparison, by a two-proportion $z$-test with the
+pooled variance under the null, gives $z = 1.27$, $p = 0.20$. Pooled, the deeper search is worth $+143$ Elo
 with a 95\% interval of $[+106, +180]$. Put more directly: $+186$ carries the
 interval $[+131, +241]$ and $+131$ carries $[+80, +182]$, which overlap over
 almost their whole length, so there was never a 55-Elo drop to account for. A
