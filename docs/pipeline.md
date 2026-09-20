@@ -30,7 +30,8 @@ python -m training.pipeline report --config configs/pipeline-smoke.toml  # runs/
 |---|---|---|
 | Self-play data | JSONL, full-search rows only | `.npz` shards (~40x smaller); fast rows kept for value/ownership |
 | Replay | one `replay.jsonl`, rewritten on every trim | immutable shards; window grows with total data (KataGo power law) |
-| Gating | Wilson bound re-checked after every game (~8% false promotions at zero gain) | SPRT in arena batches: ~2.7% false promotions and more power; longer gates near zero gain |
+| Gating | Wilson bound re-checked after every game (~8% false promotions at zero gain) | SPRT in arena batches: ~2.4% false promotions and more power (90% at +50 Elo vs 67%); longer gates near zero gain |
+| Arena fairness | seeds linear in the game index, correlated with the colour swap | seeds mixed per game, so role attribution is unbiased ([ADR 0008](decisions/0008-mcts-value-sign-and-terminal-scoring.md)) |
 | Throughput | stages strictly serial | next cycle's self-play overlaps training and gating |
 | Crash / preemption | restart the cycle | per-stage checkpoints; resumes mid-cycle; the trainer continues with `--continue` |
 | Champions | `best.onnx` overwritten, one archive copy | immutable numbered generations, Elo ladder, registry, rollback |
@@ -61,12 +62,18 @@ Sections: `[run]` (name, deadline, overlap, pruning), `[engine]` (backend `inpro
 **Gate.** Plays the candidate against the current champion in batches of `batch_games`, colors alternating. After each batch a sequential probability ratio test compares H0 (gain ≤ `elo0`) with H1 (gain ≥ `elo1`) at error rates `alpha`/`beta`. The gate stops at accept, reject, or `max_games`; when inconclusive at `max_games` it falls back to the v3 rule (score ≥ `promote_win` and Wilson low > 0.5). Batches are cached on disk, so a resumed gate replays nothing. `python -m training.pipeline plan-sprt` prints the expected games per gate:
 
 ```text
- true Elo  E[games]  (elo0=0 elo1=35, max 400)
-     -100        88     clearly worse: rejected fast
-        0       400     no gain: runs to the cap, then the fallback rule
-      100       127     clearly better: accepted fast
-      200        62
+ true Elo  promoted  E[games]      (defaults: elo0=0 elo1=35 alpha=0.05 beta=0.10, batch 40, cap 600)
+     -100     0.000        84      clearly worse: rejected fast
+        0     0.024       380      no real gain: almost never promoted, but it costs the most games
+      +35     0.611       439
+      +50     0.902       337
+     +100     1.000       153      clearly better: accepted fast
 ```
+
+These are exact, not estimates: `plan-sprt` runs the same decision code the gate
+uses over every reachable (games, wins) state. `--compare` adds the v3 gate's
+numbers for context, and `--elos` takes your own list. Raising `max_games` is the
+main way to buy power; the settings per deployment are in the configs.
 
 `gating.mode = "hold"` runs gates but never promotes (used for scoring investigations).
 

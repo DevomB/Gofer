@@ -27,7 +27,9 @@ args = {config = "training/configs/train-cpu.toml"}
 [gating]
 playouts = 400
 batch_games = 40
-max_games = 400
+# Promotes +35 Elo 61% of the time, +50 Elo 90%, ~380 games at no real gain.
+max_games = 600
+beta = 0.10
 
 [publish]
 alias = "models/gofer-9x9-best.onnx"

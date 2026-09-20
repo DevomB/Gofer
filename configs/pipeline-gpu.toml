@@ -28,10 +28,14 @@ args = {config = "training/configs/train-gpu.toml"}
 
 [gating]
 playouts = 400
-batch_games = 50
-max_games = 400
+batch_games = 40
+# A GPU box can afford long gates, so buy power: this promotes a +35 Elo
+# candidate 74% of the time and a +50 Elo one 96%, for ~420 games when the
+# candidate is worthless (python -m training.pipeline plan-sprt).
+max_games = 800
 elo0 = 0
-elo1 = 30
+elo1 = 35
+beta = 0.10
 
 [publish]
 alias = "models/gofer-9x9-best.onnx"
