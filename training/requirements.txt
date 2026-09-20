@@ -1,6 +1,12 @@
-torch>=2.0
-numpy>=1.24
-onnx>=1.14
+# Upper bounds, not pins. torch must come from a platform-specific index (CPU,
+# CUDA or ROCm; see infra/cloud/bootstrap.sh and GOFER_TORCH_INDEX), so pinning
+# an exact version here would fight the wheel selection rather than make a run
+# reproducible. The bounds stop a major release landing silently; what actually
+# ties a result to an environment is the resolved versions recorded in the run,
+# not this file.
+torch>=2.0,<3
+numpy>=1.24,<3
+onnx>=1.14,<2
 onnxruntime==1.26.0
-onnxscript>=0.1
+onnxscript>=0.1,<1
 # optional: tensorboard  (train_bootstrap.py --tensorboard)

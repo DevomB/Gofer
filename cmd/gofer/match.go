@@ -4,8 +4,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -95,16 +98,53 @@ func WilsonCI(wins, n int, z float64) (low, high float64) {
 	return low, high
 }
 
+// matchConfigHash identifies everything that changes what a match measures, so
+// a cached report can be matched against the configuration that would produce
+// it. Two things are deliberately absent. Parallel does not appear because
+// games are a pure function of (config, game index) - fresh engine per game,
+// seeded by mixSeed, stateless evaluator - so concurrency cannot move a result,
+// and hashing it would discard reusable evidence for nothing. Think time does
+// appear even though it is wall-clock dependent, because a match run under a
+// time budget is not comparable to one run under a playout budget.
+//
+// The evaluators are identified by the SHA-256 of the model files, not their
+// paths: candidate-0007.onnx is a different network every cycle, and a hash
+// over the path alone would call those the same configuration.
 func matchConfigHash(cfg MatchConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "games=%d size=%d komi=%.2f playouts=%d bpl=%d wpl=%d think=%d black=%s white=%s seed=%d swap=%v enhanced=%s",
 		cfg.Games, cfg.Size, cfg.Komi, cfg.Playouts, cfg.BlackPlayouts, cfg.WhitePlayouts,
 		cfg.ThinkTime, cfg.BlackEval, cfg.WhiteEval, cfg.Seed, cfg.SwapColors, cfg.ArenaEnhanced)
+	fmt.Fprintf(h, " opening=%d temp=%.3f playall=%v", cfg.OpeningMoves, cfg.OpeningTemp, cfg.PlayAllGames)
+	fmt.Fprintf(h, " backend=%s", evalConfig.Backend)
+	for _, slot := range []onnxSlot{champion, challenger} {
+		model, url := resolveONNXSlot(slot)
+		fmt.Fprintf(h, " model=%s url=%s", fileDigest(model), url)
+	}
 	if info, ok := debug.ReadBuildInfo(); ok {
 		fmt.Fprintf(h, " mod=%s", info.Main.Version)
 	}
 	sum := h.Sum(nil)
 	return hex.EncodeToString(sum[:8])
+}
+
+// fileDigest is the SHA-256 of a file's contents, or a marker describing why
+// there is none. An unreadable model must not hash the same as an absent one:
+// the first is a broken run, the second is an arena with no model in it.
+func fileDigest(path string) string {
+	if path == "" {
+		return "none"
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return "unreadable:" + filepath.Base(path)
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "unreadable:" + filepath.Base(path)
+	}
+	return hex.EncodeToString(h.Sum(nil)[:8])
 }
 
 func normalizeMatchConfig(cfg MatchConfig) MatchConfig {

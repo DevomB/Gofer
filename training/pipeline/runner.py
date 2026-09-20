@@ -97,7 +97,23 @@ class Pipeline:
     def prepare(self, *, build: bool | None = None) -> None:
         for d in (self.selfplay_dir, self.train_dir, self.models_dir, self.gating_dir, self.history_dir, self.logs_dir):
             d.mkdir(parents=True, exist_ok=True)
-        (self.dir / "config.toml").write_text(dump_toml(self.cfg), encoding="utf-8")
+        saved = self.dir / "config.toml"
+        if saved.exists() and self.state.cycle > 0:
+            # A run resumed under a changed config keeps shards, arena reports and
+            # a champion produced under the old one. Some edits are fine (raising
+            # max_cycles); ones that change what a cycle measures are not, and the
+            # evidence on disk gives no sign which happened. Say so and let the
+            # operator decide rather than overwriting the record of what ran.
+            before = saved.read_text(encoding="utf-8")
+            after = dump_toml(self.cfg)
+            if before != after:
+                self.log(
+                    f"WARNING: {saved} differs from the config being run. Cycles 1-{self.state.cycle} "
+                    f"were produced under the saved one. Cached arena reports whose config hash no "
+                    f"longer matches will be replayed; shards and the champion will not."
+                )
+                (self.dir / "config-previous.toml").write_text(before, encoding="utf-8")
+        saved.write_text(dump_toml(self.cfg), encoding="utf-8")
         for stale in list(self.selfplay_dir.glob("*.npz.tmp")) + list((self.selfplay_dir / "pending").glob("*.npz.tmp")):
             stale.unlink()
         eng = self.cfg.engine
@@ -228,9 +244,14 @@ class Pipeline:
             if model2 is not None:
                 args += ["-model-2", str(model2)]
             return args
-        args = ["-eval-backend", "sidecar", "-onnx-url", f"http://127.0.0.1:{ports[0]}"]
+        # -model is passed in sidecar mode too, though inference goes over HTTP.
+        # The engine hashes it to label shard provenance and to build the arena
+        # config hash; without it both fall back to the -model default, so a
+        # sidecar run tagged every shard with the bootstrap fixture and gave two
+        # different champions the same config hash.
+        args = ["-eval-backend", "sidecar", "-onnx-url", f"http://127.0.0.1:{ports[0]}", "-model", str(model1)]
         if model2 is not None:
-            args += ["-onnx-url-2", f"http://127.0.0.1:{ports[1]}"]
+            args += ["-onnx-url-2", f"http://127.0.0.1:{ports[1]}", "-model-2", str(model2)]
         return args
 
     def _sidecars(self, models: list[Path], ports: list[int], tag: str) -> list[Job]:
@@ -398,10 +419,29 @@ class Pipeline:
             return cmd + ["-black-eval", "heuristic", "-white-eval", "onnx"] + self._eval_args(challenger, None, (base + 1, base + 1))
         return cmd + ["-black-eval", "onnx", "-white-eval", "onnx2"] + self._eval_args(baseline, challenger, (base + 1, base + 2))
 
+    def _arena_config_hash(self, report: Path, games: int, seed: int, baseline: Path | None, challenger: Path) -> str | None:
+        """What hash would this arena stamp on its report right now?
+
+        Asked of the engine rather than derived here: the hash covers the model
+        file contents and the backend, so only the binary that would run the
+        match can answer. Returns None if the engine cannot say, which leaves the
+        game-count check as the only gate rather than discarding usable evidence
+        over a failed subprocess.
+        """
+        cmd = self.arena_command(games, seed, report, baseline, challenger) + ["-arena-config-hash"]
+        try:
+            out = self.executor.capture(cmd, cwd=self.root, env=self.env)
+        except Exception as exc:  # noqa: BLE001 - advisory check, never fatal
+            self.log(f"could not read arena config hash ({exc}); falling back to game-count check only")
+            return None
+        return out.strip().splitlines()[-1].strip() if out.strip() else None
+
     def run_match(self, report: Path, games: int, seed: int, baseline: Path | None, challenger: Path, *, log_name: str) -> dict:
         """Play one arena match, or reuse its report: matches are idempotent across resumes."""
-        if report.exists() and not self._usable_report(report, games):
-            report.unlink(missing_ok=True)
+        if report.exists():
+            expected = self._arena_config_hash(report, games, seed, baseline, challenger)
+            if not self._usable_report(report, games, expected):
+                report.unlink(missing_ok=True)
         if not report.exists():
             base = self.cfg.engine.sidecar_base_port
             models = [challenger] if baseline is None else [baseline, challenger]
@@ -414,22 +454,37 @@ class Pipeline:
                     s.terminate()
         return json.loads(report.read_text(encoding="utf-8"))
 
-    def _usable_report(self, report: Path, games: int) -> bool:
-        """Is a cached arena report complete and still valid for this batch size?
+    def _usable_report(self, report: Path, games: int, config_hash: str | None = None) -> bool:
+        """Is a cached arena report complete, and evidence for *this* configuration?
 
         A crash while the engine wrote the report leaves a truncated file, and a
         report from a larger batch must not be reused after the configuration
         shrank; either way the match is replayed. Arenas may stop early, so the
         recorded game count is only required not to exceed what we asked for.
+
+        Game count alone is not enough. A resumed run can reach this with a
+        different candidate, backend or opening setting, and a report from the
+        old one has the right shape and the wrong contents. The engine stamps
+        every report with a hash of everything that changes what it measures, so
+        when the caller knows the hash it must match.
         """
         try:
-            played = int(json.loads(report.read_text(encoding="utf-8")).get("game_count", 0))
+            rep = json.loads(report.read_text(encoding="utf-8"))
+            played = int(rep.get("game_count", 0))
         except (json.JSONDecodeError, OSError, ValueError):
             self.log(f"discarding unreadable arena report {report.name}; replaying that match")
             return False
         if not 0 < played <= games:
             self.log(f"discarding arena report {report.name}: {played} games recorded, {games} requested")
             return False
+        if config_hash is not None:
+            got = rep.get("config_hash", "")
+            if got != config_hash:
+                self.log(
+                    f"discarding arena report {report.name}: config hash {got or 'absent'} "
+                    f"!= {config_hash}; it measured a different configuration"
+                )
+                return False
         return True
 
     def _run_arena(self, cycle: int, batch: int, games: int, report: Path, *, vs_heuristic: bool) -> dict:

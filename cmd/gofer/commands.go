@@ -34,6 +34,7 @@ type cliFlags struct {
 	selfplayFullPlayouts                                                int
 	selfplayCapRandomizeP                                               float64
 	selfplayFixedPlayouts                                               bool
+	arenaHashOnly                                                       bool
 	seed                                                                int64
 	sgfPath, setup                                                      string
 	modelPath, onnxURL, onnxURL2                                        string
@@ -99,6 +100,7 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.arenaOpeningMoves, "arena-opening-moves", 8, "opening plies sampled from the visit distribution so match games differ (0 = deterministic, identical games)")
 	flag.Float64Var(&f.arenaTemp, "arena-temp", 1.0, "sampling temperature for arena opening plies")
 	flag.BoolVar(&f.arenaPlayAll, "arena-play-all", false, "play every arena game: no in-match promotion stop (measurement runs, and callers running their own sequential test)")
+	flag.BoolVar(&f.arenaHashOnly, "arena-config-hash", false, "print the config hash this arena would stamp on its report, then exit (lets a resumed gate tell whether a cached report measured this configuration)")
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
 		ModelPath:   f.modelPath,
@@ -209,6 +211,10 @@ func runArenaCLI(f cliFlags) {
 		OpeningTemp:   f.arenaTemp,
 		PlayAllGames:  f.arenaPlayAll,
 	}
+	if f.arenaHashOnly {
+		fmt.Println(matchConfigHash(normalizeMatchConfig(cfg)))
+		return
+	}
 	result := RunMatch(cfg)
 	if err := checkEvalHealth(cfg, result); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -311,7 +317,7 @@ func runSelfplayCLI(f cliFlags) {
 	}
 	samples, logs := RunSelfplayWithLogs(cfg)
 	if shardOut {
-		meta := ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: selfplayModelID(cfg.EvalMode, f.modelPath)}
+		meta := ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: selfplayModelID(cfg.EvalMode, f.modelPath, cfg.ONNXFraction)}
 		if err := WriteSampleShard(f.out, samples, meta); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
@@ -373,17 +379,27 @@ func flagWasSet(name string) bool {
 }
 
 // selfplayModelID tags shards with the generating network so the replay buffer
-// can tell which champion produced each row.
-func selfplayModelID(evalMode, modelPath string) string {
+// can tell which champion produced each row. The label is the model's content
+// hash rather than its path, because a path is reused across generations.
+//
+// Mix mode names the fraction too: only that share of games used the network
+// and the rest used the heuristic, so labelling the whole shard with the model
+// alone would overstate what produced it. The rows themselves are not
+// separable here - the split is per game inside RunSelfplay - so the honest
+// label is the mixture, not one of its halves.
+func selfplayModelID(evalMode, modelPath string, onnxFraction float64) string {
 	if strings.EqualFold(evalMode, "heuristic") {
 		return "heuristic"
 	}
-	data, err := os.ReadFile(modelPath)
-	if err != nil {
-		return "unknown"
+	id := "unknown"
+	if data, err := os.ReadFile(modelPath); err == nil {
+		sum := sha256.Sum256(data)
+		id = "sha256:" + hex.EncodeToString(sum[:8])
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:8])
+	if strings.EqualFold(evalMode, "mix") {
+		return fmt.Sprintf("mix(%.2f):%s", onnxFraction, id)
+	}
+	return id
 }
 
 // checkEvalHealth refuses a result produced mostly by the heuristic fallback

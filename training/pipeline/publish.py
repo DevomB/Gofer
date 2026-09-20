@@ -246,6 +246,21 @@ def rollback(pipe: "Pipeline", generation: int, *, champion: bool, github: GitHu
     entry = next((e for e in index["entries"] if e.get("key") == key), None)
     if entry is None or entry.get("status") != "published":
         raise ValueError(f"{key} is not a published generation in {pub.registry / 'index.json'}")
+
+    # Validate everything before touching anything. The registry, the alias and
+    # GitHub's latest release are three separate side effects, and the champion
+    # preconditions used to be checked after all three had already been applied
+    # - so a rollback that failed on "a cycle is in progress" left the published
+    # best pointing somewhere the training champion did not.
+    target = None
+    if champion:
+        st = pipe.state
+        if st.in_progress is not None:
+            raise ValueError("a cycle is in progress; finish or let it resume before changing the champion")
+        target = next((g for g in st.generations if g.generation == generation), None)
+        if target is None:
+            raise ValueError(f"generation {generation} not in run state")
+
     if index.get("best") != key:
         index["previous_best"], index["best"] = index.get("best"), key
     pub._update_alias(pub.registry / entry["file"])
@@ -255,11 +270,6 @@ def rollback(pipe: "Pipeline", generation: int, *, champion: bool, github: GitHu
     save_index(pub.registry, index)
     if champion:
         st = pipe.state
-        if st.in_progress is not None:
-            raise ValueError("a cycle is in progress; finish or let it resume before changing the champion")
-        target = next((g for g in st.generations if g.generation == generation), None)
-        if target is None:
-            raise ValueError(f"generation {generation} not in run state")
         st.generations.append(replace(target, cycle=st.cycle, promoted_at=utc_now(), gate={"rollback": True}))
         save_state(pipe.state_path, st)
     return {"best": index["best"], "previous_best": index["previous_best"], "champion_reset": champion}

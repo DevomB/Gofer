@@ -129,3 +129,43 @@ def test_rollback_repoints_best_without_deleting(tmp_path, monkeypatch):
 
     with pytest.raises(ValueError):
         rollback(pipe, 99, champion=False, github=gh)
+
+
+def test_rollback_champion_validates_before_touching_the_registry(tmp_path, monkeypatch):
+    """A rejected --champion rollback must not leave `best` already moved.
+
+    The registry, the alias and GitHub's latest release are three separate side
+    effects, and the champion preconditions were checked after all three had
+    been applied. A rollback refused for "a cycle is in progress" still
+    repointed what the world sees at a generation the trainer had not gone back
+    to, leaving the published best inconsistent with the training champion.
+    """
+    gh = FakeGitHub()
+    patch_github(monkeypatch, gh)
+    alias = tmp_path / "best.onnx"
+    pipe = make_pipe(tmp_path, FakeExecutor(arena=arena()), publish__alias=str(alias), publish__github_release=True)
+    pipe.run(max_cycles=3)
+    pipe = Pipeline(pipe.cfg, pipe.x, REPO, out=lambda _m: None)
+
+    def published_state():
+        return load_index(tmp_path / "registry")["best"], alias.read_bytes(), gh.latest
+
+    before = published_state()
+
+    # An unpublished generation was already rejected before any mutation; kept
+    # here so a future reordering cannot regress it silently.
+    with pytest.raises(ValueError, match="not a published generation"):
+        rollback(pipe, 99, champion=True, github=gh)
+    assert published_state() == before, "an unknown generation still repointed best"
+
+    # A cycle mid-flight is the case that used to fail late, after the registry,
+    # the alias and the release had all already moved.
+    pipe.state.in_progress = "gate"
+    with pytest.raises(ValueError, match="in progress"):
+        rollback(pipe, 2, champion=True, github=gh)
+    assert published_state() == before, "an in-progress cycle still repointed best"
+
+    # With the preconditions met it goes through, so the guard is not just refusing everything.
+    pipe.state.in_progress = None
+    assert rollback(pipe, 2, champion=True, github=gh)["best"] == "t/gen0002"
+    assert published_state() != before

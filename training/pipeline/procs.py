@@ -35,6 +35,8 @@ class Executor(Protocol):
     def run(self, cmd: list[str], *, log: Path, env: dict[str, str] | None = None) -> None: ...
     def spawn(self, cmd: list[str], *, log: Path, env: dict[str, str] | None = None) -> Job: ...
     def sidecar(self, python: str, model: Path, port: int, *, log: Path) -> Job: ...
+    # For short commands whose stdout IS the answer, rather than a log to tail.
+    def capture(self, cmd: list[str], *, env: dict[str, str] | None = None) -> str: ...
 
 
 @dataclass
@@ -102,6 +104,13 @@ class SubprocessExecutor:
 
     def spawn(self, cmd: list[str], *, log: Path, env: dict[str, str] | None = None) -> Job:
         return self._open(cmd, log, env)
+
+    def capture(self, cmd: list[str], *, env: dict[str, str] | None = None) -> str:
+        full_env = {**os.environ, **(env or {})}
+        r = subprocess.run(cmd, cwd=self.cwd, capture_output=True, text=True, env=full_env, check=False)
+        if r.returncode != 0:
+            raise CommandError(f"{cmd[0]} exited {r.returncode}: {(r.stderr or r.stdout).strip()[:200]}")
+        return r.stdout
 
     def sidecar(self, python: str, model: Path, port: int, *, log: Path, timeout: float = 60) -> _ProcJob:
         job = self._open([python, "training/inference_server.py", "--model", str(model), "--port", str(port)], log, None)

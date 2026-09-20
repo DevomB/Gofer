@@ -1,4 +1,7 @@
-# Gofer v2.7.0
+# Gofer
+
+Latest release v2.7.1; `main` carries unreleased v4 work (shards, learner v4,
+orchestrator, search correctness fixes) — see [CHANGELOG.md](CHANGELOG.md).
 
 A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
 
