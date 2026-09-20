@@ -1,7 +1,9 @@
 package main
 
-// visitMark tracks flood-fill visits without per-call map allocations.
-// visitMark gen overflow clears the slice (rare).
+// visitMark tracks flood-fill visits without per-call map allocations: a point
+// is visited when its generation matches the current one, so starting a new
+// fill is an increment rather than a clear. The slice is only cleared when the
+// counter wraps.
 type visitMark struct {
 	gen []uint32
 	cur uint32
@@ -13,11 +15,7 @@ func (v *visitMark) ensure(n int) {
 		v.cur = 1
 		return
 	}
-	v.cur++
-	if v.cur == 0 {
-		clear(v.gen)
-		v.cur = 1
-	}
+	v.bump()
 }
 
 func (v *visitMark) bump() {
@@ -150,11 +148,11 @@ func floodEmpty(b *Board, start int, seen []bool) (territory int, touchBlack, to
 		switch b.AtIndex(i) {
 		case Empty:
 			territory++
-			for _, nb := range b.Neighbors(i) {
+			b.forEachNeighbor(i, func(nb int) {
 				if !seen[nb] {
 					stack = append(stack, nb)
 				}
-			}
+			})
 		case Black:
 			touchBlack = true
 		case White:

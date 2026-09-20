@@ -62,7 +62,11 @@ baseline---200 games, identical evaluators, one side searching three times harde
 recorded the deeper search winning \textbf{7 games in 200}, or $-576$ Elo. The same
 command now returns \textbf{149 in 200}, $+186$ Elo, with the median game growing from 11
 moves to 76. Every strength number the project had recorded was measuring these bugs, and
-the reference baseline asserted that more search was catastrophically harmful.
+the reference baseline asserted that more search was catastrophically harmful. A later
+pass over the engine, made for code quality rather than correctness, found two more of the
+same kind by reading alone: a sidecar-backed gate that pointed both engines at the same
+model and so returned the $0.500$ a working symmetric match would, and a transposition
+table that stored no key and served colliding positions each other's evaluations.
 
 We describe the full loop. Go self-play writes compact binary shards. A new learner masks
 the policy loss to full-search positions, splits train and validation by game, augments

@@ -1,4 +1,4 @@
-\subsection{What the pipeline found: eight defects}
+\subsection{What the pipeline found}
 \label{sec:pipeline-found}
 
 The first thing the v4 gate did was refuse to work. Running it on real networks,
@@ -7,7 +7,8 @@ count we tried. Because the arena alternates colours, the candidate's score was
 then mechanically $0.500$ and no gate could ever decide anything.
 
 Chasing that produced eight defects, all older than v4 and all invisible to the
-test suite (\cref{tab:found-defects}). They fall into two groups. Five are in the
+test suite (\cref{tab:found-defects}); a later reading of the engine added two
+more (\cref{sec:pipeline-eval-codereview}). They fall into two groups. Five are in the
 search: they made the engine play badly and, worse, made the data it generated
 worthless. Three are in the measurement apparatus, and these are not a separate
 category of bug so much as the reason the other five were survivable: each one
@@ -323,6 +324,45 @@ against the heuristic---the only evidence about generation~1---was dropped from
 the lineage because it was not a scalar. All six are fixed and covered by tests.
 None would have been caught by a passing test suite; they needed someone to ask
 what happens when the machine is killed at each point in the cycle.
+
+\paragraph{And two more, found by reading rather than measuring.}
+\label{sec:pipeline-eval-codereview}
+A later pass over the whole engine, made for code quality rather than
+correctness, turned up two defects of exactly the shape described above. Both
+had been present throughout the work of this section.
+
+The first is the clearest instance in this report of an instrument returning a
+plausible number. Constructing an ONNX evaluator went through four functions,
+two of them mutually recursive, one of which decided which model it was building
+by comparing the URL it had been handed against the configured second sidecar.
+On the sidecar path the resolved model was discarded and the primary URL
+substituted, which made that comparison unreachable. The consequence is that
+\code{-eval-backend sidecar} with a champion in one slot and a challenger in the
+other pointed both engines at the same sidecar. Every sidecar-backed gate was
+the champion playing itself, and returned a win rate near $0.500$---which is
+precisely the value a correctly functioning symmetric match is supposed to
+produce. A wrong result that coincides with the expected result is not
+detectable by inspecting the result.
+
+The second is in the transposition table. Slots were indexed by the Zobrist hash
+modulo the table size, but no key was stored in the slot, so any two positions
+agreeing in the low 16 bits returned each other's evaluation. With $2^{16}$
+slots a collision becomes likely after a few hundred distinct positions, and a
+single $9 \times 9$ search visits far more than that, so wrong values were being
+backed up the tree throughout. The symptom is a search that plays slightly worse
+than its evaluator should permit, which is indistinguishable from a weak
+evaluator. The record field that should have held the key instead held a
+\code{Depth} that was written as the constant $1$ at all three store sites and
+never read as anything but non-zero.
+
+The methodological point is that these two were not found the way the previous
+eight were. The eight came out of experiments with predictable answers; these
+came out of reading the code with no hypothesis, asking only whether each piece
+said what it meant. The two methods find different things. An experiment cannot
+see a defect whose output matches the expected output, and reading cannot tell
+you which of the plausible behaviours the system actually exhibits. A project
+that can afford neither a large test suite nor much compute gets more from
+alternating them than from either alone.
 
 \paragraph{Consequences for this report.}
 Every strength number produced before these fixes is void, including the

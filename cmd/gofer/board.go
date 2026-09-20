@@ -188,26 +188,6 @@ func (b *Board) forEachNeighbor(idx int, fn func(int)) {
 	}
 }
 
-// Neighbors returns in-bounds adjacent linear indices.
-func (b *Board) Neighbors(idx int) []int {
-	size := b.size
-	x, y := idx%size, idx/size
-	var out []int
-	if x > 0 {
-		out = append(out, idx-1)
-	}
-	if x+1 < size {
-		out = append(out, idx+1)
-	}
-	if y > 0 {
-		out = append(out, idx-size)
-	}
-	if y+1 < size {
-		out = append(out, idx+size)
-	}
-	return out
-}
-
 // Snapshot captures board state.
 type Snapshot struct {
 	Stones []Stone

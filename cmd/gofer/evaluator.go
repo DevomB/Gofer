@@ -118,14 +118,14 @@ func heuristicPolicy(b *Board) []float32 {
 
 func policyPriorAt(b *Board, pt Point, player, opp Color) float32 {
 	score := float32(0.05)
-	for _, nb := range b.Neighbors(pt.Idx(b.Size())) {
+	b.forEachNeighbor(pt.Idx(b.Size()), func(nb int) {
 		switch b.AtIndex(nb) {
 		case player:
 			score += 1
 		case opp:
 			score -= 0.4
 		}
-	}
+	})
 	if score < 0.01 {
 		return 0.01
 	}

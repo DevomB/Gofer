@@ -56,6 +56,32 @@ evaluators, 200 games now split 99-101 by colour.
 - Fair komi for equal heuristic engines at 50 playouts is now about 0.5; the tests that
   encoded the old value (fitted to the broken search) were updated.
 
+- **The challenger never reached the second sidecar.** Building an ONNX evaluator went
+  through four functions, two of them mutually recursive, and one worked out which model it
+  was building by comparing the URL it had been handed against `ONNXURL2`. On the sidecar
+  path the resolved model was discarded and the primary URL used instead, so that
+  comparison was unreachable. `-eval-backend sidecar` with `-black-eval onnx -white-eval
+  onnx2` pointed both engines at the same sidecar: the arena played the champion against
+  itself and returned about 0.500 for every candidate, which is exactly the number a
+  symmetric match should produce. The `-onnx-url-2` flag had been documented and defaulted
+  to port 8081 throughout. Replaced with one constructor taking a slot, plus a pure
+  `resolveONNXSlot` that is tested.
+- **The transposition table never checked the key.** Slots were indexed by `hash & mask`
+  with no key stored, so any two positions sharing the low 16 bits read each other's value.
+  With 65,536 slots a collision is likely after a few hundred distinct positions and a
+  single 9x9 search visits far more, so wrong evaluations were being backed up the tree and
+  presenting as a weak evaluator. `Entry.Depth` was written as the literal `1` at all three
+  store sites and only ever tested for non-zero: an occupancy flag named after a
+  search-depth field. Slots now hold the full key and a filled bit. `NewTable` also never
+  enforced the power-of-two size its mask assumes.
+- **The JSONL path accepted rows the shard writer rejects.** `rows_from_jsonl` left
+  ownership as zeros when a row had none; `WriteSampleShard` fails the file. The ownership
+  loss is unmasked, so an unlabelled row is not a missing label but a label asserting that
+  every point is neutral. Both paths now refuse it.
+- Five Go files were committed unformatted, all misaligned struct or composite-literal
+  columns from hand edits. `make lint` now runs `gofmt -l`. A `.gitattributes` pins the tree
+  to LF so a Windows checkout does not report all 61 files and hide the real ones.
+
 ### Added
 
 - Training pipeline v4: `.npz` self-play shards, a resumable orchestrator
@@ -66,6 +92,42 @@ evaluators, 200 games now split 99-101 by colour.
   (`training/pipeline/gate_oc.py`). Three short-mode tests guard the search: root children
   are visited, visits spread across moves, and selection prefers the move that is worse for
   the opponent.
+
+### Removed
+
+- The v3 training loop's Python side (`training/cycle.py`, `replay.py`, `manifest.py` and
+  their tests, 413 lines), reachable only from `scripts/train-loop-v3.sh` and superseded by
+  `python -m training.pipeline` (ADR 0007). The README still advertised it as the training
+  path alongside v4.
+- 1,526 lines of documentation that recorded plans rather than decisions: `docs/plans/`
+  (a superseded v3 spec and a copy-paste agent prompt carrying a dead server IP),
+  `optimization-framework.md` and `optimization-scorecard.md` (a self-graded 0-10 rubric
+  cross-linked to a quality signal nothing computes), `implementation-blueprint.md`, and the
+  four `backlog-*.md` task tables, untouched since July while the project shipped v4. Their
+  genuinely open items, all marked "deferred", are a six-row table in `known-issues.md`.
+- `docs/failure-modes.md`, merged into `known-issues.md` — two files for "what is wrong with
+  this thing", one of them still claiming there was no real ONNX backend.
+- `.tectonix/rules.toml` and `README-keys.md`, plus the style guide's Tectonix section:
+  layer constraints and a session workflow for a tool that no target, workflow or script
+  invokes. `.tectonix/reports/` stays; CI reads `bench-regression.json`.
+- `stats.expected_games` and its helper (Wald's SPRT sample-size approximation, superseded
+  by the exact dynamic program in `gate_oc`) and `gate_oc.gate_curve`. Neither had a caller
+  outside its own test.
+- `cmd/gofer/gating.go`, nine lines holding one constant whose two companions already lived
+  in `match.go` next to the function applying all three.
+- `Board.Neighbors`, a duplicate of `forEachNeighbor` that allocated a slice per call.
+
+### Changed
+
+- `cli.go` and `cmdline.go` are synonyms that held three unrelated things between them.
+  Now `evaluators.go` (construction from flag names), `interactive.go` (`-play`, `-watch`,
+  `-analyze`) and `commands.go` (flags, dispatch, batch commands).
+- `runPlayoutForced` was `runPlayout` with the transposition probe removed and the descent
+  seeded one node lower — thirty lines of copied hot-path code where a divergence would have
+  been a silent search bug. Both now call `descend`.
+- `models/README.md` described the v3 layout, including a `training/state/best.pt` that does
+  not exist, and called the tracked bootstrap net an alias for the champion rather than the
+  random-weights fixture it is.
 
 ## [2.7.1] - 2026-07-07
 
