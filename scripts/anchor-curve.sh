@@ -24,9 +24,16 @@ PLAYOUTS="${PLAYOUTS:-400}"
 SEED="${SEED:-4242}"
 OUT="${OUT:-.tectonix/reports/anchors}"
 
-BIN="${BIN:-bin/gofer}"
-[[ -x "$BIN" ]] || BIN="bin/gofer.exe"
-[[ -x "$BIN" ]] || { echo "no engine at bin/gofer[.exe]; build it first" >&2; exit 1; }
+# .exe first: on Windows a stale extensionless bin/gofer from an older build
+# shadows the real one, and the difference only shows up as "rebuild with
+# -tags=onnx" once an arena is already running.
+BIN="${BIN:-}"
+if [[ -z "$BIN" ]]; then
+  for cand in bin/gofer.exe bin/gofer; do
+    [[ -f "$cand" ]] && { BIN="$cand"; break; }
+  done
+fi
+[[ -n "$BIN" && -f "$BIN" ]] || { echo "no engine at bin/gofer[.exe]; build it first" >&2; exit 1; }
 
 # The in-process backend needs the ORT shared library; find the pinned one.
 if [[ -z "${ONNXRUNTIME_SHARED_LIBRARY_PATH:-}" ]]; then
