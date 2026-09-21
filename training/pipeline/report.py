@@ -119,6 +119,40 @@ def elo_chart(gens: list[dict[str, Any]]) -> str:
     return _svg(body, "Ladder Elo by champion generation")
 
 
+def anchor_chart(hist: list[dict[str, Any]]) -> str:
+    """Absolute strength: every gate that measured the candidate against the
+    heuristic rather than against the champion.
+
+    The ladder chart above cannot answer whether the loop is going anywhere,
+    because every point on it is measured against the point before it. This one
+    is measured against something that never moves. **Zero is parity with the
+    hand-written evaluator** -- the line the nets have to cross for any of this
+    to be worth running.
+    """
+    rows = [(h["cycle"], h["gate"]["vs_heuristic_elo"]) for h in hist
+            if isinstance(h.get("gate"), dict) and h["gate"].get("vs_heuristic_elo") is not None]
+    if not rows:
+        return '<p class="empty">No absolute measurement yet: set <code>gating.anchor_every</code>.</p>'
+    xs = [c for c, _ in rows]
+    ys = [e for _, e in rows]
+    lo, hi = min(ys + [0.0]), max(ys + [0.0])
+    pad = max(10.0, (hi - lo) * 0.1)
+    lo, hi = lo - pad, hi + pad
+    body = _axes(xs, lo, hi, lambda t: f"{t:+.0f}", "cycle")
+    zero = _scale(0.0, lo, hi, H - PAD_B, PAD_T)
+    body += (f'<line class="axis" x1="{PAD_L}" x2="{W - PAD_R}" y1="{zero:.1f}" y2="{zero:.1f}" stroke-dasharray="5 4"/>'
+             f'<text class="tick" x="{W - PAD_R}" y="{zero - 6:.1f}" text-anchor="end">heuristic</text>')
+    pts = [(_scale(x, min(xs) - 0.5, max(xs) + 0.5, PAD_L, W - PAD_R), _scale(y, lo, hi, H - PAD_B, PAD_T))
+           for x, y in zip(xs, ys)]
+    if len(pts) > 1:
+        body += '<polyline class="line s2" points="' + " ".join(f"{x:.1f},{y:.1f}" for x, y in pts) + '"/>'
+    for (px, py), (cycle, elo) in zip(pts, rows):
+        tip = f"Cycle {cycle}|{elo:+.0f} Elo vs heuristic"
+        body += f'<circle class="dot s2" cx="{px:.1f}" cy="{py:.1f}" r="4"/>'
+        body += f'<circle class="hit" cx="{px:.1f}" cy="{py:.1f}" r="12" data-tip="{html.escape(tip)}"/>'
+    return _svg(body, "Elo vs heuristic by cycle")
+
+
 def gate_chart(hist: list[dict[str, Any]]) -> str:
     rows = [(h["cycle"], h["gate"]) for h in hist if isinstance(h.get("gate"), dict) and h["gate"].get("kind") == "sprt"]
     if not rows:
@@ -252,6 +286,7 @@ def render(run_dir: Path) -> str:
 <h1>Gofer training run: {html.escape(run_dir.name)}</h1><p class="sub">Last update {html.escape(last)}</p>
 <div class="tiles">{tiles_html}</div>
 <div class="card"><h2>Champion strength</h2><p class="note">Each promotion adds the Elo it measured against the previous champion.</p>{elo_chart(gens)}</div>
+<div class="card"><h2>Strength vs the heuristic</h2><p class="note">Measured against a fixed opponent, so unlike the ladder above this can fall. Flat here while the ladder climbs means the gate is measuring drift.</p>{anchor_chart(hist)}</div>
 <div class="card"><h2>Gate results</h2><p class="note">Candidate score against the current champion, with 95% Wilson interval. SPRT stops each gate as soon as the evidence is decisive.</p>
 <div class="legend"><span><i class="filled"></i>promoted</span><span><i class="hollow"></i>rejected</span></div>{gate_chart(hist)}</div>
 <div class="card"><h2>Time per cycle</h2><p class="note">Self-play shows only the time spent waiting when it overlaps the previous cycle.</p>{_legend_stages()}{stage_chart(hist)}</div>
