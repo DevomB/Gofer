@@ -34,6 +34,7 @@ type cliFlags struct {
 	selfplayFullPlayouts                                                int
 	selfplayCapRandomizeP                                               float64
 	selfplayFixedPlayouts                                               bool
+	selfplayMaxPassShare                                                float64
 	arenaHashOnly                                                       bool
 	seed                                                                int64
 	sgfPath, setup                                                      string
@@ -88,6 +89,8 @@ func parseCLIFlags() cliFlags {
 	flag.IntVar(&f.selfplayFastPlayouts, "selfplay-fast-playouts", 0, "self-play fast search cap per move (0 = full/4)")
 	flag.IntVar(&f.selfplayFullPlayouts, "selfplay-full-playouts", 0, "self-play full search cap per move (0 = -playouts)")
 	flag.Float64Var(&f.selfplayCapRandomizeP, "selfplay-cap-randomize-p", 0.20, "fraction of self-play moves that use the full cap (0 = fixed full cap every move)")
+	flag.Float64Var(&f.selfplayMaxPassShare, "selfplay-max-pass-share", 0,
+		"refuse to write a self-play shard whose opening policy targets put more than this share on pass (0 = measure and record only; see eval_health.go for why this is not calibrated yet)")
 	flag.BoolVar(&f.selfplayFixedPlayouts, "selfplay-fixed-playouts", false, "disable cap randomization: every move uses -playouts (sets fast=full and cap-randomize-p=0)")
 	flag.Int64Var(&f.seed, "seed", 1, "RNG seed for -arena and -selfplay")
 	flag.StringVar(&f.modelPath, "model", "models/gofer-9x9-bootstrap.onnx", "ONNX model path (sidecar or in-process primary)")
@@ -328,12 +331,19 @@ func runSelfplayCLI(f cliFlags) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	passShare, passRows := openingPassShare(samples)
+	fmt.Fprintf(os.Stderr, "opening pass share %.3f over %d full-search rows\n", passShare, passRows)
+	if err := checkSelfplayPassCollapse(passShare, passRows, f.selfplayMaxPassShare); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if shardOut {
 		meta := ShardMeta{
 			Komi:             cfg.Komi,
 			Seed:             cfg.Seed,
 			Model:            selfplayModelID(cfg.EvalMode, f.modelPath, cfg.ONNXFraction),
 			EvalFallbackRate: fallbackRate,
+			PassShare:        passShare,
 		}
 		if err := WriteSampleShard(f.out, samples, meta); err != nil {
 			fmt.Fprintln(os.Stderr, err)

@@ -44,9 +44,19 @@ type ShardMeta struct {
 	// case in this pipeline: the arena produces one wrong decision, this
 	// produces training rows that sit in the replay window for many cycles.
 	EvalFallbackRate float64 `json:"eval_fallback_rate"`
-	Komi             float64 `json:"komi"`
-	Seed             int64   `json:"seed"`
-	CreatedAt        string  `json:"created_at"`
+	// Mean probability the full-search policy targets put on pass, over the
+	// opening plies where passing is essentially never right.
+	//
+	// Self-play can collapse toward passing: a little pass mass in the target
+	// trains a larger pass prior, which produces shorter and emptier games,
+	// which produce more pass mass. Nothing errors while it happens -- the
+	// shards keep their row counts and the gate keeps returning plausible
+	// verdicts -- so the only sign is this number climbing. Heuristic-generated
+	// shards in a healthy run sit near 0.03.
+	PassShare float64 `json:"pass_share"`
+	Komi      float64 `json:"komi"`
+	Seed      int64   `json:"seed"`
+	CreatedAt string  `json:"created_at"`
 }
 
 func isShardPath(path string) bool {

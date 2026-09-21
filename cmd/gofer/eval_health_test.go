@@ -108,3 +108,90 @@ func TestSelfplayHeuristicOnlyIsNotChecked(t *testing.T) {
 		t.Errorf("heuristic bootstrap rejected: %v", err)
 	}
 }
+
+// sampleWithPass builds one row whose policy puts `pass` mass on the pass entry
+// and spreads the rest evenly over the board.
+func sampleWithPass(moveNum int, fullSearch bool, pass float32) Sample {
+	const pol = 9*9 + 1
+	p := make([]float32, pol)
+	rest := (1 - pass) / float32(pol-1)
+	for i := range p[:pol-1] {
+		p[i] = rest
+	}
+	p[pol-1] = pass
+	return Sample{MoveNum: moveNum, FullSearch: fullSearch, Policy: p}
+}
+
+func shardWith(pass float32) []Sample {
+	out := make([]Sample, 0, 40)
+	for i := 0; i < 40; i++ {
+		out = append(out, sampleWithPass(i%passShareOpeningPlies, true, pass))
+	}
+	return out
+}
+
+// The numbers are the ones measured on the live run this check came out of:
+// heuristic-generated shards at 0.007, net-generated shards whose networks were
+// losing strength at up to 0.087. The check has to separate those two when it is
+// switched on, and stay out of the way when it is not.
+func TestSelfplayPassCollapseSeparatesMeasuredShards(t *testing.T) {
+	healthy, rows := openingPassShare(shardWith(0.007))
+	if rows != 40 {
+		t.Fatalf("counted %d opening rows, want 40", rows)
+	}
+	collapsed, _ := openingPassShare(shardWith(0.087))
+
+	// A bar between the two observed bands admits one and refuses the other.
+	const bar = 0.05
+	if err := checkSelfplayPassCollapse(healthy, rows, bar); err != nil {
+		t.Errorf("refused a heuristic-level shard at %.3f: %v", healthy, err)
+	}
+	if err := checkSelfplayPassCollapse(collapsed, rows, bar); err == nil {
+		t.Errorf("accepted a collapsed shard at %.3f", collapsed)
+	}
+}
+
+// Default is measure-and-record. The first version of this check shipped a
+// constant 0.12 bar, which sat above every collapsed shard actually observed
+// (worst: 0.087) and so could never fire -- a check that cannot fail is not a
+// check. Until a run exists that produces healthy net self-play there is no
+// upper end of the healthy band to calibrate against, so the refusal is opt-in.
+func TestSelfplayPassCollapseIsOptIn(t *testing.T) {
+	share, rows := openingPassShare(shardWith(0.9))
+	if err := checkSelfplayPassCollapse(share, rows, 0); err != nil {
+		t.Errorf("default refused a shard at %.3f; it should only measure: %v", share, err)
+	}
+	if err := checkSelfplayPassCollapse(share, rows, 0.05); err == nil {
+		t.Error("explicit bar failed to refuse a 90% pass shard")
+	}
+}
+
+// Passing is correct play in a finished position, so averaging the whole game
+// mixes the pathology with the endgame. Only opening, full-search rows count:
+// fast-search rows are not policy targets at all.
+func TestPassShareIgnoresEndgameAndFastRows(t *testing.T) {
+	samples := []Sample{
+		sampleWithPass(0, true, 0.02),                        // counted
+		sampleWithPass(passShareOpeningPlies+30, true, 0.95), // endgame: not counted
+		sampleWithPass(1, false, 0.95),                       // fast search: not a policy target
+	}
+	share, rows := openingPassShare(samples)
+	if rows != 1 {
+		t.Fatalf("counted %d rows, want only the opening full-search one", rows)
+	}
+	if share > 0.05 {
+		t.Errorf("endgame or fast rows leaked into the share: got %.3f", share)
+	}
+}
+
+// No opening full-search rows means the shard cannot be judged; that must read
+// as "no opinion", not as a pass.
+func TestPassShareWithNoOpeningRowsIsNotAFailure(t *testing.T) {
+	share, rows := openingPassShare([]Sample{sampleWithPass(0, false, 0.9)})
+	if rows != 0 {
+		t.Fatalf("counted %d rows, want 0", rows)
+	}
+	if err := checkSelfplayPassCollapse(share, rows, 0.05); err != nil {
+		t.Errorf("no rows should not fail: %v", err)
+	}
+}
