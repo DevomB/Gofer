@@ -56,7 +56,15 @@ type ortSession struct {
 	session *ort.DynamicAdvancedSession
 }
 
-func newORTSession(modelPath string) (*ortSession, error) {
+// newORTSession builds a session pinned to intraThreads threads per inference.
+//
+// The historical value is 1, which makes every result bit-identical to the
+// parity reference: a multi-threaded reduction sums in whatever order the
+// threads finish. It also means one dispatch goroutine evaluating on one core,
+// so an in-process run leaves most of a many-core box idle. Callers that care
+// about throughput more than bit-exactness pass a higher number; 0 lets ORT
+// size it from the machine.
+func newORTSession(modelPath string, intraThreads int) (*ortSession, error) {
 	if err := ensureORTEnv(); err != nil {
 		return nil, fmt.Errorf("ort env: %w", err)
 	}
@@ -65,9 +73,14 @@ func newORTSession(modelPath string) (*ortSession, error) {
 		return nil, fmt.Errorf("session options: %w", err)
 	}
 	defer opts.Destroy()
-	if err := opts.SetIntraOpNumThreads(1); err != nil {
+	if intraThreads < 0 {
+		intraThreads = 1
+	}
+	if err := opts.SetIntraOpNumThreads(intraThreads); err != nil {
 		return nil, err
 	}
+	// Inter-op parallelism splits independent graph branches; this net is a
+	// single trunk, so more than one thread here buys nothing either way.
 	if err := opts.SetInterOpNumThreads(1); err != nil {
 		return nil, err
 	}
@@ -180,6 +193,11 @@ func (s *ortSession) evalOne(spatial, globals []float32) (policy []float32, valu
 }
 
 // newORTEval opens a session for parity tests (alias).
+//
+// Pinned to one thread deliberately: the parity reference is compared
+// element-wise against Python, and a multi-threaded reduction sums in whatever
+// order the threads finish. Parity is a claim about the model, not about how
+// many cores happened to run it.
 func newORTEval(modelPath string) (*ortSession, error) {
-	return newORTSession(modelPath)
+	return newORTSession(modelPath, 1)
 }

@@ -51,6 +51,65 @@ func TestBatchedEvaluatorParallel(t *testing.T) {
 	}
 }
 
+// concurrencyProbe records the most EvalBatch calls ever in flight at once.
+type concurrencyProbe struct {
+	mu       sync.Mutex
+	inFlight int
+	peak     int
+	delay    time.Duration
+}
+
+func (p *concurrencyProbe) EvalBatch(boards []*Board) []Result {
+	p.mu.Lock()
+	p.inFlight++
+	if p.inFlight > p.peak {
+		p.peak = p.inFlight
+	}
+	p.mu.Unlock()
+	time.Sleep(p.delay)
+	p.mu.Lock()
+	p.inFlight--
+	p.mu.Unlock()
+	return make([]Result, len(boards))
+}
+
+func (p *concurrencyProbe) peakInFlight() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.peak
+}
+
+// The failure mode this pins is only slowness: with one dispatcher every
+// evaluation waits for the previous one to return, however many games are
+// running, and nothing errors or logs. On a 32-core box that showed up as
+// sixteen parallel games driving 1.15 cores.
+func TestDispatchersDecideInFlightInferences(t *testing.T) {
+	for _, tc := range []struct{ dispatchers, wantPeak int }{{1, 1}, {4, 4}} {
+		probe := &concurrencyProbe{delay: 50 * time.Millisecond}
+		// minBatch 1: every request dispatches at once, so the peak reflects the
+		// number of workers rather than how fast requests happened to arrive.
+		ev := NewBatchedEvaluatorDispatch(probe, Heuristic{}, 1, time.Millisecond, 30*time.Second, tc.dispatchers)
+		b := NewBoard(9, 6.5)
+		var wg sync.WaitGroup
+		for i := 0; i < 8; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_ = ev.Evaluate(b)
+			}()
+		}
+		wg.Wait()
+		ev.Close()
+
+		if got := probe.peakInFlight(); got != tc.wantPeak {
+			t.Errorf("dispatchers=%d: peak in-flight = %d, want %d", tc.dispatchers, got, tc.wantPeak)
+		}
+		if ev.Dispatchers() != tc.dispatchers {
+			t.Errorf("Dispatchers() = %d, want %d", ev.Dispatchers(), tc.dispatchers)
+		}
+	}
+}
+
 func TestBatchedSearch(t *testing.T) {
 	r := Chinese()
 	cfg := DefaultConfig()

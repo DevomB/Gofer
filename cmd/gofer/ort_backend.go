@@ -8,8 +8,8 @@ type ORTBackend struct {
 	Fallback Evaluator
 }
 
-func newORTBackend(modelPath string, fallback Evaluator) (*ORTBackend, error) {
-	sess, err := newORTSession(modelPath)
+func newORTBackend(modelPath string, fallback Evaluator, intraThreads int) (*ORTBackend, error) {
+	sess, err := newORTSession(modelPath, intraThreads)
 	if err != nil {
 		return nil, err
 	}

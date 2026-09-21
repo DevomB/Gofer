@@ -12,13 +12,24 @@ type EvalConfig struct {
 	BatchSize   int
 	EvalTimeout time.Duration
 	MaxWait     time.Duration
+	// ORT threads per inference call. One dispatch goroutine per model runs
+	// EvalBatch, so this is what decides how much of the machine an in-process
+	// run can use: at 1, a 32-core box evaluates on one core per model.
+	// 0 leaves ORT to pick; 1 is the historical value and keeps results bit-exact
+	// against the parity reference, which a multi-threaded reduction does not.
+	ORTIntraThreads int
+	// Concurrent in-flight inferences per model. 1 is the historical shape and
+	// caps the engine at one evaluation at a time however many games run.
+	EvalDispatchers int
 }
 
 var evalConfig = EvalConfig{
-	Backend:     "inprocess",
-	BatchSize:   8,
-	EvalTimeout: 500 * time.Millisecond,
-	MaxWait:     2 * time.Millisecond,
+	Backend:         "inprocess",
+	BatchSize:       8,
+	ORTIntraThreads: 1,
+	EvalDispatchers: 1,
+	EvalTimeout:     500 * time.Millisecond,
+	MaxWait:         2 * time.Millisecond,
 }
 
 // SetEvalConfig updates package-level evaluator options (called from flag parse).
@@ -34,6 +45,12 @@ func SetEvalConfig(c EvalConfig) {
 	}
 	if c.Backend == "" {
 		c.Backend = "inprocess"
+	}
+	if c.EvalDispatchers < 1 {
+		c.EvalDispatchers = 1
+	}
+	if c.ORTIntraThreads < 0 {
+		c.ORTIntraThreads = 1
 	}
 	evalConfig = c
 }

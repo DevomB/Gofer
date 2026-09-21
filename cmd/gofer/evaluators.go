@@ -74,7 +74,7 @@ func newONNXEvaluator(slot onnxSlot, minBatch int) Evaluator {
 
 	var backend EvalBackend
 	if evalBackendInprocess() {
-		ort, err := newORTBackend(model, Heuristic{})
+		ort, err := newORTBackend(model, Heuristic{}, evalConfig.ORTIntraThreads)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "in-process ONNX: %v\n", err)
 			os.Exit(1)
@@ -90,12 +90,13 @@ func newONNXEvaluator(slot onnxSlot, minBatch int) Evaluator {
 			Client:   &http.Client{Timeout: evalConfig.EvalTimeout},
 		}
 	}
-	return NewBatchedEvaluatorWithTimeout(
+	return NewBatchedEvaluatorDispatch(
 		backend,
 		Heuristic{},
 		minBatch,
 		evalConfig.MaxWait,
 		evalConfig.EvalTimeout,
+		evalConfig.EvalDispatchers,
 	)
 }
 

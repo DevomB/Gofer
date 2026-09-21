@@ -6,7 +6,7 @@ import "fmt"
 
 var errInprocessUnavailable = fmt.Errorf("rebuild with -tags=onnx and CGO_ENABLED=1 for in-process ONNX")
 
-func newORTBackend(modelPath string, fallback Evaluator) (*ORTBackend, error) {
+func newORTBackend(modelPath string, fallback Evaluator, intraThreads int) (*ORTBackend, error) {
 	return nil, errInprocessUnavailable
 }
 

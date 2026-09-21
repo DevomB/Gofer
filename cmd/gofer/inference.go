@@ -50,15 +50,16 @@ type batchReq struct {
 
 // BatchedEvaluator queues positions and evaluates in batches.
 type BatchedEvaluator struct {
-	backend    EvalBackend
-	fallback   Evaluator
-	minBatch   int
-	maxWait    time.Duration
-	reqTimeout time.Duration
-	reqCh      chan batchReq
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
-	once       sync.Once
+	backend     EvalBackend
+	fallback    Evaluator
+	minBatch    int
+	maxWait     time.Duration
+	reqTimeout  time.Duration
+	dispatchers int
+	reqCh       chan batchReq
+	stopCh      chan struct{}
+	wg          sync.WaitGroup
+	once        sync.Once
 }
 
 // NewBatchedEvaluator starts the batch worker.
@@ -66,8 +67,28 @@ func NewBatchedEvaluator(backend EvalBackend, fallback Evaluator, minBatch int, 
 	return NewBatchedEvaluatorWithTimeout(backend, fallback, minBatch, maxWait, maxWait*4)
 }
 
-// NewBatchedEvaluatorWithTimeout starts the batch worker with an explicit request timeout.
+// NewBatchedEvaluatorWithTimeout starts one batch worker with an explicit request timeout.
 func NewBatchedEvaluatorWithTimeout(backend EvalBackend, fallback Evaluator, minBatch int, maxWait, reqTimeout time.Duration) *BatchedEvaluator {
+	return NewBatchedEvaluatorDispatch(backend, fallback, minBatch, maxWait, reqTimeout, 1)
+}
+
+// NewBatchedEvaluatorDispatch starts `dispatchers` batch workers.
+//
+// One worker is the historical shape, and it caps the whole engine at a single
+// in-flight inference: nothing gathers and no other evaluation runs while
+// dispatchBatch blocks on the backend. Measured on a 32-core box, sixteen
+// parallel arena games drove 1.15 cores. Raising the batch size does not lift
+// that -- it makes the one call bigger, not more numerous -- and neither does
+// giving ORT more threads per call, because a 9x9 net is too small a matrix to
+// pay for the coordination (8 threads bought 1.37x for 14x the CPU, and 16 was
+// slower than 8).
+//
+// More workers is the lever that matches the shape of the work: many small
+// independent inferences. Each worker gathers and dispatches on its own, and
+// they share the backend, which is safe because EvalBatch allocates all of its
+// buffers and tensors per call and ONNX Runtime supports concurrent Run on one
+// session.
+func NewBatchedEvaluatorDispatch(backend EvalBackend, fallback Evaluator, minBatch int, maxWait, reqTimeout time.Duration, dispatchers int) *BatchedEvaluator {
 	if minBatch < 1 {
 		minBatch = 8
 	}
@@ -77,19 +98,28 @@ func NewBatchedEvaluatorWithTimeout(backend EvalBackend, fallback Evaluator, min
 	if reqTimeout <= 0 {
 		reqTimeout = maxWait * 4
 	}
-	b := &BatchedEvaluator{
-		backend:    backend,
-		fallback:   fallback,
-		minBatch:   minBatch,
-		maxWait:    maxWait,
-		reqTimeout: reqTimeout,
-		reqCh:      make(chan batchReq, 256),
-		stopCh:     make(chan struct{}),
+	if dispatchers < 1 {
+		dispatchers = 1
 	}
-	b.wg.Add(1)
-	go b.worker()
+	b := &BatchedEvaluator{
+		backend:     backend,
+		fallback:    fallback,
+		minBatch:    minBatch,
+		maxWait:     maxWait,
+		reqTimeout:  reqTimeout,
+		dispatchers: dispatchers,
+		reqCh:       make(chan batchReq, 256),
+		stopCh:      make(chan struct{}),
+	}
+	for i := 0; i < dispatchers; i++ {
+		b.wg.Add(1)
+		go b.worker()
+	}
 	return b
 }
+
+// Dispatchers reports how many workers serve the queue (measurement only).
+func (b *BatchedEvaluator) Dispatchers() int { return b.dispatchers }
 
 // QueueDepth returns pending evaluate requests (measurement only).
 func (b *BatchedEvaluator) QueueDepth() int {

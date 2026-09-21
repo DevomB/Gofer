@@ -40,6 +40,8 @@ type cliFlags struct {
 	modelPath, onnxURL, onnxURL2                                        string
 	evalBackend, modelPath2                                             string
 	batchSize                                                           int
+	ortIntraThreads                                                     int
+	evalDispatchers                                                     int
 	evalTimeout                                                         time.Duration
 	arenaEnhanced                                                       string
 	arenaParallel                                                       int
@@ -94,6 +96,8 @@ func parseCLIFlags() cliFlags {
 	flag.StringVar(&f.onnxURL, "onnx-url", "http://127.0.0.1:8080", "ONNX inference sidecar base URL")
 	flag.StringVar(&f.onnxURL2, "onnx-url-2", "http://127.0.0.1:8081", "second ONNX sidecar base URL (eval name onnx2, for champion-vs-challenger)")
 	flag.IntVar(&f.batchSize, "batch-size", 8, "batched evaluator minimum batch size")
+	flag.IntVar(&f.ortIntraThreads, "ort-intra-threads", 1, "ONNX Runtime threads per inference call, in-process backend (1 = historical, bit-exact against the parity reference; 0 = let ORT choose)")
+	flag.IntVar(&f.evalDispatchers, "eval-dispatchers", 1, "concurrent in-flight inferences per model (1 = historical: one evaluation at a time however many games run in parallel)")
 	flag.DurationVar(&f.evalTimeout, "eval-timeout", 500*time.Millisecond, "batched/onnx eval timeout before heuristic fallback")
 	flag.StringVar(&f.arenaEnhanced, "arena-enhanced", "none", "arena forced root playouts: none, baseline, both")
 	flag.IntVar(&f.arenaParallel, "arena-parallel", 8, "concurrent arena games (shared evaluators feed real batches to the sidecars)")
@@ -103,14 +107,16 @@ func parseCLIFlags() cliFlags {
 	flag.BoolVar(&f.arenaHashOnly, "arena-config-hash", false, "print the config hash this arena would stamp on its report, then exit (lets a resumed gate tell whether a cached report measured this configuration)")
 	flag.Parse()
 	SetEvalConfig(EvalConfig{
-		ModelPath:   f.modelPath,
-		ModelPath2:  f.modelPath2,
-		ONNXURL:     f.onnxURL,
-		ONNXURL2:    f.onnxURL2,
-		Backend:     f.evalBackend,
-		BatchSize:   f.batchSize,
-		EvalTimeout: f.evalTimeout,
-		MaxWait:     2 * time.Millisecond,
+		ModelPath:       f.modelPath,
+		ModelPath2:      f.modelPath2,
+		ONNXURL:         f.onnxURL,
+		ONNXURL2:        f.onnxURL2,
+		Backend:         f.evalBackend,
+		BatchSize:       f.batchSize,
+		ORTIntraThreads: f.ortIntraThreads,
+		EvalDispatchers: f.evalDispatchers,
+		EvalTimeout:     f.evalTimeout,
+		MaxWait:         2 * time.Millisecond,
 	})
 	return f
 }
