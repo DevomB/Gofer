@@ -444,7 +444,43 @@ def test_seed_gate_result_survives_into_the_lineage(tmp_path):
     assert gate["vs_heuristic_games"] == 10 and gate["vs_heuristic_score"] == 1.0
 
 
+def test_a_seed_that_loses_to_the_heuristic_does_not_become_champion(tmp_path):
+    """The champion generates selfplay.onnx_fraction of every later shard, so
+    seeding on a net that loses to the heuristic degrades the replay window
+    from cycle 2 onward and no later gate can undo it."""
+    ex = FakeExecutor(arena=lambda c, b, g: (3, g - 3, 0))   # 3/10: loses to the heuristic
+    pipe = make_pipe(tmp_path, ex)
+    pipe.run(max_cycles=2)
+
+    st = load_state(pipe.state_path)
+    assert st.champion is None and st.generations == []
+    decision = json.loads((pipe.gating_dir / "cycle-0001" / "decision.json").read_text())
+    assert decision["promote"] is False and "seed_min_score" in decision["reason"]
+    assert decision["vs_heuristic_score"] == 0.3   # measured and kept, not discarded
+
+    # With no champion, cycle 2 keeps learning from the stronger teacher.
+    selfplay = [c for c in ex.calls if ex.kind(c) == "selfplay"]
+    assert _arg(selfplay[-1], "-selfplay-eval") == "heuristic"
+
+
+def test_a_seed_that_beats_the_heuristic_still_seeds(tmp_path):
+    ex = FakeExecutor(arena=lambda c, b, g: (g, 0, 0))
+    pipe = make_pipe(tmp_path, ex)
+    pipe.run(max_cycles=1)
+    assert load_state(pipe.state_path).champion.generation == 1
+
+
+def test_seed_min_score_zero_restores_unconditional_seeding(tmp_path):
+    ex = FakeExecutor(arena=lambda c, b, g: (0, g, 0))
+    pipe = make_pipe(tmp_path, ex, gating__seed_min_score=0.0)
+    pipe.run(max_cycles=1)
+    assert load_state(pipe.state_path).champion.generation == 1
+
+
 def _always_reject(cycle, batch, games):
+    """Seed clears the bar, every later challenger loses to the champion."""
+    if cycle == 1:
+        return games, 0, 0
     return 0, games, 0
 
 

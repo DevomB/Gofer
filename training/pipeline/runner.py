@@ -557,13 +557,23 @@ class Pipeline:
         if self.state.champion is None:
             rep = self._run_arena(cycle, 0, g.bootstrap_games, gdir / "vs-heuristic.json", vs_heuristic=True)
             tally = stats.tally_from_arena(rep)
+            # The seed arena decides, rather than just being recorded. A champion
+            # that loses to the heuristic still takes over selfplay.onnx_fraction
+            # of every later shard, so seeding on a weak net degrades the replay
+            # window from cycle 2 onward and no later gate can undo it.
+            seeds = tally.score >= g.seed_min_score
+            reason = ("first network seeds the lineage" if seeds else
+                      f"first network scored {tally.score:.3f} against the heuristic, "
+                      f"below gating.seed_min_score={g.seed_min_score:g}; "
+                      f"keeping the heuristic as the self-play teacher")
             # Flattened as well as nested: the lineage keeps scalars only, and this
             # match is the only evidence recorded about generation 1's strength.
-            decision = {"kind": "seed", "promote": True, "would_promote": True, "reason": "first network seeds the lineage",
+            decision = {"kind": "seed", "promote": seeds, "would_promote": seeds, "reason": reason,
                         "vs_heuristic": tally.to_dict(),
                         "vs_heuristic_score": tally.score, "vs_heuristic_games": tally.games,
                         "vs_heuristic_elo": tally.elo()[0]}
-            self.log(f"gate cycle {cycle}: seed champion (vs heuristic score {tally.score:.3f} over {tally.games} games)")
+            verb = "seed champion" if seeds else "REFUSED to seed"
+            self.log(f"gate cycle {cycle}: {verb} (vs heuristic score {tally.score:.3f} over {tally.games} games)")
         else:
             decision = self._sprt_gate(cycle, gdir)
             self._anchor(cycle, gdir, decision)
