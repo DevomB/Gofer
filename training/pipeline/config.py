@@ -111,6 +111,14 @@ class GatingConfig:
     beta: float = 0.10
     # Fallback when SPRT is inconclusive at max_games (legacy v3 rule).
     promote_win: float = 0.55
+    # Absolute anchor. After cycle 1 the SPRT only ever measures the challenger
+    # against the champion, so the loop reports motion relative to itself: it can
+    # promote steadily while going nowhere, and nothing in the run would say so.
+    # Every `anchor_every` cycles, replay the seed gate's match -- heuristic vs
+    # this cycle's candidate, same flags, same shape -- so the run records one
+    # number that does not move when the champion does. 0 disables it.
+    anchor_every: int = 0
+    anchor_games: int = 40
 
 
 @dataclass

@@ -499,6 +499,37 @@ class Pipeline:
         return self.run_match(report, games, self.cfg.run.seed + cycle * 1000 + batch, baseline,
                               self._candidate_path(cycle), log_name=f"gate-{cycle:04d}")
 
+    def _anchor(self, cycle: int, gdir: Path, decision: dict[str, Any]) -> None:
+        """Measure this cycle's candidate against the heuristic, not the champion.
+
+        The SPRT compares each challenger to the champion it would replace, which
+        is a ladder where every rung is measured against the rung below it: it can
+        report steady promotions while going nowhere absolute. This replays the
+        seed gate's match -- same evaluators, same flags, same report shape -- so
+        generation N's score is directly comparable to generation 1's, and the run
+        carries its own evidence of whether it is going anywhere.
+
+        Recorded under the same keys the seed gate uses, so anything reading
+        generation 1's ``vs_heuristic_elo`` finds later ones without changing.
+        """
+        g = self.cfg.gating
+        if g.anchor_every <= 0 or cycle % g.anchor_every:
+            return
+        games = g.anchor_games - g.anchor_games % 2   # colours alternate in pairs
+        if games <= 0:
+            return
+        # Batch 800: clear of the SPRT batches, which count from 1, and of the
+        # publish regression match at 900. Sharing a batch number would mean
+        # sharing a seed, and two matches on the same openings are one sample.
+        rep = self._run_arena(cycle, 800, games, gdir / "anchor-vs-heuristic.json", vs_heuristic=True)
+        tally = stats.tally_from_arena(rep)
+        elo = tally.elo()[0]
+        decision.update({"vs_heuristic": tally.to_dict(), "vs_heuristic_score": tally.score,
+                         "vs_heuristic_games": tally.games, "vs_heuristic_elo": elo,
+                         "vs_heuristic_kind": "anchor"})
+        self.log(f"anchor cycle {cycle}: candidate vs heuristic score {tally.score:.3f} "
+                 f"({elo:+.0f} Elo) over {tally.games} games")
+
     def stage_gate(self, cycle: int) -> dict[str, Any]:
         g = self.cfg.gating
         gdir = self.gating_dir / f"cycle-{cycle:04d}"
@@ -515,6 +546,7 @@ class Pipeline:
             self.log(f"gate cycle {cycle}: seed champion (vs heuristic score {tally.score:.3f} over {tally.games} games)")
         else:
             decision = self._sprt_gate(cycle, gdir)
+            self._anchor(cycle, gdir, decision)
         if g.mode == "hold":
             decision["promote"] = False
             decision["reason"] += " (gating.mode=hold: not promoted)"

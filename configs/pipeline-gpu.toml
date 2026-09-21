@@ -36,6 +36,9 @@ max_games = 800
 elo0 = 0
 elo1 = 35
 beta = 0.10
+# One absolute measurement every five cycles; see the note in pipeline-cpu.toml.
+anchor_every = 5
+anchor_games = 40
 
 [publish]
 alias = "models/gofer-9x9-best.onnx"

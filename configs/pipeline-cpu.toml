@@ -30,6 +30,11 @@ batch_games = 40
 # Promotes +35 Elo 61% of the time, +50 Elo 90%, ~397 games at no real gain.
 max_games = 600
 beta = 0.10
+# One absolute measurement every five cycles. Without it the run only ever
+# compares each net to the one before it, and a flat anchor curve under steady
+# promotions is the signal that the gate is measuring drift.
+anchor_every = 5
+anchor_games = 40
 
 [publish]
 alias = "models/gofer-9x9-best.onnx"

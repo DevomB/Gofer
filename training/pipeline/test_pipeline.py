@@ -444,6 +444,39 @@ def test_seed_gate_result_survives_into_the_lineage(tmp_path):
     assert gate["vs_heuristic_games"] == 10 and gate["vs_heuristic_score"] == 1.0
 
 
+def test_anchor_measures_the_candidate_against_the_heuristic(tmp_path):
+    """After cycle 1 the SPRT only compares nets to each other; the anchor is the
+    one number in the run that does not move when the champion does."""
+    ex = FakeExecutor(arena=scripted_arena)
+    pipe = make_pipe(tmp_path, ex, gating__anchor_every=1, gating__anchor_games=10)
+    pipe.run(max_cycles=2)
+
+    decision = json.loads((pipe.gating_dir / "cycle-0002" / "decision.json").read_text())
+    assert decision["vs_heuristic_kind"] == "anchor"
+    assert decision["vs_heuristic_games"] == 10
+    assert (pipe.gating_dir / "cycle-0002" / "anchor-vs-heuristic.json").exists()
+
+    # It must be the seed gate's match: heuristic on one side, no champion model.
+    anchors = [c for c in ex.calls if ex.kind(c) == "arena"
+               and _arg(c, "-json").endswith("anchor-vs-heuristic.json")]
+    assert len(anchors) == 1 and _arg(anchors[0], "-black-eval") == "heuristic"
+    # Its own seed: sharing the regression match's batch 900 would mean sharing
+    # its openings, and two matches on one set of openings are one sample.
+    assert int(_arg(anchors[0], "-seed")) % 1000 == 800
+
+
+def test_anchor_is_off_by_default(tmp_path):
+    """Default runs keep the old shape: no extra arena, no absolute claim."""
+    ex = FakeExecutor(arena=scripted_arena)
+    pipe = make_pipe(tmp_path, ex)
+    pipe.run(max_cycles=2)
+
+    decision = json.loads((pipe.gating_dir / "cycle-0002" / "decision.json").read_text())
+    assert "vs_heuristic_elo" not in decision
+    assert not any(_arg(c, "-json").endswith("anchor-vs-heuristic.json")
+                   for c in ex.calls if ex.kind(c) == "arena")
+
+
 def test_config_rejects_odd_bootstrap_games_and_empty_cycles(tmp_path):
     with pytest.raises(ValueError, match="bootstrap_games"):
         make_cfg(tmp_path, gating__bootstrap_games=7)
