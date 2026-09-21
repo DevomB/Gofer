@@ -555,25 +555,7 @@ class Pipeline:
         gdir = self.gating_dir / f"cycle-{cycle:04d}"
         gdir.mkdir(parents=True, exist_ok=True)
         if self.state.champion is None:
-            rep = self._run_arena(cycle, 0, g.bootstrap_games, gdir / "vs-heuristic.json", vs_heuristic=True)
-            tally = stats.tally_from_arena(rep)
-            # The seed arena decides, rather than just being recorded. A champion
-            # that loses to the heuristic still takes over selfplay.onnx_fraction
-            # of every later shard, so seeding on a weak net degrades the replay
-            # window from cycle 2 onward and no later gate can undo it.
-            seeds = tally.score >= g.seed_min_score
-            reason = ("first network seeds the lineage" if seeds else
-                      f"first network scored {tally.score:.3f} against the heuristic, "
-                      f"below gating.seed_min_score={g.seed_min_score:g}; "
-                      f"keeping the heuristic as the self-play teacher")
-            # Flattened as well as nested: the lineage keeps scalars only, and this
-            # match is the only evidence recorded about generation 1's strength.
-            decision = {"kind": "seed", "promote": seeds, "would_promote": seeds, "reason": reason,
-                        "vs_heuristic": tally.to_dict(),
-                        "vs_heuristic_score": tally.score, "vs_heuristic_games": tally.games,
-                        "vs_heuristic_elo": tally.elo()[0]}
-            verb = "seed champion" if seeds else "REFUSED to seed"
-            self.log(f"gate cycle {cycle}: {verb} (vs heuristic score {tally.score:.3f} over {tally.games} games)")
+            decision = self._seed_gate(cycle, gdir)
         else:
             decision = self._sprt_gate(cycle, gdir)
             self._anchor(cycle, gdir, decision)
@@ -583,7 +565,14 @@ class Pipeline:
         write_json_atomic(gdir / "decision.json", decision)
         return {"gate": decision}
 
-    def _sprt_gate(self, cycle: int, gdir: Path) -> dict[str, Any]:
+    def _sprt_batches(self, cycle: int, gdir: Path, *, vs_heuristic: bool, batch_games: int,
+                      prefix: str, label: str) -> tuple[stats.MatchTally, str, float, list]:
+        """Play batches against one opponent until the SPRT decides or the cap.
+
+        Shared by the seed gate and the champion gate so the first network faces
+        the same test as every later one. The only differences are the opponent
+        and the batch size.
+        """
         g = self.cfg.gating
         tally = stats.MatchTally()
         steps = []
@@ -591,17 +580,75 @@ class Pipeline:
         batch = 0
         while tally.games < g.max_games:
             batch += 1
-            games = min(g.batch_games, g.max_games - tally.games)
+            games = min(batch_games, g.max_games - tally.games)
             games -= games % 2
             if games <= 0:
                 break
-            rep = self._run_arena(cycle, batch, games, gdir / f"batch-{batch:02d}.json", vs_heuristic=False)
+            rep = self._run_arena(cycle, batch, games, gdir / f"{prefix}-{batch:02d}.json",
+                                  vs_heuristic=vs_heuristic)
             tally = tally.add(stats.tally_from_arena(rep))
             verdict, llr = stats.sprt_decision(tally.wins, tally.losses, tally.draws, elo0=g.elo0, elo1=g.elo1, alpha=g.alpha, beta=g.beta)
             steps.append({"batch": batch, "games": tally.games, "score": round(tally.score, 4), "llr": round(llr, 4), "verdict": verdict})
-            self.log(f"gate cycle {cycle} batch {batch}: {tally.wins}-{tally.losses}-{tally.draws} score={tally.score:.3f} LLR={llr:+.2f} -> {verdict}")
+            self.log(f"{label} cycle {cycle} batch {batch}: {tally.wins}-{tally.losses}-{tally.draws} "
+                     f"score={tally.score:.3f} LLR={llr:+.2f} -> {verdict}")
             if verdict != stats.CONTINUE:
                 break
+        return tally, verdict, llr, steps
+
+    def _seed_gate(self, cycle: int, gdir: Path) -> dict[str, Any]:
+        """Decide whether the first network is fit to become the teacher.
+
+        It is not enough for it to be recorded, and not enough for it to win a
+        single 40-game match. The champion generates ``selfplay.onnx_fraction``
+        of every shard from the next cycle on, so a seed that is merely
+        *probably* better poisons the replay window and no later gate can undo
+        it: gates protect the champion from replacement, nothing protects the
+        data.
+
+        A fixed threshold over one batch is the wrong instrument for that. At 40
+        games, "score >= 0.5" admits an evenly-matched network about half the
+        time and a genuinely -50 Elo one about a fifth of the time. So the seed
+        faces the same sequential test every later challenger faces, against the
+        heuristic instead of against a champion, and only an accepted H1 seeds.
+
+        The asymmetry is deliberate and cheap in the right direction: refusing a
+        good seed costs one more cycle of heuristic self-play, which is the data
+        the run wants anyway; accepting a bad one costs every cycle after it.
+        """
+        g = self.cfg.gating
+        tally, verdict, llr, steps = self._sprt_batches(
+            cycle, gdir, vs_heuristic=True, batch_games=g.bootstrap_games,
+            prefix="vs-heuristic", label="seed")
+        lo, hi = stats.wilson(tally.wins + 0.5 * tally.draws, tally.games)
+        seeds = verdict == stats.ACCEPT
+        if seeds:
+            reason = (f"first network beat the heuristic: SPRT accepted H1 (elo>={g.elo1:g}) "
+                      f"after {tally.games} games")
+        elif verdict == stats.REJECT:
+            reason = (f"first network is not better than the heuristic: SPRT accepted H0 "
+                      f"(elo<={g.elo0:g}) after {tally.games} games; keeping the heuristic as "
+                      f"the self-play teacher")
+        else:
+            reason = (f"first network inconclusive against the heuristic at {tally.games} games "
+                      f"(score {tally.score:.3f}, wilson_low {lo:.3f}); keeping the heuristic as "
+                      f"the self-play teacher rather than seeding on a maybe")
+        # Flattened as well as nested: the lineage keeps scalars only, and this
+        # match is the only evidence recorded about generation 1's strength.
+        decision = {"kind": "seed", "promote": seeds, "would_promote": seeds, "reason": reason,
+                    "verdict": verdict, "llr": llr, "llr_bounds": list(stats.sprt_bounds(g.alpha, g.beta)),
+                    "wilson_low": lo, "wilson_high": hi, "steps": steps,
+                    "vs_heuristic": tally.to_dict(),
+                    "vs_heuristic_score": tally.score, "vs_heuristic_games": tally.games,
+                    "vs_heuristic_elo": tally.elo()[0]}
+        verb = "seed champion" if seeds else "REFUSED to seed"
+        self.log(f"gate cycle {cycle}: {verb} (vs heuristic score {tally.score:.3f} "
+                 f"over {tally.games} games, {tally.elo()[0]:+.0f} Elo)")
+        return decision
+
+    def _sprt_gate(self, cycle: int, gdir: Path) -> dict[str, Any]:
+        g = self.cfg.gating
+        tally, verdict, llr, steps = self._sprt_batches(
+            cycle, gdir, vs_heuristic=False, batch_games=g.batch_games, prefix="batch", label="gate")
         lo, hi = stats.wilson(tally.wins + 0.5 * tally.draws, tally.games)
         if verdict == stats.ACCEPT:
             would, reason = True, f"SPRT accepted H1 (elo>={g.elo1:g}) after {tally.games} games"

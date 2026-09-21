@@ -113,16 +113,19 @@ class GatingConfig:
     batch_games: int = 40               # arena games per SPRT step (even: colors alternate)
     max_games: int = 600
     bootstrap_games: int = 40           # sanity arena vs heuristic for the first net
-    # Minimum score the first network must take off the heuristic to seed the
-    # lineage. The seed arena was always run and always recorded; it was never
-    # consulted, so a net that lost to the heuristic still became champion --
-    # and the champion generates `selfplay.onnx_fraction` of every later shard.
-    # A weak seed therefore poisons the replay window from cycle 2 onward, and
-    # no later gate can undo it: gates protect the champion from replacement,
-    # nothing protects the data. Until a candidate clears this bar the run keeps
-    # bootstrapping from the heuristic, which is the stronger teacher.
-    # 0.0 restores the old unconditional behaviour.
-    seed_min_score: float = 0.5
+    # The seed arena was always run and always recorded; it was never consulted,
+    # so a net that lost to the heuristic still became champion -- and the
+    # champion generates `selfplay.onnx_fraction` of every later shard. A weak
+    # seed therefore poisons the replay window from cycle 2 onward, and no later
+    # gate can undo it: gates protect the champion from replacement, nothing
+    # protects the data.
+    #
+    # The seed now faces the same sequential test as every later challenger
+    # (elo0/elo1/alpha/beta below), against the heuristic rather than a
+    # champion, in batches of bootstrap_games up to max_games. Only an accepted
+    # H1 seeds. A fixed threshold over one 40-game batch was the wrong
+    # instrument: "score >= 0.5" there admits an even network about half the
+    # time and a -50 Elo one about a fifth of the time.
     opening_moves: int = 8
     parallel: int = 0
     # SPRT on Elo: H0 candidate is elo0 better, H1 it is elo1 better.

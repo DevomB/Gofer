@@ -66,7 +66,10 @@ class FakeExecutor:
 
     def __init__(self, arena=None, rows_per_game: int = 50, fail_on: str | None = None) -> None:
         self.calls: list[list[str]] = []
-        self.arena = arena or (lambda cycle, batch, games: (games // 2, games // 2, 0))
+        # Cycle 1 is the seed gate against the heuristic, and an even seed is
+        # now refused; a fixture that wants a champion has to win it.
+        self.arena = arena or (lambda cycle, batch, games: (games, 0, 0) if cycle == 1
+                               else (games // 2, games // 2, 0))
         self.rows_per_game = rows_per_game
         self.fail_on = fail_on
         self.sidecars: list[tuple[Path, int, FakeJob]] = []
@@ -149,8 +152,10 @@ def arena_losing_regression():
     return play
 
 
-# Candidate cycle 2 crushes the champion; cycle 3 loses badly.
+# Seed clears the heuristic; candidate cycle 2 crushes the champion; cycle 3 loses badly.
 def scripted_arena(cycle, batch, games):
+    if cycle == 1:
+        return games, 0, 0
     if cycle == 2:
         return games, 0, 0
     if cycle == 3:
@@ -441,22 +446,27 @@ def test_seed_gate_result_survives_into_the_lineage(tmp_path):
     pipe = make_pipe(tmp_path, ex)
     pipe.run(max_cycles=1)
     gate = load_state(pipe.state_path).generations[0].gate
-    assert gate["vs_heuristic_games"] == 10 and gate["vs_heuristic_score"] == 1.0
+    assert gate["vs_heuristic_score"] == 1.0
+    # Even a clean sweep has to produce enough evidence to clear the SPRT bound,
+    # so the seed costs more than one batch. That is the bar, not a regression:
+    # a single 10-game batch could never distinguish a good seed from a lucky one.
+    assert gate["vs_heuristic_games"] > pipe.cfg.gating.bootstrap_games
 
 
 def test_a_seed_that_loses_to_the_heuristic_does_not_become_champion(tmp_path):
     """The champion generates selfplay.onnx_fraction of every later shard, so
-    seeding on a net that loses to the heuristic degrades the replay window
-    from cycle 2 onward and no later gate can undo it."""
-    ex = FakeExecutor(arena=lambda c, b, g: (3, g - 3, 0))   # 3/10: loses to the heuristic
+    seeding on a net that loses to the heuristic degrades the replay window from
+    cycle 2 onward and no later gate can undo it."""
+    ex = FakeExecutor(arena=lambda c, b, g: (3, g - 3, 0))   # 3/10: loses
     pipe = make_pipe(tmp_path, ex)
     pipe.run(max_cycles=2)
 
     st = load_state(pipe.state_path)
     assert st.champion is None and st.generations == []
     decision = json.loads((pipe.gating_dir / "cycle-0001" / "decision.json").read_text())
-    assert decision["promote"] is False and "seed_min_score" in decision["reason"]
-    assert decision["vs_heuristic_score"] == 0.3   # measured and kept, not discarded
+    assert decision["promote"] is False
+    assert decision["verdict"] != stats.ACCEPT    # refused, whether by H0 or by running out of evidence
+    assert decision["vs_heuristic_score"] < 0.5   # measured and kept, not discarded
 
     # With no champion, cycle 2 keeps learning from the stronger teacher.
     selfplay = [c for c in ex.calls if ex.kind(c) == "selfplay"]
@@ -470,11 +480,21 @@ def test_a_seed_that_beats_the_heuristic_still_seeds(tmp_path):
     assert load_state(pipe.state_path).champion.generation == 1
 
 
-def test_seed_min_score_zero_restores_unconditional_seeding(tmp_path):
-    ex = FakeExecutor(arena=lambda c, b, g: (0, g, 0))
-    pipe = make_pipe(tmp_path, ex, gating__seed_min_score=0.0)
+def test_an_even_seed_is_refused_rather_than_seeded_on_a_maybe(tmp_path):
+    """A 40-game "score >= 0.5" threshold admits an evenly-matched network about
+    half the time. The sequential test refuses it: the cost of being wrong is
+    one more cycle of heuristic data, against every cycle after it."""
+    ex = FakeExecutor(arena=lambda c, b, g: (g // 2, g - g // 2, 0))   # dead even
+    pipe = make_pipe(tmp_path, ex)
     pipe.run(max_cycles=1)
-    assert load_state(pipe.state_path).champion.generation == 1
+
+    st = load_state(pipe.state_path)
+    assert st.champion is None
+    decision = json.loads((pipe.gating_dir / "cycle-0001" / "decision.json").read_text())
+    assert decision["promote"] is False
+    # It played more than one batch before deciding: that is the point of the
+    # change, not an accident of the fixture.
+    assert decision["vs_heuristic_games"] > pipe.cfg.gating.bootstrap_games
 
 
 def _always_reject(cycle, batch, games):
