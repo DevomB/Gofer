@@ -21,6 +21,18 @@ Row-major NCHW per board; Go sends flat `8×H×W` per row in `spatial[]`.
 
 Pass moves leave history planes zero at that ply.
 
+**History is right-aligned** (schema 3): the most recent move is always t-1,
+however few moves have been played. One move into a game it is in plane 7 with
+5 and 6 empty; two moves in, planes 6 and 7 are filled.
+
+Schema 2 left-aligned it, so the only move of a one-move game landed in t-3 and
+t-1 stayed empty. Because a pass is encoded by writing nothing, an empty t-1
+plane is how the network is told the last move was a pass — so for the first
+two plies of every game a played move and a pass were the same input. Plane
+count and shapes did not change, so a schema 2 network loads against schema 3
+features without complaint and misreads the opening. Networks and shards from
+schema 2 have to be regenerated, not reused.
+
 ## Global input
 
 Shape: `[batch, 4]` — ONNX name `global_input`.

@@ -10,7 +10,7 @@ func (e *Engine) analyzeLocked(topN, playouts int) Analysis {
 	}
 	root := e.arena.Get(e.root)
 	out.RootValue = root.Mean()
-	out.Candidates = rootCandidates(e.arena, e.root, topN)
+	out.Candidates = rootCandidates(e.arena, e.root, topN, e.cfg)
 	if len(out.Candidates) > 0 {
 		out.Best = out.Candidates[0].Move
 	} else {
@@ -20,13 +20,13 @@ func (e *Engine) analyzeLocked(topN, playouts int) Analysis {
 	return out
 }
 
-func rootCandidates(a *Arena, root, topN int) []MoveCandidate {
+func rootCandidates(a *Arena, root, topN int, cfg SearchConfig) []MoveCandidate {
 	n := a.Get(root)
 	if len(n.Children) == 0 {
 		return nil
 	}
 	total := rootVisitTotal(a, n)
-	cands := sortedRootCandidates(a, n)
+	cands := sortedRootCandidates(a, n, cfg)
 	applyCandidateShares(cands, total)
 	if topN <= 0 {
 		topN = 5
@@ -45,17 +45,30 @@ func rootVisitTotal(a *Arena, n *Node) uint32 {
 	return total
 }
 
-func sortedRootCandidates(a *Arena, n *Node) []MoveCandidate {
+// sortedRootCandidates reports each root child in the PARENT's frame, which is
+// the frame a reader of the analysis is thinking in. Selection has always used
+// -c.Mean() (puctScore); this reports the same quantity rather than its
+// negation, and carries the prior and PUCT terms alongside so a visit share can
+// be attributed to the search or to the policy that seeded it.
+func sortedRootCandidates(a *Arena, n *Node, cfg SearchConfig) []MoveCandidate {
+	parentVisits := float64(n.Visits)
+	fpu := fpuFor(a, n, true, cfg)
 	cands := make([]MoveCandidate, 0, len(n.Children))
 	for _, cidx := range n.Children {
 		c := a.Get(cidx)
-		cands = append(cands, MoveCandidate{Move: c.Move, Visits: c.Visits, WinRate: c.Mean()})
+		cands = append(cands, MoveCandidate{
+			Move:   c.Move,
+			Visits: c.Visits,
+			Value:  -c.Mean(),
+			Prior:  c.Prior,
+			PUCT:   puctScore(c, parentVisits, true, fpu, cfg),
+		})
 	}
 	sort.Slice(cands, func(i, j int) bool {
 		if cands[i].Visits != cands[j].Visits {
 			return cands[i].Visits > cands[j].Visits
 		}
-		return cands[i].WinRate > cands[j].WinRate
+		return cands[i].Value > cands[j].Value
 	})
 	return cands
 }

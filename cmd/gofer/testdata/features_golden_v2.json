@@ -1,5 +1,6 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "board_size": 9,
-  "hash": "0192a60fb432f3641ca05b26935020f0a619b7e241efa3a7a6b344a62e053e78"
+  "hash": "a555331d3010930bab049a04d85011b4c22f7befa0c0bfe07bc8c15974d3db33",
+  "description": "9x9, Black has played D4, White to move. One move of history, so the history planes exercise the short-history case: D4 must appear in plane 7 (t-1) with planes 5 and 6 empty. Under schema 2 it landed in plane 5 and plane 7 was empty, which is how a pass is encoded - this golden changed because that was fixed, and any future change to it is a change to what the network is shown."
 }

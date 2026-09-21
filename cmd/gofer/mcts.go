@@ -109,10 +109,24 @@ func (e *Engine) AdvanceTree(m Move) {
 
 // MoveCandidate is a root move with search statistics.
 type MoveCandidate struct {
-	Move    Move
-	Visits  uint32
-	WinRate float64
-	Share   float64
+	Move   Move
+	Visits uint32
+	// Value of this move for the side to move at the PARENT, i.e. -child.Mean().
+	//
+	// Node means are stored from each node's own side to move, so a child's raw
+	// mean is the opponent's view and reads inverted: this field used to carry
+	// it unnegated under the name WinRate, which made a move the search
+	// preferred look like one it had rejected. Selection always used the
+	// negated value (puctScore), so only analysis and the diagnostics built on
+	// it were wrong -- but a diagnostic that inverts the quantity it reports is
+	// worse than none, because it produces confident backwards conclusions.
+	Value float64
+	Share float64
+	// Prior and PUCT are what separate "the search liked this" from "the policy
+	// liked this and the search never got to disagree". Without them a high
+	// visit share cannot be attributed to either.
+	Prior float64
+	PUCT  float64
 }
 
 // Analysis holds search results for a position.
@@ -422,6 +436,26 @@ func (e *Engine) expandLocked(node int, b *Board) {
 	e.TT.Store(b.Hash(), res.Value)
 }
 
+// fpuFor is the first-play urgency an unvisited child of n is scored with, in
+// the parent's frame. Shared with the analysis so a reported PUCT is the number
+// the search actually used rather than a second implementation of it: the
+// telemetry this replaces had drifted into reporting the opponent's view of
+// every child's value, which is how a move the search preferred came to look
+// like one it had rejected.
+func fpuFor(a *Arena, n *Node, isRoot bool, cfg SearchConfig) float64 {
+	fpu := n.Mean()
+	if isRoot && cfg.RootNoise {
+		return fpu // no reduction at a noised root, as in KataGo
+	}
+	explored := 0.0
+	for _, cidx := range n.Children {
+		if c := a.Get(cidx); c.Visits > 0 {
+			explored += c.Prior
+		}
+	}
+	return fpu - cfg.FPU*math.Sqrt(explored)
+}
+
 func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	n := e.arena.Get(node)
 	parentVisits := float64(n.Visits)
@@ -434,16 +468,7 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	// pessimistic constant instead made the first visited child unbeatable, so
 	// the search put every playout down one line and the visit distribution --
 	// which is the policy training target -- collapsed to a single move.
-	fpu := n.Mean()
-	if !(isRoot && e.cfg.RootNoise) { // no reduction at a noised root, as in KataGo
-		explored := 0.0
-		for _, cidx := range n.Children {
-			if c := e.arena.Get(cidx); c.Visits > 0 {
-				explored += c.Prior
-			}
-		}
-		fpu -= e.cfg.FPU * math.Sqrt(explored)
-	}
+	fpu := fpuFor(e.arena, n, isRoot, e.cfg)
 	best := -1
 	bestScore := math.Inf(-1)
 	for _, cidx := range n.Children {

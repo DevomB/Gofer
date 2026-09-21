@@ -8,10 +8,19 @@ import (
 )
 
 const (
-	FeatureSchemaVersion = 2
+	// FeatureSchemaVersion 3 fixes the history planes, which were left-aligned:
+	// with fewer than three moves played the most recent one landed in t-3 or
+	// t-2 and the t-1 plane stayed empty, which is how a pass is encoded. The
+	// plane count and shapes are unchanged, so a v2 model loads against v3
+	// features and silently misreads the opening. Anything trained on v2 data
+	// has to be retrained, not reused.
+	FeatureSchemaVersion = 3
 	featurePlanesV1      = 5
 	featurePlanesV2      = 8
 	featureGlobalsV2     = 4
+	// Planes 5, 6, 7 are t-3, t-2, t-1 (docs/model-input-schema.md).
+	firstHistoryPlane = 5
+	historyPlanes     = 3
 )
 
 // FeatureSchemaV1 describes tensor layout for NN input (simplified paper subset).
@@ -93,14 +102,30 @@ func fillToMovePlane(spatial []float32, player Color, n int) {
 	}
 }
 
+// fillHistoryPlanes writes the last three moves into planes 5, 6, 7 as t-3,
+// t-2, t-1 (docs/model-input-schema.md).
+//
+// The history is RIGHT-aligned: the most recent move is always t-1, however
+// few moves have been played. Left-aligning it -- writing historyMoves(3)[0]
+// into plane 5 unconditionally -- put the only move of a one-move game into
+// t-3 and left t-1 empty, and two moves in put the latest into t-2. Only from
+// move three on did t-1 mean what the schema says.
+//
+// A pass is encoded by writing nothing, so an empty t-1 plane is how the
+// network is told "the opponent just passed". Under the old layout a real
+// opening move produced exactly that, which made a played move and a pass
+// indistinguishable for the first two plies of every game -- in the opening,
+// where a network is learning whether passing is reasonable.
 func fillHistoryPlanes(b *Board, spatial []float32, n int) {
-	for h, snap := range b.historyMoves(3) {
+	hist := b.historyMoves(historyPlanes)
+	offset := historyPlanes - len(hist)
+	for h, snap := range hist {
 		if snap.move.Pass {
 			continue
 		}
 		idx := snap.move.Point.Idx(b.Size())
 		if idx >= 0 {
-			spatial[(5+h)*n+idx] = 1
+			spatial[(firstHistoryPlane+offset+h)*n+idx] = 1
 		}
 	}
 }

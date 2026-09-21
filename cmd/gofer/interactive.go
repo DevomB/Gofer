@@ -15,10 +15,16 @@ func printAnalyzeTable(a Analysis, size int, header string) {
 	if header != "" {
 		fmt.Println(header)
 	}
-	fmt.Println("  move      visits   share   winrate")
+	// "value", not "winrate": this is Q for the side to move at the root, on
+	// [-1, +1], not a probability. It was previously the child's own mean, which
+	// is the opponent's view, printed under a name that invited reading it as
+	// the mover's win probability -- so a move the search preferred read as one
+	// it had rejected. prior and puct are here because a visit share alone
+	// cannot say whether the search chose a move or the policy handed it over.
+	fmt.Println("  move      visits   share    value    prior     puct")
 	for _, c := range a.Candidates {
-		fmt.Printf("  %-8s %7d %6.1f%% %7.3f\n",
-			moveToGTPVertex(c.Move, size), c.Visits, c.Share*100, c.WinRate)
+		fmt.Printf("  %-8s %7d %6.1f%% %8.3f %8.3f %8.3f\n",
+			moveToGTPVertex(c.Move, size), c.Visits, c.Share*100, c.Value, c.Prior, c.PUCT)
 	}
 	if len(a.PV) > 0 {
 		parts := make([]string, len(a.PV))
