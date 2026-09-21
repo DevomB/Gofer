@@ -444,6 +444,42 @@ def test_seed_gate_result_survives_into_the_lineage(tmp_path):
     assert gate["vs_heuristic_games"] == 10 and gate["vs_heuristic_score"] == 1.0
 
 
+def _always_reject(cycle, batch, games):
+    return 0, games, 0
+
+
+def test_rejected_training_is_discarded_by_default(tmp_path):
+    """The shape the paper calls a structural cost: after a rejection the next
+    cycle starts again from the champion, so those training steps are gone."""
+    ex = FakeExecutor(arena=_always_reject)
+    pipe = make_pipe(tmp_path, ex, gating__max_games=80)
+    pipe.run(max_cycles=3)
+
+    trains = [c for c in ex.calls if ex.kind(c) == "train"]
+    assert len(trains) == 3
+    # Cycle 3 rebuilds from generation 1, not from cycle 2's rejected work.
+    init = _arg(trains[-1], "--init-from").replace("\\", "/")
+    assert "gen-0001.pt" in init and "/train/cycle-" not in init
+    assert load_state(pipe.state_path).champion.generation == 1
+
+
+def test_warm_start_latest_keeps_rejected_training(tmp_path):
+    ex = FakeExecutor(arena=_always_reject)
+    pipe = make_pipe(tmp_path, ex, gating__max_games=80, train__warm_start="latest")
+    pipe.run(max_cycles=3)
+
+    trains = [c for c in ex.calls if ex.kind(c) == "train"]
+    init = _arg(trains[-1], "--init-from").replace("\\", "/")
+    assert init.endswith("train/cycle-0002/best.pt")
+    # The champion is untouched: it still only moves by winning a gate.
+    assert load_state(pipe.state_path).champion.generation == 1
+
+
+def test_warm_start_rejects_an_unknown_value(tmp_path):
+    with pytest.raises(ValueError, match="warm_start"):
+        make_cfg(tmp_path, train__warm_start="continuous")
+
+
 def test_anchor_measures_the_candidate_against_the_heuristic(tmp_path):
     """After cycle 1 the SPRT only compares nets to each other; the anchor is the
     one number in the run that does not move when the champion does."""

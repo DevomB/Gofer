@@ -334,6 +334,27 @@ class Pipeline:
 
     # ---------------------------------------------------------------- train
 
+    def _warm_start(self, cycle: int) -> Path | None:
+        """The checkpoint this cycle's training starts from.
+
+        Under ``train.warm_start = "champion"`` that is the last promoted net, so
+        a rejected candidate's training is thrown away and the next cycle starts
+        again from the same place. Under ``"latest"`` it is the previous cycle's
+        checkpoint, promoted or not, so training accumulates across rejections.
+
+        Only the initialisation changes. The champion still plays self-play,
+        still defends the gate, and still changes only by winning one.
+        """
+        if self.cfg.train.warm_start == "latest":
+            for c in range(cycle - 1, 0, -1):
+                prev = self.train_dir / f"cycle-{c:04d}" / "best.pt"
+                if prev.exists():
+                    return prev
+        champ = self.state.champion
+        if champ:
+            return self._abs(Path(champ.pt))
+        return self._abs(Path(self.cfg.run.init_checkpoint)) if self.cfg.run.init_checkpoint else None
+
     def stage_train(self, cycle: int) -> dict[str, Any]:
         tc = self.cfg.train
         moved = replay_index.archive_old(self.selfplay_dir, self.cfg.replay, self.state.lifetime_rows)
@@ -341,8 +362,7 @@ class Pipeline:
             self.log(f"archived {len(moved)} old shard(s) outside the replay window")
         window = replay_index.window_rows(self.state.lifetime_rows, self.cfg.replay)
         out = self.train_dir / f"cycle-{cycle:04d}"
-        champ = self.state.champion
-        init = self._abs(Path(champ.pt)) if champ else (self._abs(Path(self.cfg.run.init_checkpoint)) if self.cfg.run.init_checkpoint else None)
+        init = self._warm_start(cycle)
         fresh = init is None
         cmd = [
             self.cfg.python(), tc.script,

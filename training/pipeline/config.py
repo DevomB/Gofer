@@ -85,6 +85,22 @@ class TrainConfig:
     lr_fresh: float = 0.01
     lr_resume: float = 0.001
     patience: int = 5
+    # Which checkpoint each cycle's training starts from.
+    #
+    # "champion" (the v3 and v4 default) restarts from the last promoted net, so
+    # a rejected candidate's training steps are discarded and the next cycle
+    # begins again from the same champion. The paper names this as a structural
+    # cost and an untested choice (09-limitations): a continuous learner would
+    # have kept improving. It matters because the gate is tuned for large jumps
+    # -- plan-sprt puts promotion at 2.3% for a no-gain candidate but only 23.3%
+    # for a real +20 Elo one -- so a run can discard genuine small gains
+    # indefinitely and show a flat lineage.
+    #
+    # "latest" keeps them: training continues from the previous cycle's
+    # checkpoint whether or not it was promoted. The champion is unaffected --
+    # it still only changes by winning a gate, and it still plays self-play and
+    # defends the gate. Only the training initialisation changes.
+    warm_start: str = "champion"
     # Extra trainer flags passed through verbatim: {batch-size = 256, amp = true}
     # -> --batch-size 256 --amp. Keeps the orchestrator decoupled from trainer flags.
     args: dict[str, Any] = field(default_factory=dict)
@@ -176,6 +192,8 @@ class PipelineConfig:
             errors.append(f"engine.backend must be inprocess|sidecar, got {self.engine.backend!r}")
         if self.gating.mode not in ("normal", "hold"):
             errors.append(f"gating.mode must be normal|hold, got {self.gating.mode!r}")
+        if self.train.warm_start not in ("champion", "latest"):
+            errors.append(f"train.warm_start must be champion|latest, got {self.train.warm_start!r}")
         if self.gating.batch_games <= 0 or self.gating.batch_games % 2:
             errors.append("gating.batch_games must be a positive even number (colors alternate)")
         if self.gating.bootstrap_games <= 0 or self.gating.bootstrap_games % 2:
