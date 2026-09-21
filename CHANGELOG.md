@@ -6,6 +6,23 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
 
 ### Fixed
 
+- **The seed gate measured the first network and then promoted it regardless.** `stage_gate`
+  ran a 40-game arena against the heuristic, wrote the score into the lineage, and set
+  `promote: True` unconditionally. A network that lost to the heuristic still became
+  champion — and the champion generates `selfplay.onnx_fraction` (0.70) of every shard from
+  cycle 2 onward, so the replay window then fills with games from a weaker player. In a live
+  200-games-per-cycle run the first net scored 0.425 (about **−89 Elo** against the heuristic
+  on fair komi), was crowned anyway, and the pure-heuristic share of the window fell to 21%
+  by cycle 5. Measured against the heuristic at the seed gate's settings on identical
+  openings, the candidates tracked it down: −89, −70, **−191, −191** Elo across cycles 1–4.
+  Every gate rejected correctly while the training distribution degraded underneath them;
+  gates protect the champion from replacement, and nothing protected the data.
+  `gating.seed_min_score` (default 0.5) makes the seed arena decide. Below the bar the run
+  keeps `champion = None`, so self-play keeps using the heuristic — the stronger teacher —
+  and keeps accumulating good data. On the same cycle-1 data that produced a −108 Elo seed,
+  refusing it and bootstrapping one more cycle produced **+89 Elo**: a 197 Elo swing, and the
+  first champion in this project measurably stronger than the evaluator it learned from.
+  `0.0` restores the old behaviour for reproducing earlier runs.
 - **The search never left the root on 9x9.** `Arena.Get` returns a pointer into a slice
   that `AddChild` appends to, and `expandLocked` wrote the "expanded" flag through a
   pointer taken before the append. A 9x9 root has 82 children against an initial capacity
