@@ -70,14 +70,7 @@ func TestSearchAvoidsLosingPass(t *testing.T) {
 	}
 }
 
-// TestSelectionPrefersMovesGoodForTheMover is the guard the project lacked.
-// Node means are stored from each node's own side to move, so a child's mean is
-// the opponent's view and selection must negate it. It did not (ADR 0008), and
-// the engine spent its search maximising the opponent's value: three times the
-// playouts then lost 0 of 20 games. No test noticed, because every arena-scale
-// test skips itself in -short mode, which is the mode CI runs. This one is a
-// unit test of the rule itself: instant, deterministic, and it fails on the old
-// code rather than relying on a noisy game outcome.
+// TestSelectionPrefersMovesGoodForTheMover checks child values are negated.
 func TestSelectionPrefersMovesGoodForTheMover(t *testing.T) {
 	eng := NewEngine(Chinese(), Heuristic{}, DefaultConfig())
 	eng.arena = NewArena()
@@ -104,14 +97,7 @@ func TestSelectionPrefersMovesGoodForTheMover(t *testing.T) {
 	}
 }
 
-// TestSearchVisitsRootChildren guards the end-to-end consequence of the arena
-// storage bug: Get used to return a pointer into a slice that AddChild appended
-// to, so expanding a node with more children than its spare capacity reallocated
-// the slice and any pointer taken beforehand wrote into the discarded array. A
-// 9x9 root has 82 children against an initial capacity of 64, so the "expanded"
-// flag was lost on every search: each playout bailed out at the root, no child
-// was ever visited, and the engine played the first legal move regardless of how
-// long it searched. TestArenaPointersSurviveGrowth covers the storage directly.
+// TestSearchVisitsRootChildren checks search descends after root expansion.
 func TestSearchVisitsRootChildren(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Playouts = 60
@@ -138,11 +124,7 @@ func TestSearchVisitsRootChildren(t *testing.T) {
 	}
 }
 
-// TestSearchExploresSeveralMoves guards the visit distribution, which is the
-// policy training target. First-play urgency used to be a flat pessimistic
-// constant, well below a typical node value, so the first child to be visited
-// outscored every unvisited one forever: all playouts went down one line and the
-// target collapsed to a single move.
+// TestSearchExploresSeveralMoves guards first-play urgency.
 func TestSearchExploresSeveralMoves(t *testing.T) {
 	cfg := DefaultConfig()
 	cfg.Playouts = 200
@@ -201,11 +183,7 @@ func TestTerminalValueSignsWithKomi(t *testing.T) {
 	}
 }
 
-// TestArenaPointersSurviveGrowth pins the property the old storage could not
-// provide: a *Node stays valid across later allocations. One slice that AddChild
-// appended to meant any pointer held across an expansion could be writing into a
-// discarded array, which is how the root's "expanded" flag was lost on every 9x9
-// search while every small-board test passed.
+// TestArenaPointersSurviveGrowth checks pointers returned by Get remain valid.
 func TestArenaPointersSurviveGrowth(t *testing.T) {
 	a := NewArena()
 	root := a.Root()

@@ -7,13 +7,7 @@ import (
 )
 
 func TestBatchedEvaluator(t *testing.T) {
-	// minBatch=2 with a single request means only the maxWait timer can flush the
-	// batch, which is the path worth exercising. The request timeout has to be far
-	// larger than maxWait, though: NewBatchedEvaluator derives it as maxWait*4, and
-	// a 4ms deadline expires before the worker is even scheduled on a loaded
-	// machine. Evaluate then silently returns fallback.Evaluate(board) — Heuristic{}
-	// on an empty board, i.e. 0 — and the failure looks like a wrong value rather
-	// than a missed deadline. That is exactly how this test flaked in a full run.
+	// Use a generous deadline to exercise timer flush without scheduler flakes.
 	ev := NewBatchedEvaluatorWithTimeout(Inference{MockValue: 0.5}, Heuristic{}, 2, time.Millisecond, 10*time.Second)
 	defer ev.Close()
 	b := NewBoard(5, 6.5)

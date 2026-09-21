@@ -17,16 +17,7 @@ type Node struct {
 // a *Node handed out by Get stays valid for the life of the arena.
 const arenaChunk = 1024
 
-// Arena stores nodes in fixed-size chunks.
-//
-// It used to be one slice that AddChild appended to, which meant Get returned a
-// pointer into memory that the next expansion could reallocate. Any pointer held
-// across an AddChild was then silently writing into a discarded array. That cost
-// us: the root's "expanded" flag was lost on every 9x9 search (82 children
-// against a capacity of 64), the search never descended, and no test caught it
-// because every test board has fewer children than the initial capacity. Chunked
-// storage makes the whole class of mistake impossible instead of moving the
-// threshold at which it appears.
+// Arena stores nodes in fixed-size chunks, keeping pointers returned by Get valid.
 type Arena struct {
 	chunks [][]Node
 	n      int
@@ -85,10 +76,7 @@ func (n *Node) Mean() float64 {
 }
 
 func puctScore(c *Node, parentVisits float64, isRoot bool, fpu float64, cfg SearchConfig) float64 {
-	// Node means are stored from that node's own side to move (backupLocked flips
-	// the sign at every level), so a child's mean is the OPPONENT's view. Negate
-	// it to score the move from the parent's side: without this the search picks
-	// the move that is best for the opponent, and more playouts make it weaker.
+	// A child mean is from the opponent's perspective.
 	q := -c.Mean()
 	if c.Visits == 0 {
 		q = fpu // first-play urgency, in the parent's frame (see selectChildLocked)

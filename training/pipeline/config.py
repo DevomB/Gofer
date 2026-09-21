@@ -38,13 +38,7 @@ class EngineConfig:
     python: str = ""                    # "" = current interpreter
     sidecar_base_port: int = 8080
     eval_timeout: str = "2s"
-    # Evaluations per inference call. The batched evaluator runs ONE worker
-    # goroutine that gathers a batch and then blocks on it, so nothing else is
-    # evaluated while a call is in flight: throughput is capped at this many
-    # evaluations per serialised dispatch. Left at the engine's default of 8 it
-    # throttles a 32-way stage to roughly one runnable thread. 0 means match the
-    # stage's own parallelism, which is the only value that cannot be wrong by
-    # construction.
+    # Evaluations per inference call; 0 matches stage parallelism.
     batch_size: int = 0
 
 
@@ -85,21 +79,7 @@ class TrainConfig:
     lr_fresh: float = 0.01
     lr_resume: float = 0.001
     patience: int = 5
-    # Which checkpoint each cycle's training starts from.
-    #
-    # "champion" (the v3 and v4 default) restarts from the last promoted net, so
-    # a rejected candidate's training steps are discarded and the next cycle
-    # begins again from the same champion. The paper names this as a structural
-    # cost and an untested choice (09-limitations): a continuous learner would
-    # have kept improving. It matters because the gate is tuned for large jumps
-    # -- plan-sprt puts promotion at 2.3% for a no-gain candidate but only 23.3%
-    # for a real +20 Elo one -- so a run can discard genuine small gains
-    # indefinitely and show a flat lineage.
-    #
-    # "latest" keeps them: training continues from the previous cycle's
-    # checkpoint whether or not it was promoted. The champion is unaffected --
-    # it still only changes by winning a gate, and it still plays self-play and
-    # defends the gate. Only the training initialisation changes.
+    # "champion" restarts from the latest promotion; "latest" retains rejected work.
     warm_start: str = "champion"
     # Extra trainer flags passed through verbatim: {batch-size = 256, amp = true}
     # -> --batch-size 256 --amp. Keeps the orchestrator decoupled from trainer flags.
@@ -113,39 +93,17 @@ class GatingConfig:
     batch_games: int = 40               # arena games per SPRT step (even: colors alternate)
     max_games: int = 600
     bootstrap_games: int = 40           # sanity arena vs heuristic for the first net
-    # The seed arena was always run and always recorded; it was never consulted,
-    # so a net that lost to the heuristic still became champion -- and the
-    # champion generates `selfplay.onnx_fraction` of every later shard. A weak
-    # seed therefore poisons the replay window from cycle 2 onward, and no later
-    # gate can undo it: gates protect the champion from replacement, nothing
-    # protects the data.
-    #
-    # The seed now faces the same sequential test as every later challenger
-    # (elo0/elo1/alpha/beta below), against the heuristic rather than a
-    # champion, in batches of bootstrap_games up to max_games. Only an accepted
-    # H1 seeds. A fixed threshold over one 40-game batch was the wrong
-    # instrument: "score >= 0.5" there admits an even network about half the
-    # time and a -50 Elo one about a fifth of the time.
+    # The initial network must pass the same sequential gate against the heuristic.
     opening_moves: int = 8
     parallel: int = 0
-    # SPRT on Elo: H0 candidate is elo0 better, H1 it is elo1 better.
-    # These defaults were chosen from the exact operating characteristics
-    # (`python -m training.pipeline plan-sprt`): they promote a no-gain candidate
-    # 2.3% of the time, a +35 Elo candidate 61%, and a +50 Elo candidate 90%,
-    # for about 397 games when the candidate is worthless. Raising max_games is
-    # the main way to buy power; beta=0.10 trades a little of it for shorter gates.
+    # SPRT hypotheses: H0 is elo0 better; H1 is elo1 better.
     elo0: float = 0.0
     elo1: float = 35.0
     alpha: float = 0.05
     beta: float = 0.10
     # Fallback when SPRT is inconclusive at max_games (legacy v3 rule).
     promote_win: float = 0.55
-    # Absolute anchor. After cycle 1 the SPRT only ever measures the challenger
-    # against the champion, so the loop reports motion relative to itself: it can
-    # promote steadily while going nowhere, and nothing in the run would say so.
-    # Every `anchor_every` cycles, replay the seed gate's match -- heuristic vs
-    # this cycle's candidate, same flags, same shape -- so the run records one
-    # number that does not move when the champion does. 0 disables it.
+    # Periodically evaluate against the fixed heuristic anchor; 0 disables it.
     anchor_every: int = 0
     anchor_games: int = 40
 

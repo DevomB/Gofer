@@ -72,22 +72,7 @@ func NewBatchedEvaluatorWithTimeout(backend EvalBackend, fallback Evaluator, min
 	return NewBatchedEvaluatorDispatch(backend, fallback, minBatch, maxWait, reqTimeout, 1)
 }
 
-// NewBatchedEvaluatorDispatch starts `dispatchers` batch workers.
-//
-// One worker is the historical shape, and it caps the whole engine at a single
-// in-flight inference: nothing gathers and no other evaluation runs while
-// dispatchBatch blocks on the backend. Measured on a 32-core box, sixteen
-// parallel arena games drove 1.15 cores. Raising the batch size does not lift
-// that -- it makes the one call bigger, not more numerous -- and neither does
-// giving ORT more threads per call, because a 9x9 net is too small a matrix to
-// pay for the coordination (8 threads bought 1.37x for 14x the CPU, and 16 was
-// slower than 8).
-//
-// More workers is the lever that matches the shape of the work: many small
-// independent inferences. Each worker gathers and dispatches on its own, and
-// they share the backend, which is safe because EvalBatch allocates all of its
-// buffers and tensors per call and ONNX Runtime supports concurrent Run on one
-// session.
+// NewBatchedEvaluatorDispatch starts independent batch workers sharing a backend.
 func NewBatchedEvaluatorDispatch(backend EvalBackend, fallback Evaluator, minBatch int, maxWait, reqTimeout time.Duration, dispatchers int) *BatchedEvaluator {
 	if minBatch < 1 {
 		minBatch = 8

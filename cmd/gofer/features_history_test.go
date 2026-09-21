@@ -23,10 +23,7 @@ func historyPlaneSums(spatial []float32, n int) [historyPlanes]float32 {
 	return out
 }
 
-// The schema says plane 7 is "the stone played 1 ply ago". The history was
-// left-aligned, so after one move that stone was in plane 5 and plane 7 was
-// empty -- and an empty plane 7 is exactly how a pass is encoded. For the first
-// two plies of every game a real move and a pass were the same input.
+// The newest move belongs in t-1, regardless of history length.
 func TestHistoryPlanesAreRightAligned(t *testing.T) {
 	r := Chinese()
 	b := NewBoard(9, 6.5)
@@ -41,8 +38,6 @@ func TestHistoryPlanesAreRightAligned(t *testing.T) {
 		pt        Point
 		wantPlane int
 	}
-	// After each move the move just played must be in plane 7 (t-1), the one
-	// before it in 6, and the one before that in 5.
 	steps := []step{
 		{Point{X: 2, Y: 2}, firstHistoryPlane + 2},
 		{Point{X: 4, Y: 4}, firstHistoryPlane + 2},
@@ -60,18 +55,22 @@ func TestHistoryPlanesAreRightAligned(t *testing.T) {
 		if got := planeOf(spatial, n, s.pt.Idx(9)); got != s.wantPlane {
 			t.Errorf("after %d move(s): last move in plane %d, want %d (t-1)", i+1, got, s.wantPlane)
 		}
-		// The previous move, when there is one, must be exactly one plane older.
 		if len(played) >= 2 {
 			prev := played[len(played)-2]
 			if got := planeOf(spatial, n, prev.Idx(9)); got != firstHistoryPlane+1 {
 				t.Errorf("after %d move(s): previous move in plane %d, want %d (t-2)", i+1, got, firstHistoryPlane+1)
 			}
 		}
+		if len(played) >= 3 {
+			older := played[len(played)-3]
+			if got := planeOf(spatial, n, older.Idx(9)); got != firstHistoryPlane {
+				t.Errorf("after %d move(s): older move in plane %d, want %d (t-3)", i+1, got, firstHistoryPlane)
+			}
+		}
 	}
 }
 
-// A pass writes nothing, so it must shift the older moves along rather than
-// leaving them where they were: after "move, pass" the move is t-2, not t-1.
+// A pass leaves t-1 empty and shifts older moves back.
 func TestPassShiftsHistoryWithoutWritingAPlane(t *testing.T) {
 	r := Chinese()
 	b := NewBoard(9, 6.5)
@@ -92,7 +91,6 @@ func TestPassShiftsHistoryWithoutWritingAPlane(t *testing.T) {
 	if got := planeOf(spatial, n, pt.Idx(9)); got != firstHistoryPlane+1 {
 		t.Errorf("after a pass the earlier move is in plane %d, want %d (t-2)", got, firstHistoryPlane+1)
 	}
-	// t-1 is empty, which is what tells the network the last move was a pass.
 	sums := historyPlaneSums(spatial, n)
 	if sums[2] != 0 {
 		t.Errorf("t-1 plane has %v stones after a pass, want 0", sums[2])

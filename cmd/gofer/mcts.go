@@ -111,20 +111,9 @@ func (e *Engine) AdvanceTree(m Move) {
 type MoveCandidate struct {
 	Move   Move
 	Visits uint32
-	// Value of this move for the side to move at the PARENT, i.e. -child.Mean().
-	//
-	// Node means are stored from each node's own side to move, so a child's raw
-	// mean is the opponent's view and reads inverted: this field used to carry
-	// it unnegated under the name WinRate, which made a move the search
-	// preferred look like one it had rejected. Selection always used the
-	// negated value (puctScore), so only analysis and the diagnostics built on
-	// it were wrong -- but a diagnostic that inverts the quantity it reports is
-	// worse than none, because it produces confident backwards conclusions.
+	// Value is from the parent side to move's perspective.
 	Value float64
 	Share float64
-	// Prior and PUCT are what separate "the search liked this" from "the policy
-	// liked this and the search never got to disagree". Without them a high
-	// visit share cannot be attributed to either.
 	Prior float64
 	PUCT  float64
 }
@@ -299,10 +288,7 @@ func (e *Engine) runForcedRootPlayouts(b *Board) {
 		e.mu.Lock()
 		c := e.arena.Get(cidx)
 		need := 0
-		// "for each child c of the root that has received any playouts" (Wu 2020,
-		// SS3.2). Forcing a floor on every child instead floods the root: on 9x9
-		// that is 82 children times k, which at a 200-playout budget outnumbers the
-		// search itself and flattens the visit distribution -- the policy target.
+		// Wu 2020 §3.2 only forces children that have already received a playout.
 		if c.Visits > 0 {
 			target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
 			need = target - int(c.Visits)
@@ -317,9 +303,7 @@ func (e *Engine) runForcedRootPlayouts(b *Board) {
 	}
 }
 
-// Whether a playout may be served from the transposition table. Forced root
-// playouts skip it: the visit is mandated to shape the policy target, and a
-// table hit would credit the child without exploring anything beneath it.
+// Forced root playouts skip the transposition table so they explore a child.
 const (
 	probeTT = true
 	skipTT  = false
@@ -428,20 +412,12 @@ func (e *Engine) expandLocked(node int, b *Board) {
 	for i, m := range moves {
 		e.arena.AddChild(node, m, priors[i])
 	}
-	// Re-fetch: AddChild appends to the arena's slice, which reallocates once the
-	// children outgrow its capacity, and `n` would then point into the discarded
-	// array. Writing the flag through that stale pointer left the node looking
-	// unexpanded forever, so every playout stopped at it and no child was visited.
+	// Re-fetch after AddChild; arena storage can grow.
 	e.arena.Get(node).Expanded = true
 	e.TT.Store(b.Hash(), res.Value)
 }
 
-// fpuFor is the first-play urgency an unvisited child of n is scored with, in
-// the parent's frame. Shared with the analysis so a reported PUCT is the number
-// the search actually used rather than a second implementation of it: the
-// telemetry this replaces had drifted into reporting the opponent's view of
-// every child's value, which is how a move the search preferred came to look
-// like one it had rejected.
+// fpuFor returns an unvisited child's first-play urgency in the parent frame.
 func fpuFor(a *Arena, n *Node, isRoot bool, cfg SearchConfig) float64 {
 	fpu := n.Mean()
 	if isRoot && cfg.RootNoise {
@@ -462,12 +438,6 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	if parentVisits == 0 {
 		parentVisits = 1
 	}
-	// First-play urgency, relative to how much of the policy has been explored:
-	// an unseen move is worth roughly what this node is worth, minus a reduction
-	// that grows as the explored moves account for more of the prior. A flat
-	// pessimistic constant instead made the first visited child unbeatable, so
-	// the search put every playout down one line and the visit distribution --
-	// which is the policy training target -- collapsed to a single move.
 	fpu := fpuFor(e.arena, n, isRoot, e.cfg)
 	best := -1
 	bestScore := math.Inf(-1)
@@ -486,11 +456,7 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 }
 
 func (e *Engine) leafValue(b *Board) float64 {
-	// A finished game has a known result; asking the evaluator for one would let
-	// the search walk into a lost endgame it cannot see. Only the O(1) two-pass
-	// test runs here: a board with no legal move is caught at expansion, and this
-	// is the hot path. Checked before the transposition table, whose key covers
-	// stones but not pass history.
+	// Check pass history before the table, whose key does not include it.
 	if twoPasses(b) {
 		return terminalValue(e.Rules, b)
 	}

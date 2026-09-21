@@ -247,11 +247,7 @@ def rollback(pipe: "Pipeline", generation: int, *, champion: bool, github: GitHu
     if entry is None or entry.get("status") != "published":
         raise ValueError(f"{key} is not a published generation in {pub.registry / 'index.json'}")
 
-    # Validate everything before touching anything. The registry, the alias and
-    # GitHub's latest release are three separate side effects, and the champion
-    # preconditions used to be checked after all three had already been applied
-    # - so a rollback that failed on "a cycle is in progress" left the published
-    # best pointing somewhere the training champion did not.
+    # Validate before changing the registry, alias, release, or champion.
     target = None
     if champion:
         st = pipe.state

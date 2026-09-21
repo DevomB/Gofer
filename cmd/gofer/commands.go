@@ -405,15 +405,7 @@ func flagWasSet(name string) bool {
 	return set
 }
 
-// selfplayModelID tags shards with the generating network so the replay buffer
-// can tell which champion produced each row. The label is the model's content
-// hash rather than its path, because a path is reused across generations.
-//
-// Mix mode names the fraction too: only that share of games used the network
-// and the rest used the heuristic, so labelling the whole shard with the model
-// alone would overstate what produced it. The rows themselves are not
-// separable here - the split is per game inside RunSelfplay - so the honest
-// label is the mixture, not one of its halves.
+// selfplayModelID identifies the model content and, for mix mode, its share.
 func selfplayModelID(evalMode, modelPath string, onnxFraction float64) string {
 	if strings.EqualFold(evalMode, "heuristic") {
 		return "heuristic"
@@ -429,11 +421,7 @@ func selfplayModelID(evalMode, modelPath string, onnxFraction float64) string {
 	return id
 }
 
-// checkEvalHealth refuses a result produced mostly by the heuristic fallback
-// when the match named a model. Both ONNX backends answer with the heuristic
-// rather than failing, so a closed sidecar or an unloadable model yields a
-// complete, plausible arena report attributing the games to a model that never
-// ran. Failing closed here is what keeps a promotion gate honest.
+// checkEvalHealth rejects model matches that relied on the heuristic fallback.
 func checkEvalHealth(cfg MatchConfig, result MatchResult) error {
 	if !namesONNX(cfg.BlackEval) && !namesONNX(cfg.WhiteEval) {
 		return nil
@@ -457,14 +445,7 @@ func namesONNX(name string) bool {
 	return strings.HasPrefix(strings.ToLower(name), "onnx")
 }
 
-// checkSelfplayEvalHealth refuses to write a shard that the model did not
-// generate. The arena equivalent guards one promotion decision; this guards the
-// training data, which outlives the cycle that produced it - a shard labelled
-// with a champion but played by the heuristic stays in the replay window for as
-// many cycles as the window is deep.
-//
-// Mix mode is judged against the share of games that were meant to use the
-// model, since the rest are heuristic by design and must not count as failures.
+// checkSelfplayEvalHealth rejects shards that unexpectedly used the heuristic.
 func checkSelfplayEvalHealth(cfg SelfplayConfig, rate float64, requests, fallbacks uint64) error {
 	if !namesONNX(cfg.EvalMode) && !strings.EqualFold(cfg.EvalMode, "mix") {
 		return nil

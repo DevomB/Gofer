@@ -98,18 +98,7 @@ func WilsonCI(wins, n int, z float64) (low, high float64) {
 	return low, high
 }
 
-// matchConfigHash identifies everything that changes what a match measures, so
-// a cached report can be matched against the configuration that would produce
-// it. Two things are deliberately absent. Parallel does not appear because
-// games are a pure function of (config, game index) - fresh engine per game,
-// seeded by mixSeed, stateless evaluator - so concurrency cannot move a result,
-// and hashing it would discard reusable evidence for nothing. Think time does
-// appear even though it is wall-clock dependent, because a match run under a
-// time budget is not comparable to one run under a playout budget.
-//
-// The evaluators are identified by the SHA-256 of the model files, not their
-// paths: candidate-0007.onnx is a different network every cycle, and a hash
-// over the path alone would call those the same configuration.
+// matchConfigHash identifies all inputs that affect a match result.
 func matchConfigHash(cfg MatchConfig) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "games=%d size=%d komi=%.2f playouts=%d bpl=%d wpl=%d think=%d black=%s white=%s seed=%d swap=%v enhanced=%s",
@@ -310,12 +299,7 @@ func RunMatch(cfg MatchConfig) MatchResult {
 	return out
 }
 
-// mixSeed derives an independent seed for one (match seed, game, slot). The
-// arena alternates which player holds which colour with game parity, so seeds
-// must carry no parity structure of their own: with seeds linear in the game
-// index, consecutive games drew correlated openings and one parity class could
-// be decided systematically, which showed up as a role split between two
-// evaluators that were literally the same code. This is splitmix64.
+// mixSeed derives an independent splitmix64 seed for a game and evaluator slot.
 func mixSeed(seed int64, gameIdx, slot int) int64 {
 	x := uint64(seed)*0x9E3779B97F4A7C15 + uint64(gameIdx)*0xBF58476D1CE4E5B9 + uint64(slot)*0x94D049BB133111EB
 	x ^= x >> 30
@@ -431,11 +415,7 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openin
 	return moves
 }
 
-// arenaEnhancedForGame reports forced-root-playout use for (black, white) in one
-// game. "baseline" follows the baseline ROLE across the colour swap. Resolving it
-// by evaluator name instead meant that a match with the same name on both sides
-// -- which is exactly what the reproducible 9x9 baseline command uses -- enhanced
-// both players, so "baseline" silently behaved as "both".
+// arenaEnhancedForGame applies baseline enhancement by role, not evaluator name.
 func arenaEnhancedForGame(cfg MatchConfig, gameIdx int) (black, white bool) {
 	switch strings.ToLower(cfg.ArenaEnhanced) {
 	case "both":

@@ -99,11 +99,7 @@ class Pipeline:
             d.mkdir(parents=True, exist_ok=True)
         saved = self.dir / "config.toml"
         if saved.exists() and self.state.cycle > 0:
-            # A run resumed under a changed config keeps shards, arena reports and
-            # a champion produced under the old one. Some edits are fine (raising
-            # max_cycles); ones that change what a cycle measures are not, and the
-            # evidence on disk gives no sign which happened. Say so and let the
-            # operator decide rather than overwriting the record of what ran.
+            # Preserve the previous config when a resumed run changes it.
             before = saved.read_text(encoding="utf-8")
             after = dump_toml(self.cfg)
             if before != after:
@@ -244,11 +240,7 @@ class Pipeline:
             if model2 is not None:
                 args += ["-model-2", str(model2)]
             return args
-        # -model is passed in sidecar mode too, though inference goes over HTTP.
-        # The engine hashes it to label shard provenance and to build the arena
-        # config hash; without it both fall back to the -model default, so a
-        # sidecar run tagged every shard with the bootstrap fixture and gave two
-        # different champions the same config hash.
+        # Preserve model provenance and the arena configuration hash in sidecar mode.
         args = ["-eval-backend", "sidecar", "-onnx-url", f"http://127.0.0.1:{ports[0]}", "-model", str(model1)]
         if model2 is not None:
             args += ["-onnx-url-2", f"http://127.0.0.1:{ports[1]}", "-model-2", str(model2)]

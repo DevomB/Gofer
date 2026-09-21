@@ -131,11 +131,7 @@ func TestForcedRootPlayouts(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := e.arena.Get(e.root)
-	// Wu (2020) SS3.2 forces playouts on "each child of the root that has received
-	// any playouts", so a move the search never looked at stays at zero. Forcing a
-	// floor on every child instead costs (children x k) playouts per move -- more
-	// than the whole search budget on 9x9 -- and flattens the visit distribution
-	// that becomes the policy target.
+	// Wu 2020 §3.2 only forces root children already visited by the search.
 	explored, untouched := 0, 0
 	for _, cidx := range root.Children {
 		c := e.arena.Get(cidx)

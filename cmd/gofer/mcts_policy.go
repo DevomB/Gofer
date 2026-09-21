@@ -45,11 +45,7 @@ func rootVisitTotal(a *Arena, n *Node) uint32 {
 	return total
 }
 
-// sortedRootCandidates reports each root child in the PARENT's frame, which is
-// the frame a reader of the analysis is thinking in. Selection has always used
-// -c.Mean() (puctScore); this reports the same quantity rather than its
-// negation, and carries the prior and PUCT terms alongside so a visit share can
-// be attributed to the search or to the policy that seeded it.
+// sortedRootCandidates reports values from the root player's perspective.
 func sortedRootCandidates(a *Arena, n *Node, cfg SearchConfig) []MoveCandidate {
 	parentVisits := float64(n.Visits)
 	fpu := fpuFor(a, n, true, cfg)

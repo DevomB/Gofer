@@ -2,11 +2,7 @@ package main
 
 import "testing"
 
-// The reported failure: run an arena with both ONNX endpoints closed and it
-// exits cleanly with a normal-looking onnx vs onnx2 result. Both backends
-// answer with the heuristic rather than failing, so every game completes and
-// nothing in the report says the model never ran. A promotion gate would score
-// the heuristic against itself and call it a candidate evaluation.
+// Model matches fail closed when evaluation falls back to the heuristic.
 func TestArenaRefusesResultDecidedByFallback(t *testing.T) {
 	cfg := MatchConfig{BlackEval: "onnx", WhiteEval: "onnx2"}
 
@@ -151,11 +147,7 @@ func TestSelfplayPassCollapseSeparatesMeasuredShards(t *testing.T) {
 	}
 }
 
-// Default is measure-and-record. The first version of this check shipped a
-// constant 0.12 bar, which sat above every collapsed shard actually observed
-// (worst: 0.087) and so could never fire -- a check that cannot fail is not a
-// check. Until a run exists that produces healthy net self-play there is no
-// upper end of the healthy band to calibrate against, so the refusal is opt-in.
+// The pass-collapse threshold is opt-in until it is calibrated.
 func TestSelfplayPassCollapseIsOptIn(t *testing.T) {
 	share, rows := openingPassShare(shardWith(0.9))
 	if err := checkSelfplayPassCollapse(share, rows, 0); err != nil {
