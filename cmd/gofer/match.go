@@ -37,17 +37,19 @@ type MatchConfig struct {
 	// truncates the sample exactly when the challenger is losing. Callers that run
 	// their own sequential test (the v4 gate) also need a fixed batch size.
 	PlayAllGames bool
+	MaxMoves     int // 0 = maxGameMoves(Size)
 }
 
 // GameSummary is one arena game outcome.
 type GameSummary struct {
-	Game      int    `json:"game"`
-	BlackEval string `json:"black_eval"`
-	WhiteEval string `json:"white_eval"`
-	BlackWins bool   `json:"black_wins"`
-	WhiteWins bool   `json:"white_wins"`
-	Draw      bool   `json:"draw"`
-	Moves     int    `json:"moves"`
+	Game      int     `json:"game"`
+	BlackEval string  `json:"black_eval"`
+	WhiteEval string  `json:"white_eval"`
+	BlackWins bool    `json:"black_wins"`
+	WhiteWins bool    `json:"white_wins"`
+	Draw      bool    `json:"draw"`
+	Moves     int     `json:"moves"`
+	End       GameEnd `json:"end"`
 }
 
 // MatchResult is JSON output for arena runs.
@@ -67,14 +69,17 @@ type MatchResult struct {
 	ConfigHash         string  `json:"config_hash"`
 	// Evaluations served by the model vs by the heuristic fallback. A high
 	// rate means this result did not measure what black_eval/white_eval name.
-	EvalRequests     uint64        `json:"eval_requests"`
-	EvalFallbacks    uint64        `json:"eval_fallbacks"`
-	EvalFallbackRate float64       `json:"eval_fallback_rate"`
-	Games            int           `json:"game_count"`
-	BaselineEval     string        `json:"baseline_eval"`
-	ChallengerEval   string        `json:"challenger_eval"`
-	Promoted         bool          `json:"promoted"`
-	GameSummaries    []GameSummary `json:"games,omitempty"`
+	EvalRequests     uint64  `json:"eval_requests"`
+	EvalFallbacks    uint64  `json:"eval_fallbacks"`
+	EvalFallbackRate float64 `json:"eval_fallback_rate"`
+	Games            int     `json:"game_count"`
+	BaselineEval     string  `json:"baseline_eval"`
+	ChallengerEval   string  `json:"challenger_eval"`
+	Promoted         bool    `json:"promoted"`
+	// Endings counts why every game stopped. Games holds only finished ones: a
+	// game stopped at the move cap has no result.
+	Endings       map[GameEnd]int `json:"endings"`
+	GameSummaries []GameSummary   `json:"games,omitempty"`
 }
 
 // WilsonCI returns Wilson score interval for binomial proportion (z=1.96 ~ 95%).
@@ -104,7 +109,7 @@ func matchConfigHash(cfg MatchConfig) string {
 	fmt.Fprintf(h, "games=%d size=%d komi=%.2f playouts=%d bpl=%d wpl=%d think=%d black=%s white=%s seed=%d swap=%v enhanced=%s",
 		cfg.Games, cfg.Size, cfg.Komi, cfg.Playouts, cfg.BlackPlayouts, cfg.WhitePlayouts,
 		cfg.ThinkTime, cfg.BlackEval, cfg.WhiteEval, cfg.Seed, cfg.SwapColors, cfg.ArenaEnhanced)
-	fmt.Fprintf(h, " opening=%d temp=%.3f playall=%v", cfg.OpeningMoves, cfg.OpeningTemp, cfg.PlayAllGames)
+	fmt.Fprintf(h, " opening=%d temp=%.3f playall=%v maxmoves=%d", cfg.OpeningMoves, cfg.OpeningTemp, cfg.PlayAllGames, arenaMaxMoves(cfg))
 	fmt.Fprintf(h, " backend=%s", evalConfig.Backend)
 	for _, slot := range []onnxSlot{champion, challenger} {
 		model, url := resolveONNXSlot(slot)
@@ -228,9 +233,10 @@ func RunMatch(cfg MatchConfig) MatchResult {
 		baselineWins   int
 		challengerWins int
 		summaries      []GameSummary
+		endings        map[GameEnd]int
 	}
 
-	prog := &arenaProgress{}
+	prog := &arenaProgress{endings: make(map[GameEnd]int)}
 	sem := make(chan struct{}, par)
 	var wg sync.WaitGroup
 
@@ -256,6 +262,11 @@ func RunMatch(cfg MatchConfig) MatchResult {
 				return
 			}
 			prog.summaries = append(prog.summaries, summary)
+			prog.endings[summary.End]++
+			if summary.End == EndMoveCap {
+				prog.mu.Unlock()
+				continue
+			}
 			accumulateArenaSummary(&out, summary)
 			prog.baselineWins, prog.challengerWins = countRoleWin(
 				cfg, summary, prog.baselineWins, prog.challengerWins,
@@ -283,6 +294,7 @@ func RunMatch(cfg MatchConfig) MatchResult {
 	out.Games = played
 	out.EvalFallbackRate, out.EvalRequests, out.EvalFallbacks = evalFallbackRate()
 	out.GameSummaries = prog.summaries
+	out.Endings = prog.endings
 	out.WinsBaseline = prog.baselineWins
 	out.WinsChallenger = prog.challengerWins
 	if played == 0 {
@@ -341,9 +353,12 @@ func runArenaSummary(r Ruleset, cfg MatchConfig, gameIdx int, evals map[string]E
 	// actually distinct; without it the deterministic MCTS replays one identical
 	// game N times and the win rate is decided by komi symmetry, not strength.
 	rng := rand.New(rand.NewSource(mixSeed(cfg.Seed, gameIdx, 2)))
-	moves := playArenaGame(r, b, blackEng, whiteEng, cfg.Size, cfg.OpeningMoves, cfg.OpeningTemp, rng)
+	moves, end := playArenaGame(r, b, blackEng, whiteEng, arenaMaxMoves(cfg), cfg.OpeningMoves, cfg.OpeningTemp, rng)
+	summary := GameSummary{Game: gameIdx + 1, BlackEval: blackEval, WhiteEval: whiteEval, Moves: moves, End: end}
+	if end == EndMoveCap {
+		return summary
+	}
 	bl, wl := r.Score(b)
-	summary := GameSummary{Game: gameIdx + 1, BlackEval: blackEval, WhiteEval: whiteEval, Moves: moves}
 	switch {
 	case bl > wl:
 		summary.BlackWins = true
@@ -380,12 +395,36 @@ func countRoleWin(cfg MatchConfig, summary GameSummary, baselineWins, challenger
 	return baselineWins, challengerWins
 }
 
-func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openingMoves int, temp float64, rng *rand.Rand) int {
+func arenaMaxMoves(cfg MatchConfig) int {
+	if cfg.MaxMoves > 0 {
+		return cfg.MaxMoves
+	}
+	return maxGameMoves(cfg.Size)
+}
+
+// checkFinishedGames refuses a match in which any game stopped at the move cap:
+// such a game has no result, and dropping it would bias the sample toward games
+// that end.
+func checkFinishedGames(result MatchResult) error {
+	var capped []int
+	for _, g := range result.GameSummaries {
+		if g.End == EndMoveCap {
+			capped = append(capped, g.Game)
+		}
+	}
+	if len(capped) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d games stopped at the move cap without finishing (games %v); a capped game has no result, so this arena reports none",
+		len(capped), capped)
+}
+
+func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, maxMoves, openingMoves int, temp float64, rng *rand.Rand) (int, GameEnd) {
 	passes := 0
 	moves := 0
-	for moveNum := 0; moveNum < size*size+2; moveNum++ {
+	for moveNum := 0; moveNum < maxMoves; moveNum++ {
 		if onlyPass(r.LegalMoves(b)) {
-			break
+			return moves, EndOnlyPass
 		}
 		eng := whiteEng
 		if b.Player() == Black {
@@ -397,11 +436,13 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openin
 		} else {
 			m = eng.BestMove(b)
 		}
-		if !r.Play(b, m) {
-			m = PassMove
-			r.Play(b, m)
+		if err := playChosen(r, b, m); err != nil {
+			panic(err)
 		}
-		eng.AdvanceTree(m)
+		// Both trees follow every move, or the side that did not move searches a
+		// root one ply behind the board.
+		blackEng.AdvanceTree(m)
+		whiteEng.AdvanceTree(m)
 		moves++
 		if m.Pass {
 			passes++
@@ -409,10 +450,10 @@ func playArenaGame(r Ruleset, b *Board, blackEng, whiteEng *Engine, size, openin
 			passes = 0
 		}
 		if passes >= 2 {
-			break
+			return moves, EndTwoPasses
 		}
 	}
-	return moves
+	return moves, EndMoveCap
 }
 
 // arenaEnhancedForGame applies baseline enhancement by role, not evaluator name.

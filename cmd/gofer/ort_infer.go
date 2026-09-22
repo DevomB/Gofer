@@ -141,9 +141,8 @@ func (s *ortSession) evalBatch(boards []*Board) ([]Result, error) {
 	for i := 0; i < batch; i++ {
 		row := logits[i*ortPolicySize : (i+1)*ortPolicySize]
 		out[i] = Result{
-			Value:    float64(values[i]),
-			Policy:   softmaxPolicy(row),
-			HasValue: true,
+			Value:  float64(values[i]),
+			Policy: softmaxPolicy(row),
 		}
 	}
 	return out, nil

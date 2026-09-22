@@ -2,11 +2,36 @@ package main
 
 import "os"
 
-// GameLog records moves for SGF export.
+// GameEnd says why a game loop stopped. Only a finished game has a result: one
+// stopped at the move cap is scored mid-fight, so its score describes nothing.
+type GameEnd string
+
+const (
+	EndTwoPasses GameEnd = "two_passes"
+	EndOnlyPass  GameEnd = "only_pass"
+	EndMoveCap   GameEnd = "move_cap"
+)
+
+// maxGameMoves bounds a game loop on a size×size board. Captures reopen points,
+// so finished games run past the board's area; the cap only stops a game that
+// never ends, and a game that reaches it has no result.
+func maxGameMoves(size int) int { return 3*size*size + 2 }
+
+// GameLog records moves for SGF export, and why the game stopped.
 type GameLog struct {
 	Size  int
 	Komi  float64
 	Moves []SGFMove
+	End   GameEnd
+}
+
+// countEndings tallies why each game stopped.
+func countEndings(logs []*GameLog) map[GameEnd]int {
+	out := make(map[GameEnd]int)
+	for _, l := range logs {
+		out[l.End]++
+	}
+	return out
 }
 
 // NewGameLog starts an empty game record.

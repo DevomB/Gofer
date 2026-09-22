@@ -119,16 +119,15 @@ func (ps *playSession) cmdAnalyze(parts []string) {
 	printAnalyzeTable(a, ps.size, header)
 }
 
-func (ps *playSession) cmdGenmove() {
+func (ps *playSession) cmdGenmove() error {
 	if ps.b.Player() == ps.human {
 		fmt.Println("your turn — use play <vertex>")
-		return
+		return nil
 	}
 	m := ps.eng.BestMove(ps.b)
 	color := ps.b.Player()
-	if !ps.r.Play(ps.b, m) {
-		m = PassMove
-		ps.r.Play(ps.b, m)
+	if err := playChosen(ps.r, ps.b, m); err != nil {
+		return err
 	}
 	ps.log.Record(color, m)
 	ps.eng.AdvanceTree(m)
@@ -140,6 +139,7 @@ func (ps *playSession) cmdGenmove() {
 	} else {
 		ps.printTurnHint()
 	}
+	return nil
 }
 
 func (ps *playSession) cmdPlay(parts []string) {
@@ -180,7 +180,10 @@ func (ps *playSession) handleCommand(parts []string, sgfOut string) bool {
 	case "analyze":
 		ps.cmdAnalyze(parts)
 	case "genmove":
-		ps.cmdGenmove()
+		if err := ps.cmdGenmove(); err != nil {
+			fmt.Fprintln(os.Stderr, "internal error:", err)
+			return true
+		}
 	case "play":
 		ps.cmdPlay(parts)
 	default:
@@ -212,17 +215,16 @@ func runPlay(size int, komi float64, playouts int, think time.Duration, evalName
 	}
 }
 
-func watchUntilEnd(r Ruleset, b *Board, eng *Engine, size int, onMove func(Color, Move)) int {
+func watchUntilEnd(r Ruleset, b *Board, eng *Engine, size int, onMove func(Color, Move)) (GameEnd, error) {
 	passes := 0
-	for moveNum := 0; moveNum < size*size+2; moveNum++ {
+	for moveNum := 0; moveNum < maxGameMoves(size); moveNum++ {
 		if onlyPass(r.LegalMoves(b)) {
-			break
+			return EndOnlyPass, nil
 		}
 		color := b.Player()
 		m := eng.BestMove(b)
-		if !r.Play(b, m) {
-			m = PassMove
-			r.Play(b, m)
+		if err := playChosen(r, b, m); err != nil {
+			return "", err
 		}
 		if onMove != nil {
 			onMove(color, m)
@@ -234,10 +236,10 @@ func watchUntilEnd(r Ruleset, b *Board, eng *Engine, size int, onMove func(Color
 			passes = 0
 		}
 		if passes >= 2 {
-			break
+			return EndTwoPasses, nil
 		}
 	}
-	return passes
+	return EndMoveCap, nil
 }
 
 func runWatch(size int, komi float64, playouts int, think time.Duration, evalName string) {
@@ -249,11 +251,19 @@ func runWatch(size int, komi float64, playouts int, think time.Duration, evalNam
 	eng := newSearchEngine(r, playouts, think, evalName)
 	fmt.Printf("Gofer watch %dx%d komi=%.1f\n", size, size, komi)
 	moveNum := 0
-	watchUntilEnd(r, b, eng, size, func(color Color, m Move) {
+	end, err := watchUntilEnd(r, b, eng, size, func(color Color, m Move) {
 		moveNum++
 		fmt.Printf("\n%d. %s %s\n", moveNum, colorName(color), moveToGTPVertex(m, size))
 		printBoard(b, size)
 	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "internal error:", err)
+		os.Exit(1)
+	}
+	if end == EndMoveCap {
+		fmt.Printf("\nstopped at the %d-move cap without finishing: no result\n", maxGameMoves(size))
+		return
+	}
 	fmt.Println("\n" + formatGTPScore(b, r))
 }
 

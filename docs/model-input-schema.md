@@ -1,6 +1,6 @@
 # Feature tensor schema (bootstrap net, v2.5)
 
-Schema version: **2** (`FeatureSchemaVersion` in Go, `schema_version` in sidecar JSON).
+Schema version: **3** (`FeatureSchemaVersion` in Go, `schema_version` in sidecar JSON).
 
 ## Spatial input
 

@@ -1,6 +1,9 @@
 package main
 
-import "sort"
+import (
+	"math"
+	"sort"
+)
 
 func (e *Engine) analyzeLocked(topN, playouts int) Analysis {
 	out := Analysis{Playouts: playouts}
@@ -57,7 +60,7 @@ func sortedRootCandidates(a *Arena, n *Node, cfg SearchConfig) []MoveCandidate {
 			Visits: c.Visits,
 			Value:  -c.Mean(),
 			Prior:  c.Prior,
-			PUCT:   puctScore(c, parentVisits, true, fpu, cfg),
+			PUCT:   puctScore(c, parentVisits, fpu, cfg),
 		})
 	}
 	sort.Slice(cands, func(i, j int) bool {
@@ -142,46 +145,71 @@ func fillLegalPolicy(pi []float32, legal []Move, root *Node, arena *Arena, total
 	}
 }
 
-// RootPolicyPruned returns visit-weighted policy with low-visit moves zeroed (paper SE-4.3).
+// RootPolicyPruned returns the root visit distribution with forced exploration
+// taken back out (Wu 2020 §3.2), which is what the policy is trained on.
 func (e *Engine) RootPolicyPruned(legal []Move) []float32 {
-	pi := e.RootPolicy(legal)
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.arena == nil {
-		return pi
+	if e.arena == nil || e.arena.Len() == 0 {
+		return uniformPolicy32(len(legal))
 	}
 	root := e.arena.Get(e.root)
-	if !rootHasStrongChild(e.arena, root) {
-		return pi
-	}
-	return prunePolicy(pi, legal, root, e)
-}
-
-func rootHasStrongChild(a *Arena, root *Node) bool {
-	for _, cidx := range root.Children {
-		if a.Get(cidx).Visits >= minPolicyVisits {
-			return true
+	visits := prunedRootVisits(e.arena, root, e.cfg)
+	pi := make([]float32, len(legal))
+	sum := 0.0
+	for i, cidx := range root.Children {
+		m := e.arena.Get(cidx).Move
+		for j, l := range legal {
+			if movesEqual(m, l) {
+				pi[j] = float32(visits[i])
+				sum += visits[i]
+				break
+			}
 		}
-	}
-	return false
-}
-
-func prunePolicy(pi []float32, legal []Move, root *Node, e *Engine) []float32 {
-	sum := float32(0)
-	for i, m := range legal {
-		if e.rootChildVisitsLocked(root, m) < minPolicyVisits {
-			pi[i] = 0
-		}
-		sum += pi[i]
 	}
 	if sum == 0 {
 		return uniformPolicy32(len(legal))
 	}
-	inv := 1 / sum
-	for i := range pi {
-		pi[i] *= inv
+	for j := range pi {
+		pi[j] = float32(float64(pi[j]) / sum)
 	}
 	return pi
+}
+
+// prunedRootVisits takes up to its forced playouts from every child but the most
+// visited, stopping before the child's PUCT would reach the best child's: visits
+// the child earned on its value stay. Children left with one visit are dropped.
+func prunedRootVisits(a *Arena, root *Node, cfg SearchConfig) []float64 {
+	visits := make([]float64, len(root.Children))
+	best := 0
+	for i, cidx := range root.Children {
+		visits[i] = float64(a.Get(cidx).Visits)
+		if visits[i] > visits[best] {
+			best = i
+		}
+	}
+	if len(visits) == 0 || visits[best] == 0 {
+		return visits
+	}
+	total := float64(rootVisitTotal(a, root))
+	sqrtParent := math.Sqrt(float64(root.Visits))
+	bestPUCT := puctScore(a.Get(root.Children[best]), float64(root.Visits), 0, cfg)
+	for i, cidx := range root.Children {
+		if i == best || visits[i] == 0 {
+			continue
+		}
+		c := a.Get(cidx)
+		if gap := bestPUCT + c.Mean(); cfg.ForcedRootPlayouts > 0 && gap > 0 {
+			// PUCT = Q + CPUCT*P*sqrt(N)/(1+n) stays at or below bestPUCT down to this n.
+			floor := cfg.CPUCT*c.Prior*sqrtParent/gap - 1
+			reduced := visits[i] - forcedPlayouts(cfg.ForcedRootPlayouts, c.Prior, total)
+			visits[i] = math.Min(visits[i], math.Max(reduced, floor))
+		}
+		if visits[i] <= 1 {
+			visits[i] = 0
+		}
+	}
+	return visits
 }
 
 // RootPolicyBoard returns visit-weighted policy over board indices (size² + pass).
@@ -203,14 +231,4 @@ func policyIndex(m Move, size int) int {
 		return size * size
 	}
 	return m.Point.Idx(size)
-}
-
-func (e *Engine) rootChildVisitsLocked(root *Node, m Move) uint32 {
-	for _, cidx := range root.Children {
-		c := e.arena.Get(cidx)
-		if movesEqual(c.Move, m) {
-			return c.Visits
-		}
-	}
-	return 0
 }

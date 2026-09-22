@@ -37,9 +37,12 @@ type ShardMeta struct {
 	EvalFallbackRate float64 `json:"eval_fallback_rate"`
 	// PassShare is the opening pass mass in full-search policy targets.
 	PassShare float64 `json:"pass_share"`
-	Komi      float64 `json:"komi"`
-	Seed      int64   `json:"seed"`
-	CreatedAt string  `json:"created_at"`
+	// Endings counts why every game stopped, including games at the move cap,
+	// which contribute no rows; Games counts only the games that did.
+	Endings   map[GameEnd]int `json:"endings,omitempty"`
+	Komi      float64         `json:"komi"`
+	Seed      int64           `json:"seed"`
+	CreatedAt string          `json:"created_at"`
 }
 
 func isShardPath(path string) bool {

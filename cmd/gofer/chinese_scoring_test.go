@@ -202,3 +202,73 @@ func TestChineseAreaIndexingSymmetry(t *testing.T) {
 			blB, wlB, blW, wlW)
 	}
 }
+
+// A stone bordering two empty regions must count as a border of both. White's lone
+// stone touches the single point C5, scanned first, and the large region to its
+// right: that region touches both colours and is neutral. A self-play game that
+// hit the move cap in this shape was scored B+71.5 instead of B+5.5.
+func TestSharedBorderStoneCountsForEveryRegion(t *testing.T) {
+	b := NewBoard(5, 0)
+	rows := []string{
+		"XX.O.",
+		"XXX..",
+		"XXX..",
+		"XXX..",
+		"XX...",
+	}
+	for y, row := range rows {
+		for x, c := range row {
+			switch c {
+			case 'X':
+				setStone(t, b, x, y, Black)
+			case 'O':
+				setStone(t, b, x, y, White)
+			}
+		}
+	}
+	black, white := Chinese().Score(b)
+	if black != 13 || white != 1 {
+		t.Fatalf("score B %v W %v, want B 13 W 1: every empty region touches both colours", black, white)
+	}
+	var sum float32
+	for _, v := range OwnershipLabel(b) {
+		sum += v
+	}
+	if float64(sum) != black-white {
+		t.Fatalf("ownership sums to %v but the score margin is %v", sum, black-white)
+	}
+}
+
+// snapbackBoard: White's C5 C4 B4 A4 have two liberties, B5 and A5. Black throws in
+// at B5, White takes it at A5, and White's five stones are left with one liberty.
+func snapbackBoard(t *testing.T) (Ruleset, *Board) {
+	t.Helper()
+	b := NewBoard(5, 0)
+	for _, s := range []struct {
+		x, y int
+		c    Stone
+	}{
+		{2, 0, White}, {2, 1, White}, {1, 1, White}, {0, 1, White},
+		{3, 0, Black}, {3, 1, Black}, {2, 2, Black}, {1, 2, Black}, {0, 2, Black},
+	} {
+		setStone(t, b, s.x, s.y, s.c)
+	}
+	r := Chinese()
+	playCoord(t, r, b, 1, 0) // throw-in
+	playCoord(t, r, b, 0, 0) // White captures one stone
+	return r, b
+}
+
+// Capturing one stone makes a ko only when the capturer stands alone with that
+// point as its one liberty. White's capture here joined a five-stone group, so
+// retaking at B5 is a snapback, not a ko, and takes all five.
+func TestSnapbackIsNotKo(t *testing.T) {
+	r, b := snapbackBoard(t)
+	if b.Ko() >= 0 {
+		t.Fatalf("ko point %d set by a capture that joined a group", b.Ko())
+	}
+	playCoord(t, r, b, 1, 0)
+	if b.StoneAt(At(0, 0)) != Empty || b.StoneAt(At(2, 1)) != Empty {
+		t.Fatalf("the snapback did not take White's group:\n%s", formatGTPBoard(b, 5))
+	}
+}

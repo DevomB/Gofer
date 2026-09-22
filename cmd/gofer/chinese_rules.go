@@ -53,11 +53,27 @@ func (r *chineseRules) Play(b *Board, m Move) bool {
 		b.SetStoneIndex(cidx, Empty)
 	}
 	newKo := -1
-	if len(captured) == 1 {
+	if len(captured) == 1 && standsAloneInAtari(b, idx, player) {
 		newKo = captured[0]
 	}
 	b.FinishTurn(newKo)
 	return true
+}
+
+// standsAloneInAtari reports whether the stone at idx has no friendly neighbour
+// and one liberty. Only such a capturer of one stone makes a ko; retaking any
+// other capture of one stone takes more than one, a snapback, which is legal.
+func standsAloneInAtari(b *Board, idx int, player Color) bool {
+	alone, libs := true, 0
+	b.forEachNeighbor(idx, func(nb int) {
+		switch b.AtIndex(nb) {
+		case player:
+			alone = false
+		case Empty:
+			libs++
+		}
+	})
+	return alone && libs == 1
 }
 
 // Score returns area scores; komi added to white.

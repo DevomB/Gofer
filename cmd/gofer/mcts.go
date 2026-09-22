@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"runtime"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -15,7 +14,6 @@ const (
 	rootTemperature   = 1.03
 	virtualLoss       = 3
 	defaultForcedRoot = 2
-	minPolicyVisits   = 2
 )
 
 // SearchConfig holds MCTS parameters.
@@ -28,7 +26,7 @@ type SearchConfig struct {
 	RootTemperature    float64
 	Workers            int           // 0 = GOMAXPROCS
 	ThinkTime          time.Duration // if >0, search until deadline instead of fixed playouts
-	ForcedRootPlayouts int           // paper k=2 at root; 0 disables
+	ForcedRootPlayouts int           // Wu 2020 k: visited root children get sqrt(k*P*N) visits; 0 disables
 }
 
 // DefaultConfig returns search defaults aligned with Wu 2020.
@@ -45,15 +43,13 @@ func DefaultConfig() SearchConfig {
 
 // Engine runs MCTS search.
 type Engine struct {
-	Rules  Ruleset
-	Eval   Evaluator
-	TT     *Table
-	cfg    SearchConfig
-	rng    *rand.Rand
-	arena  *Arena
-	root   int
-	mu     sync.Mutex
-	rngSeq uint64
+	Rules Ruleset
+	Eval  Evaluator
+	cfg   SearchConfig
+	rng   *rand.Rand
+	arena *Arena
+	root  int
+	mu    sync.Mutex
 }
 
 // NewEngine constructs an MCTS search engine.
@@ -67,7 +63,6 @@ func NewEngine(r Ruleset, ev Evaluator, cfg SearchConfig) *Engine {
 	return &Engine{
 		Rules: r,
 		Eval:  ev,
-		TT:    NewTable(1 << 16),
 		cfg:   cfg,
 		rng:   rand.New(rand.NewSource(cfg.Seed)),
 	}
@@ -143,7 +138,8 @@ func (e *Engine) SetLimits(playouts int, think time.Duration) {
 func (e *Engine) ConfigureSelfplayMove(playouts int, fullSearch bool) {
 	e.cfg.Playouts = playouts
 	e.cfg.ThinkTime = 0
-	e.cfg.RootNoise = true
+	// Fast searches only choose the move played; exploration there just weakens it.
+	e.cfg.RootNoise = fullSearch
 	if fullSearch {
 		e.cfg.ForcedRootPlayouts = defaultForcedRoot
 	} else {
@@ -213,7 +209,7 @@ func (e *Engine) runSearch(b *Board) int {
 		e.arena = NewArena()
 		e.root = e.arena.Root()
 	}
-	e.ensureRootExpanded(b)
+	e.prepareRoot(b)
 	if e.cfg.ThinkTime > 0 {
 		deadline := time.Now().Add(e.cfg.ThinkTime)
 		n := 0
@@ -224,9 +220,6 @@ func (e *Engine) runSearch(b *Board) int {
 		return n
 	}
 	e.runPlayouts(b, e.cfg.Playouts)
-	if e.cfg.ForcedRootPlayouts > 0 {
-		e.runForcedRootPlayouts(b)
-	}
 	return e.cfg.Playouts
 }
 
@@ -266,67 +259,51 @@ func (e *Engine) runPlayouts(b *Board, playouts int) {
 	wg.Wait()
 }
 
-func (e *Engine) ensureRootExpanded(b *Board) {
+// prepareRoot expands the root, or re-derives its priors when an earlier search
+// expanded it: a root reused through AdvanceTree was expanded as an ordinary node,
+// without the temperature and noise every search's root is meant to have.
+func (e *Engine) prepareRoot(b *Board) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := e.arena.Get(e.root)
 	if !root.Expanded {
 		e.expandLocked(e.root, b)
+		return
+	}
+	if len(root.Children) == 0 || (e.cfg.RootTemperature == 1 && !e.cfg.RootNoise) {
+		return
+	}
+	moves := make([]Move, len(root.Children))
+	for i, cidx := range root.Children {
+		moves[i] = e.arena.Get(cidx).Move
+	}
+	priors := e.childPriorsLocked(e.root, b, moves, e.Eval.Evaluate(b).Policy)
+	for i, cidx := range root.Children {
+		e.arena.Get(cidx).Prior = priors[i]
 	}
 }
 
-func (e *Engine) runForcedRootPlayouts(b *Board) {
-	k := e.cfg.ForcedRootPlayouts
-	if k <= 0 {
-		k = defaultForcedRoot
-	}
-	e.mu.Lock()
-	root := e.arena.Get(e.root)
-	children := append([]int(nil), root.Children...)
-	e.mu.Unlock()
-	for _, cidx := range children {
-		e.mu.Lock()
-		c := e.arena.Get(cidx)
-		need := 0
-		// Wu 2020 §3.2 only forces children that have already received a playout.
-		if c.Visits > 0 {
-			target := k + int(math.Sqrt(c.Prior*float64(e.cfg.Playouts+1)))
-			need = target - int(c.Visits)
-		}
-		move := c.Move
-		e.mu.Unlock()
-		for ; need > 0; need-- {
-			br := b.Clone()
-			e.applyMove(br, move)
-			e.descend(br, append(newPath(), e.root, cidx), skipTT)
-		}
-	}
-}
-
-// Forced root playouts skip the transposition table so they explore a child.
-const (
-	probeTT = true
-	skipTT  = false
-)
-
-// newPath returns an empty descent path with room for a typical 9x9 descent, so
-// the hot loop does not reallocate on the way down.
-func newPath() []int { return make([]int, 0, 24) }
-
-// runPlayout is one ordinary playout from the root.
+// runPlayout walks from the root to a leaf, expands it, and backs the result up.
 func (e *Engine) runPlayout(b *Board) {
-	e.descend(b.Clone(), append(newPath(), e.root), probeTT)
-}
-
-// descend walks from the last node in path down to a leaf, expands it, and backs
-// the result up. br must already be the position reached by the moves in path.
-func (e *Engine) descend(br *Board, path []int, useTT bool) {
-	node := path[len(path)-1]
-
+	br := b.Clone()
+	node := e.root
+	// Room for a typical 9x9 descent, so the hot loop does not reallocate.
+	path := append(make([]int, 0, 24), node)
+	var res Result
+	// expandLocked adds no moves to a finished game, so a childless node's result
+	// is known exactly and must not be estimated.
+	terminal := false
 	for {
 		e.mu.Lock()
 		n := e.arena.Get(node)
-		if !n.Expanded || len(n.Children) == 0 {
+		if !n.Expanded {
+			res = e.expandLocked(node, br)
+			terminal = len(e.arena.Get(node).Children) == 0
+			e.mu.Unlock()
+			break
+		}
+		if len(n.Children) == 0 {
+			terminal = true
 			e.mu.Unlock()
 			break
 		}
@@ -338,27 +315,7 @@ func (e *Engine) descend(br *Board, path []int, useTT bool) {
 		node = child
 	}
 
-	e.mu.Lock()
-	n := e.arena.Get(node)
-	// An expanded node with no children is a finished game (expandLocked adds no
-	// moves there); its result is known exactly and must not be re-estimated.
-	terminal := n.Expanded && len(n.Children) == 0
-	if !n.Expanded {
-		// The transposition key covers stones, not pass history, so a finished
-		// position can collide with a live one: never serve it from the table.
-		if useTT {
-			if v, ok := e.TT.Get(br.Hash()); ok && !twoPasses(br) {
-				e.backupLocked(path, v)
-				e.mu.Unlock()
-				return
-			}
-		}
-		e.expandLocked(node, br)
-		terminal = len(e.arena.Get(node).Children) == 0
-	}
-	e.mu.Unlock()
-
-	value := e.leafValue(br)
+	value := res.Value
 	if terminal {
 		value = terminalValue(e.Rules, br)
 	}
@@ -368,10 +325,6 @@ func (e *Engine) descend(br *Board, path []int, useTT bool) {
 func (e *Engine) backup(path []int, value float64) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.backupLocked(path, value)
-}
-
-func (e *Engine) backupLocked(path []int, value float64) {
 	for i := len(path) - 1; i >= 0; i-- {
 		nd := e.arena.Get(path[i])
 		if i > 0 && nd.Visits >= virtualLoss {
@@ -383,38 +336,67 @@ func (e *Engine) backupLocked(path []int, value float64) {
 	}
 }
 
+// applyMove plays a move the search took from LegalMoves; searching on after a
+// refusal would score the wrong position.
 func (e *Engine) applyMove(br *Board, m Move) {
-	if m.Pass {
-		e.Rules.Play(br, PassMove)
-	} else {
-		e.Rules.Play(br, StoneMove(m.Point))
+	if err := playChosen(e.Rules, br, m); err != nil {
+		panic(err)
 	}
 }
 
-func (e *Engine) expandLocked(node int, b *Board) {
+// expandLocked adds node's children and returns the evaluation it made them from.
+func (e *Engine) expandLocked(node int, b *Board) Result {
 	n := e.arena.Get(node)
 	if n.Expanded {
-		return
+		return Result{}
 	}
 	if e.gameOver(b) {
 		n.Expanded = true
-		return
+		return Result{}
 	}
-	moves := e.Rules.LegalMoves(b)
+	moves := searchMoves(e.Rules, b)
 	res := e.Eval.Evaluate(b)
-	priors := uniformPriors(len(moves))
-	if len(res.Policy) > 0 {
-		priors = policyPriors(b, moves, res.Policy)
-	}
-	if node == e.root && e.cfg.RootNoise {
-		priors = blendDirichlet(priors, e.rng)
-	}
+	priors := e.childPriorsLocked(node, b, moves, res.Policy)
 	for i, m := range moves {
 		e.arena.AddChild(node, m, priors[i])
 	}
 	// Re-fetch after AddChild; arena storage can grow.
 	e.arena.Get(node).Expanded = true
-	e.TT.Store(b.Hash(), res.Value)
+	return res
+}
+
+// searchMoves is what the search may play: the legal moves less obvious own-eye
+// fills (ownEye). Those only lose a liberty, and a side that never runs out of
+// them never passes, so games did not end. The rules still allow them.
+func searchMoves(r Ruleset, b *Board) []Move {
+	moves := r.LegalMoves(b)
+	player := b.Player()
+	out := moves[:0]
+	for _, m := range moves {
+		if m.Pass || !ownEye(b, m.Point.Idx(b.Size()), player) {
+			out = append(out, m)
+		}
+	}
+	return out
+}
+
+// childPriorsLocked turns policy into priors over moves. At the root it also
+// applies the policy temperature and then exploration noise.
+func (e *Engine) childPriorsLocked(node int, b *Board, moves []Move, policy []float32) []float64 {
+	priors := uniformPriors(len(moves))
+	if len(policy) > 0 {
+		priors = policyPriors(b, moves, policy)
+	}
+	if node != e.root {
+		return priors
+	}
+	if e.cfg.RootTemperature != 1 {
+		priors = temperPriors(priors, e.cfg.RootTemperature)
+	}
+	if e.cfg.RootNoise {
+		priors = blendDirichlet(priors, e.rng)
+	}
+	return priors
 }
 
 // fpuFor returns an unvisited child's first-play urgency in the parent frame.
@@ -434,19 +416,23 @@ func fpuFor(a *Arena, n *Node, isRoot bool, cfg SearchConfig) float64 {
 
 func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	n := e.arena.Get(node)
-	parentVisits := float64(n.Visits)
-	if parentVisits == 0 {
-		parentVisits = 1
-	}
-	fpu := fpuFor(e.arena, n, isRoot, e.cfg)
 	best := -1
-	bestScore := math.Inf(-1)
-	for _, cidx := range n.Children {
-		c := e.arena.Get(cidx)
-		score := puctScore(c, parentVisits, isRoot, fpu, e.cfg)
-		if score > bestScore {
-			bestScore = score
-			best = cidx
+	if isRoot {
+		best = forcedChild(e.arena, n, e.cfg.ForcedRootPlayouts)
+	}
+	if best < 0 {
+		parentVisits := float64(n.Visits)
+		if parentVisits == 0 {
+			parentVisits = 1
+		}
+		fpu := fpuFor(e.arena, n, isRoot, e.cfg)
+		bestScore := math.Inf(-1)
+		for _, cidx := range n.Children {
+			score := puctScore(e.arena.Get(cidx), parentVisits, fpu, e.cfg)
+			if score > bestScore {
+				bestScore = score
+				best = cidx
+			}
 		}
 	}
 	if best >= 0 {
@@ -455,68 +441,24 @@ func (e *Engine) selectChildLocked(node int, isRoot bool) int {
 	return best
 }
 
-func (e *Engine) leafValue(b *Board) float64 {
-	// Check pass history before the table, whose key does not include it.
-	if twoPasses(b) {
-		return terminalValue(e.Rules, b)
-	}
-	hash := b.Hash()
-	e.mu.Lock()
-	if v, ok := e.TT.Get(hash); ok {
-		e.mu.Unlock()
-		return v
-	}
-	e.mu.Unlock()
-
-	res := e.Eval.Evaluate(b)
-	if res.HasValue {
-		e.mu.Lock()
-		e.TT.Store(hash, res.Value)
-		e.mu.Unlock()
-		return res.Value
-	}
-	v := e.randomPlayout(b)
-	e.mu.Lock()
-	e.TT.Store(hash, v)
-	e.mu.Unlock()
-	return v
-}
-
-func (e *Engine) randomPlayout(b *Board) float64 {
-	rng := e.playoutRand()
-	br := b.Clone()
-	player := br.Player()
-	passes := 0
-	for move := 0; move < maxRolloutMoves && passes < 2; move++ {
-		moves := e.Rules.LegalMoves(br)
-		if len(moves) == 0 {
-			break
-		}
-		m := moves[rng.Intn(len(moves))]
-		e.Rules.Play(br, m)
-		if m.Pass {
-			passes++
-		} else {
-			passes = 0
-		}
-	}
-	bl, wl := e.Rules.Score(br)
-	diff := bl - wl
-	if player == White {
-		diff = wl - bl
-	}
-	if diff > 0 {
-		return 1
-	}
-	if diff < 0 {
+// forcedChild returns a visited root child still below its forced playouts, or
+// -1. Wu 2020 §3.2 forces only children the search has already tried.
+func forcedChild(a *Arena, root *Node, k int) int {
+	if k <= 0 {
 		return -1
 	}
-	return 0
+	total := float64(rootVisitTotal(a, root))
+	for _, cidx := range root.Children {
+		c := a.Get(cidx)
+		if c.Visits > 0 && float64(c.Visits) < forcedPlayouts(k, c.Prior, total) {
+			return cidx
+		}
+	}
+	return -1
 }
 
-func (e *Engine) playoutRand() *rand.Rand {
-	seq := atomic.AddUint64(&e.rngSeq, 1)
-	return rand.New(rand.NewSource(e.cfg.Seed + int64(seq)))
+func forcedPlayouts(k int, prior, total float64) float64 {
+	return math.Sqrt(float64(k) * prior * total)
 }
 
 func (e *Engine) isTerminal(b *Board) bool {

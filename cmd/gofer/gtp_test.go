@@ -45,14 +45,12 @@ func TestWatchGameEnds(t *testing.T) {
 	cfg.Playouts = 4
 	eng := NewEngine(r, Uniform{}, cfg)
 	moves := 0
-	passes := watchUntilEnd(r, b, eng, size, func(_ Color, _ Move) { moves++ })
-	if moves == 0 {
-		t.Fatal("watch game produced no moves")
+	end, err := watchUntilEnd(r, b, eng, size, func(_ Color, _ Move) { moves++ })
+	if err != nil {
+		t.Fatal(err)
 	}
-	moveCap := size*size + 2
-	ended := passes >= 2 || onlyPass(r.LegalMoves(b)) || moves >= moveCap
-	if !ended {
-		t.Fatalf("watch game did not end (passes=%d moves=%d cap=%d)", passes, moves, moveCap)
+	if end != EndTwoPasses && end != EndOnlyPass {
+		t.Fatalf("the game did not finish: %q after %d moves", end, moves)
 	}
 }
 

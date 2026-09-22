@@ -3,21 +3,20 @@ package main
 import (
 	"math"
 	"math/rand"
+	"slices"
 )
 
 const (
 	// dirichletAlpha ~ 10/avg-legal-moves; 9x9 opens with ~70 moves. The AZ 19x19
 	// value (0.03) is far too peaky here and kills root exploration on 9x9.
-	dirichletAlpha  = 0.15
-	dirichletBlend  = 0.25
-	maxRolloutMoves = 150
+	dirichletAlpha = 0.15
+	dirichletBlend = 0.25
 )
 
 // Result holds leaf evaluation from an Evaluator.
 type Result struct {
-	Value    float64   // from current player perspective, in [-1,1]
-	Policy   []float32 // optional move priors indexed by point (len size*size+1 for pass)
-	HasValue bool      // true when Value is a real estimate (false => caller may roll out)
+	Value  float64   // from current player perspective, in [-1,1]
+	Policy []float32 // optional move priors indexed by point (len size*size+1 for pass)
 }
 
 // Evaluator scores positions and optional policy priors.
@@ -54,13 +53,14 @@ func (Heuristic) Evaluate(b *Board) Result {
 	}
 	blL, wlL := groupLibertyTotals(b, Black), groupLibertyTotals(b, White)
 	blT, wlT := estimateTerritory(b)
-	score := float64(blS-wlS) + 0.15*float64(blL-wlL) + float64(blT-wlT)
+	// Komi is part of the margin the rules score, so it is part of the estimate.
+	score := float64(blS-wlS) + 0.15*float64(blL-wlL) + float64(blT-wlT) - b.Komi()
 	v := score / float64(max(n, 1))
 	if b.Player() == White {
 		v = -v
 	}
 	v = clamp(v, -1, 1)
-	return Result{Value: v, Policy: heuristicPolicy(b), HasValue: true}
+	return Result{Value: v, Policy: heuristicPolicy(b)}
 }
 
 func groupLibertyTotals(b *Board, color Color) int {
@@ -103,29 +103,58 @@ func heuristicPolicy(b *Board) []float32 {
 	p := make([]float32, n)
 	player := b.Player()
 	opp := player.Opposite()
+	groups := labelGroups(b)
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
 			pt := At(x, y)
 			if b.StoneAt(pt) != Empty {
 				continue
 			}
-			p[pt.Idx(size)] = policyPriorAt(b, pt, player, opp)
+			p[pt.Idx(size)] = policyPriorAt(b, groups, pt.Idx(size), player, opp)
 		}
 	}
 	p[size*size] = 0.02
 	return p
 }
 
-func policyPriorAt(b *Board, pt Point, player, opp Color) float32 {
+// tacticalPrior is added per stone a move captures or saves from atari. The shape
+// terms are worth about one per neighbouring stone, and a capturing point always
+// touches the opponent, so without it captures sit at the floor and first-play
+// urgency keeps the search from ever trying them.
+const tacticalPrior = 5
+
+func policyPriorAt(b *Board, groups groupLabels, idx int, player, opp Color) float32 {
 	score := float32(0.05)
-	b.forEachNeighbor(pt.Idx(b.Size()), func(nb int) {
-		switch b.AtIndex(nb) {
+	captured, saved := 0, 0
+	var counted [4]int
+	nCounted := 0
+	b.forEachNeighbor(idx, func(nb int) {
+		c := b.AtIndex(nb)
+		switch c {
 		case player:
 			score += 1
 		case opp:
 			score -= 0.4
+		default:
+			return
+		}
+		// A neighbouring group with one liberty has it here.
+		id := groups.id[nb]
+		if groups.libs[id] != 1 || slices.Contains(counted[:nCounted], id) {
+			return
+		}
+		counted[nCounted] = id
+		nCounted++
+		if c == opp {
+			captured += groups.size[id]
+		} else {
+			saved += groups.size[id]
 		}
 	})
+	if saved > 0 && libertiesAfter(b, idx, player) < 2 {
+		saved = 0 // extending into another atari saves nothing
+	}
+	score += tacticalPrior * float32(captured+saved)
 	if score < 0.01 {
 		return 0.01
 	}
@@ -149,7 +178,7 @@ type Mock struct {
 }
 
 func (m Mock) Evaluate(b *Board) Result {
-	return Result{Value: m.Value, Policy: m.Policy, HasValue: true}
+	return Result{Value: m.Value, Policy: m.Policy}
 }
 
 func uniformPriors(n int) []float64 {
@@ -198,6 +227,23 @@ func policyPriors(b *Board, moves []Move, policy []float32) []float64 {
 		raw[i] /= sum
 	}
 	return raw
+}
+
+// temperPriors raises priors to 1/t and renormalises: t > 1 flattens them.
+func temperPriors(priors []float64, t float64) []float64 {
+	out := make([]float64, len(priors))
+	sum := 0.0
+	for i, p := range priors {
+		out[i] = math.Pow(p, 1/t)
+		sum += out[i]
+	}
+	if sum <= 0 {
+		return priors
+	}
+	for i := range out {
+		out[i] /= sum
+	}
+	return out
 }
 
 // blendDirichlet mixes symmetric Dirichlet(alpha) noise into root priors (AZ SE-4.1).

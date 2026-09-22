@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Model matches fail closed when evaluation falls back to the heuristic.
 func TestArenaRefusesResultDecidedByFallback(t *testing.T) {
@@ -186,4 +189,36 @@ func TestPassShareWithNoOpeningRowsIsNotAFailure(t *testing.T) {
 	if err := checkSelfplayPassCollapse(share, rows, 0.05); err != nil {
 		t.Errorf("no rows should not fail: %v", err)
 	}
+}
+
+// A misspelt evaluator used to become the heuristic, so a typo passed for a real
+// ONNX experiment. Every mode now refuses it before any work, naming what it accepts.
+func TestUnknownEvaluatorNamesFail(t *testing.T) {
+	for _, f := range []cliFlags{
+		{arena: true, blackEval: "heuristic", whiteEval: "onxx"},
+		{arena: true, blackEval: "onxx", whiteEval: "onnx"},
+		{selfplay: true, selfplayEval: "onxx"},
+		{analyze: true, eval: "onxx"},
+		{gtp: true, eval: ""},
+	} {
+		err := checkEvalFlags(f)
+		if err == nil || !strings.Contains(err.Error(), "accepted:") {
+			t.Errorf("%+v: got %v, want an error listing the accepted names", f, err)
+		}
+	}
+	for _, f := range []cliFlags{
+		{arena: true, blackEval: "heuristic", whiteEval: "ONNX2"},
+		{selfplay: true, selfplayEval: "mix"},
+		{watch: true, eval: "uniform"},
+	} {
+		if err := checkEvalFlags(f); err != nil {
+			t.Errorf("%+v: %v", f, err)
+		}
+	}
+	defer func() {
+		if recover() == nil {
+			t.Error("parseEvaluator returned an evaluator for an unknown name")
+		}
+	}()
+	parseEvaluator("onxx")
 }

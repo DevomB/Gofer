@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 import onnxruntime as ort
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 SPATIAL_INPUT = "spatial_input"
 GLOBAL_INPUT = "global_input"
 LOG_EVERY_N = 50

@@ -16,12 +16,12 @@ type SelfplayConfig struct {
 	FullPlayouts     int
 	CapRandomizeP    float64
 	Seed             int64
-	RulesRandomize   bool
 	FullOnlyExport   bool    // export only full-search positions (paper training set)
 	EvalMode         string  // heuristic, onnx, mix
 	ONNXFraction     float64 // used by mix mode (odd/even when 0.5 default)
 	Parallel         int     // concurrent games; >1 lets the batched evaluator fill real batches
 	TemperatureMoves int     // opening plies sampled ~ visits (>0 = enabled) for game diversity
+	MaxMoves         int     // 0 = maxGameMoves(BoardSize)
 }
 
 // DefaultSelfplayConfig returns reasonable defaults.
@@ -35,7 +35,6 @@ func DefaultSelfplayConfig() SelfplayConfig {
 		FullPlayouts:     0,
 		CapRandomizeP:    0.20,
 		Seed:             1,
-		RulesRandomize:   false,
 		FullOnlyExport:   true,
 		EvalMode:         "heuristic",
 		ONNXFraction:     0.7,
@@ -143,7 +142,7 @@ func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, pool evalPool) ([]
 	// openings, which costs game diversity (and in the arena skewed results; see
 	// mixSeed in match.go).
 	rng := rand.New(rand.NewSource(mixSeed(cfg.Seed, gameIdx, 3)))
-	rs, size := selfplayRuleset(cfg, rng)
+	rs, size := Chinese(), cfg.BoardSize
 	b := NewBoard(size, cfg.Komi)
 	log := NewGameLog(size, cfg.Komi)
 	scfg := DefaultConfig()
@@ -152,7 +151,13 @@ func playSelfplayGameWithLog(cfg SelfplayConfig, gameIdx int, pool evalPool) ([]
 	eval := selfplayEvaluator(cfg, gameIdx, rng, pool)
 	eng := NewEngine(rs, eval, scfg)
 	// Do not eng.Close(): the ONNX evaluator is shared and closed once by the pool.
-	game, _ := collectSelfplaySamples(cfg, rs, b, eng, size, log, rng)
+	game, end := collectSelfplaySamples(cfg, rs, b, eng, size, log, rng)
+	log.End = end
+	if end == EndMoveCap {
+		// Labelled here, every row's value, score and ownership would describe
+		// whatever the unfinished board happened to look like at the cap.
+		return nil, log
+	}
 	bl, wl := rs.Score(b)
 	ownership := OwnershipLabel(b)
 	labelGameSamples(game, bl, wl, ownership)
@@ -176,25 +181,11 @@ func selfplayEvaluator(cfg SelfplayConfig, gameIdx int, rng *rand.Rand, pool eva
 			return pool.onnx
 		}
 		return pool.heuristic
-	default:
+	case "heuristic":
 		return pool.heuristic
+	default:
+		panic(checkName("self-play eval mode", cfg.EvalMode, selfplayEvalModes))
 	}
-}
-
-func selfplayRuleset(cfg SelfplayConfig, rng *rand.Rand) (Ruleset, int) {
-	rs := Chinese()
-	size := cfg.BoardSize
-	if cfg.RulesRandomize {
-		if rng.Float64() < 0.5 {
-			rs = TrompTaylor()
-		}
-		if rng.Float64() < 0.25 {
-			rs = WithSuperko(rs)
-		}
-		sizes := []int{9, 13, 19}
-		size = sizes[rng.Intn(len(sizes))]
-	}
-	return rs, size
 }
 
 func selfplayMovePlayouts(cfg SelfplayConfig, rng *rand.Rand) (playouts int, fullSearch bool) {
@@ -210,14 +201,18 @@ func selfplayMovePlayouts(cfg SelfplayConfig, rng *rand.Rand) (playouts int, ful
 	return playouts, fullSearch
 }
 
-func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engine, size int, log *GameLog, rng *rand.Rand) ([]Sample, int) {
+func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engine, size int, log *GameLog, rng *rand.Rand) ([]Sample, GameEnd) {
 	var game []Sample
 	var prevPolicy []float32
 	passes := 0
-	for moveNum := 0; moveNum < size*size+2; moveNum++ {
+	maxMoves := cfg.MaxMoves
+	if maxMoves <= 0 {
+		maxMoves = maxGameMoves(size)
+	}
+	for moveNum := 0; moveNum < maxMoves; moveNum++ {
 		moves := rs.LegalMoves(b)
 		if onlyPass(moves) {
-			break
+			return game, EndOnlyPass
 		}
 		playouts, fullSearch := selfplayMovePlayouts(cfg, rng)
 		eng.ConfigureSelfplayMove(playouts, fullSearch)
@@ -244,7 +239,9 @@ func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engin
 			FullSearch:      fullSearch,
 		})
 		prevPolicy = policy
-		rs.Play(b, m)
+		if err := playChosen(rs, b, m); err != nil {
+			panic(err)
+		}
 		log.Record(color, m)
 		eng.AdvanceTree(m)
 		if m.Pass {
@@ -253,10 +250,10 @@ func collectSelfplaySamples(cfg SelfplayConfig, rs Ruleset, b *Board, eng *Engin
 			passes = 0
 		}
 		if passes >= 2 {
-			break
+			return game, EndTwoPasses
 		}
 	}
-	return game, passes
+	return game, EndMoveCap
 }
 
 func labelGameSamples(game []Sample, bl, wl float64, ownership []float32) {

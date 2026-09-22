@@ -38,18 +38,6 @@ func TestDeterministicPlayout(t *testing.T) {
 	}
 }
 
-func TestTTStoresAfterSearch(t *testing.T) {
-	r := Chinese()
-	cfg := DefaultConfig()
-	cfg.Playouts = 20
-	e := NewEngine(r, nil, cfg)
-	b := NewBoard(5, 6.5)
-	_ = e.BestMove(b)
-	if _, ok := e.TT.Get(b.Hash()); !ok {
-		t.Fatal("expected TT entry after search")
-	}
-}
-
 func TestRootPolicySumsToOne(t *testing.T) {
 	r := Chinese()
 	cfg := DefaultConfig()
@@ -119,6 +107,8 @@ func TestThinkTimeSearch(t *testing.T) {
 	}
 }
 
+// Wu 2020 §3.2 forces visits inside the search budget, and only on root children
+// the search has already tried.
 func TestForcedRootPlayouts(t *testing.T) {
 	r := Chinese()
 	cfg := DefaultConfig()
@@ -131,26 +121,90 @@ func TestForcedRootPlayouts(t *testing.T) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	root := e.arena.Get(e.root)
-	// Wu 2020 §3.2 only forces root children already visited by the search.
-	explored, untouched := 0, 0
+	var total uint32
+	untouched := 0
 	for _, cidx := range root.Children {
-		c := e.arena.Get(cidx)
-		switch {
-		case c.Visits == 0:
+		v := e.arena.Get(cidx).Visits
+		total += v
+		if v == 0 {
 			untouched++
-		case c.Visits < uint32(cfg.ForcedRootPlayouts):
-			t.Fatalf("visited child %+v has %d visits, below the forced minimum %d",
-				c.Move, c.Visits, cfg.ForcedRootPlayouts)
-		default:
-			explored++
 		}
 	}
-	if explored == 0 {
-		t.Fatal("no root child was explored")
+	if total != uint32(cfg.Playouts) {
+		t.Fatalf("root children hold %d visits after a %d-playout search: forcing ran outside the budget",
+			total, cfg.Playouts)
 	}
 	if untouched == 0 {
-		t.Fatalf("all %d children were forced: the floor is being applied to unvisited moves",
+		t.Fatalf("all %d children were visited: the floor is being applied to untried moves",
 			len(root.Children))
+	}
+}
+
+// rootWithChildren builds an expanded root whose children have the given priors,
+// visits and means (each mean from the child's side to move).
+func rootWithChildren(e *Engine, children []struct {
+	prior  float64
+	visits uint32
+	mean   float64
+}) *Node {
+	e.arena = NewArena()
+	e.root = e.arena.Root()
+	root := e.arena.Get(e.root)
+	root.Expanded = true
+	for i, ch := range children {
+		idx := e.arena.AddChild(e.root, StoneMove(PointFromIdx(9, i)), ch.prior)
+		c := e.arena.Get(idx)
+		c.Visits = ch.visits
+		c.ValueSum = ch.mean * float64(ch.visits)
+		root.Visits += ch.visits
+	}
+	return root
+}
+
+// A tried root child below sqrt(k*P*N) is taken before PUCT is consulted, however
+// bad its value, and an untried one never is.
+func TestForcedChildIsSelectedFirst(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.ForcedRootPlayouts = 2
+	e := NewEngine(Chinese(), Heuristic{}, cfg)
+	root := rootWithChildren(e, []struct {
+		prior  float64
+		visits uint32
+		mean   float64
+	}{
+		{0.2, 10, -0.2}, // the best move so far
+		{0.5, 1, 0.9},   // tried once and bad; floor sqrt(2*0.5*11) = 3.3
+		{0.3, 0, 0},     // untried: PUCT's pick
+	})
+	if got := e.selectChildLocked(e.root, true); got != root.Children[1] {
+		t.Fatalf("selected child %d, want the under-forced child %d", got, root.Children[1])
+	}
+}
+
+// Pruning removes the visits forcing added, not visits a move earned.
+func TestPruningRemovesOnlyForcedVisits(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.ForcedRootPlayouts = 2
+	e := NewEngine(Chinese(), Heuristic{}, cfg)
+	root := rootWithChildren(e, []struct {
+		prior  float64
+		visits uint32
+		mean   float64
+	}{
+		{0.5, 100, -0.5}, // best: parent value +0.5
+		{0.05, 3, 0.3},   // parent value -0.3: its 3 visits are all forcing (floor 3.4)
+		{0.3, 10, -0.45}, // parent value +0.45: close enough to the best to have earned them
+	})
+	legal := make([]Move, len(root.Children))
+	for i, cidx := range root.Children {
+		legal[i] = e.arena.Get(cidx).Move
+	}
+	pi := e.RootPolicyPruned(legal)
+	want := []float32{100.0 / 110, 0, 10.0 / 110}
+	for i := range want {
+		if math.Abs(float64(pi[i]-want[i])) > 1e-6 {
+			t.Fatalf("pruned policy %v, want %v", pi, want)
+		}
 	}
 }
 

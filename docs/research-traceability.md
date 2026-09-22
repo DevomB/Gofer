@@ -16,25 +16,26 @@ The engine is one `package main` under `cmd/gofer`; the learner is
 |---|---|---|---|
 | PUCT / MCTS `[PAPER]` | `mcts.go`, `arena.go` | done | `TestPUCTFormula`, `TestDeterministicPlayout` |
 | First-play urgency `[PAPER]` | `mcts.go` `selectChildLocked` | done | `TestSelectionPrefersMovesGoodForTheMover` |
-| Dirichlet root noise `[PAPER]` | `evaluator.go` `blendDirichlet` | done | `noise_test.go` |
-| Forced playouts `[PAPER]` k=2 | `mcts.go` `runForcedRootPlayouts` | done | `TestForcedRootPlayouts` |
-| Policy target pruning `[PAPER]` | `mcts_policy.go` | done | `TestRootPolicyPruned` |
-| Transposition table `[GOFER]` | `tt.go` | done | `tt_test.go` |
+| Dirichlet root noise `[PAPER]` | `mcts.go` `prepareRoot` | done | `TestReusedRootGetsRootPriors` |
+| Root policy temperature `[PAPER]` 1.03 | `mcts.go` `childPriorsLocked` | done | `TestTemperPriorsFlattens` |
+| Forced playouts `[PAPER]` k=2 | `mcts.go` `forcedChild` | done | `TestForcedChildIsSelectedFirst` |
+| Policy target pruning `[PAPER]` | `mcts_policy.go` `prunedRootVisits` | done | `TestPruningRemovesOnlyForcedVisits` |
+| Transposition table `[GOFER]` | — | removed | its key could not cover the network's inputs; ADR 0009 |
 | LCB move selection `[POST-PAPER]` | — | deferred | see known-issues |
 | Score maximization `[POST-PAPER]` | — | deferred | needs a trusted score head |
 
-Forced playouts and policy target pruning are the two mechanisms whose
-misimplementation is documented in [ADR 0008](decisions/0008-search-correctness.md):
-the paper forces a floor only on root children that already have visits, and
-applies it after the search, not before.
+Forced playouts and policy target pruning were misimplemented twice; see
+[ADR 0008](decisions/0008-search-correctness.md). The paper forces visits only on
+root children the search has already tried, inside the playout budget, and
+pruning takes back only visits that forcing added.
 
 ## Self-play
 
 | Mechanism | Where | Status | Evidence |
 |---|---|---|---|
 | Playout cap randomization `[PAPER]` | `selfplay.go` | done | `selfplay_test.go` |
-| Rules randomization `[PAPER]` | `selfplay.go` | done | `selfplay_test.go` |
-| Board-size randomization `[PAPER]` 9–19 | `selfplay.go` | done | `selfplay_test.go` |
+| Rules randomization `[PAPER]` | — | not implemented | the switch was never enabled; the code behind it was deleted |
+| Board-size randomization `[PAPER]` 9–19 | — | not implemented | same switch |
 | Opponent-reply policy target `[PAPER]` | `Sample.PolicyNext` | done | `shard_test.go` |
 | Ownership target `[PAPER]` | `scoring.go` `OwnershipLabel` | done | required by `WriteSampleShard` |
 | Score belief pdf/cdf `[PAPER]` | `Sample.ScorePDF`/`ScoreCDF` | fields only | margin is trained, distribution is not |

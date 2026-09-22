@@ -213,8 +213,8 @@ Do not hallucinate answers; track in `research-traceability.md`.
 | Area | `cmd/gofer` files | Responsibility |
 |------|-------------------|----------------|
 | board | `board.go`, `move.go`, `point.go`, `zobrist.go`, `groups.go` | Grid, colors, moves, komi, hash, undo — **rules-agnostic** |
-| rules | `chinese_rules.go`, `tromp_rules.go`, `superko.go`, `rules.go` | `Ruleset` interface; legal moves, scoring |
-| search | `mcts.go`, `arena.go`, `tt.go` | MCTS/PUCT, playout caps, root noise — **no NN types** |
+| rules | `chinese_rules.go`, `rules.go` | `Ruleset` interface; legal moves, scoring |
+| search | `mcts.go`, `arena.go` | MCTS/PUCT, playout caps, root noise — **no NN types** |
 | tree | `arena.go` | Node arena, visit counts, child slices |
 | eval | `evaluator.go` | `Evaluator` interface; heuristic, uniform, mock |
 | analysis | `interactive.go` (`-analyze`) | Position analysis CLI (post-paper JSON API deferred) |

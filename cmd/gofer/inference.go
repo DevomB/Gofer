@@ -40,7 +40,7 @@ func (inf Inference) Evaluate(b *Board) Result {
 			p[i] = 1
 		}
 	}
-	return Result{Value: inf.MockValue, Policy: p, HasValue: true}
+	return Result{Value: inf.MockValue, Policy: p}
 }
 
 type batchReq struct {

@@ -75,16 +75,13 @@ func (n *Node) Mean() float64 {
 	return n.ValueSum / float64(n.Visits)
 }
 
-func puctScore(c *Node, parentVisits float64, isRoot bool, fpu float64, cfg SearchConfig) float64 {
+func puctScore(c *Node, parentVisits float64, fpu float64, cfg SearchConfig) float64 {
 	// A child mean is from the opponent's perspective.
 	q := -c.Mean()
 	if c.Visits == 0 {
 		q = fpu // first-play urgency, in the parent's frame (see selectChildLocked)
 	}
 	u := cfg.CPUCT * c.Prior * math.Sqrt(parentVisits) / (1 + float64(c.Visits))
-	if isRoot && cfg.RootTemperature != 1 && c.Visits > 0 {
-		q /= cfg.RootTemperature
-	}
 	return q + u
 }
 

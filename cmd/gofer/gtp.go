@@ -16,7 +16,7 @@ var gtpCommands = []string{
 type SessionConfig struct {
 	Playouts  int
 	ThinkTime time.Duration
-	Eval      string // "uniform" or "heuristic"
+	Eval      string // an evaluator name; empty means heuristic
 	BoardSize int
 }
 
@@ -46,7 +46,11 @@ func NewSession(cfg SessionConfig) *Session {
 	if playouts <= 0 {
 		playouts = defaultPlayoutsForSize(size)
 	}
-	ev := parseEvaluator(cfg.Eval)
+	evalName := cfg.Eval
+	if evalName == "" {
+		evalName = "heuristic"
+	}
+	ev := parseEvaluator(evalName)
 	scfg := DefaultConfig()
 	scfg.Playouts = playouts
 	scfg.ThinkTime = cfg.ThinkTime
@@ -203,9 +207,8 @@ func (s *Session) handleGenmove(parts []string) string {
 	s.Search.SetLimits(s.playouts, think)
 	s.nextThink = 0
 	m := s.Search.BestMove(s.Board)
-	if !s.Rules.Play(s.Board, m) {
-		m = PassMove
-		s.Rules.Play(s.Board, m)
+	if err := playChosen(s.Rules, s.Board, m); err != nil {
+		return "? internal error: " + err.Error()
 	}
 	s.log.Record(color, m)
 	s.Search.AdvanceTree(m)

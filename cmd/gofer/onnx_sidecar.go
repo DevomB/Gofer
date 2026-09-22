@@ -127,7 +127,7 @@ func decodeSidecarResults(out []Result, boards []*Board, body []byte, fb Evaluat
 			out[i] = fb.Evaluate(b)
 			continue
 		}
-		out[i] = Result{Value: r.Value, Policy: r.Policy, HasValue: true}
+		out[i] = Result{Value: r.Value, Policy: r.Policy}
 	}
 	return out
 }

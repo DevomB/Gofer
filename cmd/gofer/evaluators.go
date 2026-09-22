@@ -14,6 +14,39 @@ func evalBackendInprocess() bool {
 	return strings.EqualFold(evalConfig.Backend, "inprocess")
 }
 
+// evaluatorNames are the names parseEvaluator accepts, and selfplayEvalModes the
+// -selfplay-eval modes. An unknown name must fail rather than become the
+// heuristic: a typo would otherwise pass for a real ONNX experiment.
+var (
+	evaluatorNames    = []string{"heuristic", "heuristic2", "uniform", "batched", "mock-batch", "onnx", "onnx-batch", "onnx2"}
+	selfplayEvalModes = []string{"heuristic", "onnx", "mix"}
+)
+
+func checkName(kind, name string, accepted []string) error {
+	for _, a := range accepted {
+		if strings.EqualFold(name, a) {
+			return nil
+		}
+	}
+	return fmt.Errorf("unknown %s %q; accepted: %s", kind, name, strings.Join(accepted, ", "))
+}
+
+// checkEvalFlags validates the evaluator names the chosen mode will use.
+func checkEvalFlags(f cliFlags) error {
+	switch {
+	case f.selfplay:
+		return checkName("-selfplay-eval mode", f.selfplayEval, selfplayEvalModes)
+	case f.arena:
+		if err := checkName("-black-eval evaluator", f.blackEval, evaluatorNames); err != nil {
+			return err
+		}
+		return checkName("-white-eval evaluator", f.whiteEval, evaluatorNames)
+	case f.gtp, f.play, f.analyze, f.watch:
+		return checkName("-eval evaluator", f.eval, evaluatorNames)
+	}
+	return nil
+}
+
 func parseEvaluator(name string) Evaluator {
 	switch {
 	case strings.EqualFold(name, "uniform"):
@@ -30,10 +63,10 @@ func parseEvaluator(name string) Evaluator {
 		return newONNXEvaluator(champion, evalConfig.BatchSize)
 	case strings.EqualFold(name, "onnx2"):
 		return newONNXEvaluator(challenger, evalConfig.BatchSize)
-	case strings.EqualFold(name, "heuristic2"):
+	case strings.EqualFold(name, "heuristic"), strings.EqualFold(name, "heuristic2"):
 		return Heuristic{}
 	default:
-		return Heuristic{}
+		panic(checkName("evaluator", name, evaluatorNames))
 	}
 }
 

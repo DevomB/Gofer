@@ -67,7 +67,8 @@ func TestWriteSampleShardRoundTrip(t *testing.T) {
 		t.Fatal("no samples")
 	}
 	path := filepath.Join(t.TempDir(), "s.npz")
-	if err := WriteSampleShard(path, samples, ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: "heuristic"}); err != nil {
+	endings := map[GameEnd]int{EndTwoPasses: 1, EndMoveCap: 1}
+	if err := WriteSampleShard(path, samples, ShardMeta{Komi: cfg.Komi, Seed: cfg.Seed, Model: "heuristic", Endings: endings}); err != nil {
 		t.Fatal(err)
 	}
 	entries := readShardEntries(t, path)
@@ -82,6 +83,9 @@ func TestWriteSampleShardRoundTrip(t *testing.T) {
 	var meta ShardMeta
 	if err := json.Unmarshal(metaRaw, &meta); err != nil {
 		t.Fatal(err)
+	}
+	if meta.Endings[EndMoveCap] != 1 || meta.Endings[EndTwoPasses] != 1 {
+		t.Fatalf("meta endings %v, want the ones written", meta.Endings)
 	}
 	if meta.Format != ShardFormat || meta.Rows != n || meta.BoardSize != 9 || meta.Games != 2 {
 		t.Fatalf("meta mismatch: %+v", meta)

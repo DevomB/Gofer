@@ -192,35 +192,6 @@ func replaySGF(t *testing.T, path string, rules Ruleset, check func(t *testing.T
 	}
 }
 
-func TestTrompTaylorLegalMoves(t *testing.T) {
-	r := TrompTaylor()
-	b := NewBoard(9, 6.5)
-	moves := r.LegalMoves(b)
-	if len(moves) != 9*9+1 {
-		t.Fatalf("want 82 got %d", len(moves))
-	}
-}
-
-func TestTrompTaylorSuicideAllowed(t *testing.T) {
-	r := TrompTaylor()
-	b := NewBoard(9, 6.5)
-	play(t, r, b, 0, 0)
-	play(t, r, b, 2, 0)
-	play(t, r, b, 0, 1)
-	play(t, r, b, 1, 1)
-	_ = r.Play(b, StoneMove(At(1, 0)))
-}
-
-func TestTrompTaylorScore(t *testing.T) {
-	r := TrompTaylor()
-	b := NewBoard(9, 6.5)
-	play(t, r, b, 3, 3)
-	bl, wl := r.Score(b)
-	if bl < 1 || wl != 6.5 {
-		t.Fatalf("score bl=%v wl=%v", bl, wl)
-	}
-}
-
 func TestChineseFactory(t *testing.T) {
 	r := Chinese()
 	b := NewBoard(9, 6.5)
@@ -256,28 +227,14 @@ func TestSuicideIllegal(t *testing.T) {
 	}
 }
 
+// Black takes White's E5 with F5, a stone standing alone with E5 as its only
+// liberty: that is a ko, so White may not retake at once.
 func TestSimpleKo(t *testing.T) {
 	r := Chinese()
 	b := NewBoard(9, 6.5)
-	play(t, r, b, 0, 0)
-	play(t, r, b, 4, 4)
-	play(t, r, b, 0, 1)
-	play(t, r, b, 0, 2)
-	play(t, r, b, 3, 4)
-	play(t, r, b, 0, 3)
-	play(t, r, b, 5, 4)
-	play(t, r, b, 0, 4)
-	play(t, r, b, 3, 3)
-	play(t, r, b, 0, 5)
-	play(t, r, b, 3, 5)
-	play(t, r, b, 0, 6)
-	play(t, r, b, 5, 3)
-	play(t, r, b, 0, 7)
-	play(t, r, b, 5, 5)
-	play(t, r, b, 0, 8)
-	play(t, r, b, 4, 3)
-	play(t, r, b, 1, 0)
-	play(t, r, b, 4, 5)
+	for _, mv := range [][2]int{{4, 3}, {5, 3}, {3, 4}, {6, 4}, {4, 5}, {5, 5}, {0, 0}, {4, 4}, {5, 4}} {
+		play(t, r, b, mv[0], mv[1])
+	}
 	wantKo := At(4, 4).Idx(9)
 	if b.Ko() != wantKo {
 		t.Fatalf("ko want %d got %d", wantKo, b.Ko())
@@ -322,32 +279,6 @@ func TestScoreCountsStones(t *testing.T) {
 	}
 }
 
-func TestSuperkoWrapper(t *testing.T) {
-	r := WithSuperko(Chinese())
-	b := NewBoard(9, 6.5)
-	if !r.Play(b, StoneMove(At(4, 4))) {
-		t.Fatal("superko wrapped play failed")
-	}
-	if len(r.LegalMoves(b)) == 0 {
-		t.Fatal("expected legal moves")
-	}
-}
-
-func TestTrompVsChineseScoreDivergence(t *testing.T) {
-	ch := Chinese()
-	tr := TrompTaylor()
-	bc := NewBoard(9, 6.5)
-	bt := NewBoard(9, 6.5)
-	play(t, ch, bc, 2, 2)
-	play(t, tr, bt, 2, 2)
-	play(t, ch, bc, 3, 3)
-	play(t, tr, bt, 3, 3)
-	cbl, cwl := ch.Score(bc)
-	tbl, twl := tr.Score(bt)
-	if cbl == tbl && cwl == twl {
-		t.Log("scores equal on this position — divergence may appear with captures")
-	}
-}
 func TestParseSGFCoord(t *testing.T) {
 	p, err := ParseSGFCoord(9, "bc")
 	if err != nil {
@@ -384,14 +315,6 @@ func TestGoldenPassSGF(t *testing.T) {
 			t.Fatal("two passes should return turn to black")
 		}
 	})
-}
-
-func TestTrompReplayCorpus(t *testing.T) {
-	for _, name := range []string{"capture.sgf"} {
-		t.Run(name, func(t *testing.T) {
-			replaySGF(t, filepath.Join("testdata", name), TrompTaylor(), nil)
-		})
-	}
 }
 
 func TestParseGameMeta(t *testing.T) {

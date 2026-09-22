@@ -60,3 +60,59 @@ func TestSampleGammaMeanApproxShape(t *testing.T) {
 		t.Fatalf("gamma mean=%v want ~%v", mean, shape)
 	}
 }
+
+func TestTemperPriorsFlattens(t *testing.T) {
+	// Temperature 2 takes square roots: 0.8, 0.4, 0.4, 0.2, renormalised by 1.8.
+	got := temperPriors([]float64{0.64, 0.16, 0.16, 0.04}, 2)
+	for i, root := range []float64{0.8, 0.4, 0.4, 0.2} {
+		if want := root / 1.8; math.Abs(got[i]-want) > 1e-12 {
+			t.Fatalf("temperPriors[%d] = %v, want %v", i, got[i], want)
+		}
+	}
+}
+
+// Self-play advances the tree between moves, so every root after the first was
+// expanded as an ordinary node. Its priors must still get the root temperature,
+// plus noise on a full search and no noise on a fast one.
+func TestReusedRootGetsRootPriors(t *testing.T) {
+	rs := Chinese()
+	b := NewBoard(9, 6.5)
+	cfg := DefaultConfig()
+	cfg.Workers = 1
+	eng := NewEngine(rs, Heuristic{}, cfg)
+	rng := rand.New(rand.NewSource(1))
+	eng.ConfigureSelfplayMove(200, true)
+	m := eng.SelectMove(b, rng, 0)
+	rs.Play(b, m)
+	eng.AdvanceTree(m)
+
+	root := eng.arena.Get(eng.root)
+	if !root.Expanded {
+		t.Fatal("the played move was never expanded, so this test reuses nothing")
+	}
+	moves := make([]Move, len(root.Children))
+	for i, cidx := range root.Children {
+		moves[i] = eng.arena.Get(cidx).Move
+	}
+	tempered := temperPriors(policyPriors(b, moves, Heuristic{}.Evaluate(b).Policy), cfg.RootTemperature)
+	differs := func() int {
+		n := 0
+		for i, cidx := range root.Children {
+			if math.Abs(eng.arena.Get(cidx).Prior-tempered[i]) > 1e-12 {
+				n++
+			}
+		}
+		return n
+	}
+
+	eng.ConfigureSelfplayMove(50, false)
+	eng.SelectMove(b, rng, 0)
+	if n := differs(); n != 0 {
+		t.Fatalf("fast search: %d of %d root priors are not the tempered policy (noise leaked in)", n, len(moves))
+	}
+	eng.ConfigureSelfplayMove(200, true)
+	eng.SelectMove(b, rng, 0)
+	if n := differs(); n == 0 {
+		t.Fatal("full search on a reused root ran without exploration noise")
+	}
+}

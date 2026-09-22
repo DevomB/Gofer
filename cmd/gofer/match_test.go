@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"strings"
 	"testing"
 )
 
@@ -348,7 +349,7 @@ func TestFullOnlyExportFilters(t *testing.T) {
 	all, _ := RunSelfplayWithLogs(SelfplayConfig{
 		Games: cfg.Games, BoardSize: cfg.BoardSize, Komi: cfg.Komi,
 		Playouts: cfg.Playouts, FastPlayouts: 4, FullPlayouts: 10,
-		CapRandomizeP: 0.5, Seed: cfg.Seed, FullOnlyExport: false,
+		CapRandomizeP: 0.5, Seed: cfg.Seed, FullOnlyExport: false, EvalMode: "heuristic",
 	})
 	filtered := RunSelfplay(cfg)
 	if len(filtered) > len(all) {
@@ -358,5 +359,69 @@ func TestFullOnlyExportFilters(t *testing.T) {
 		if !s.FullSearch {
 			t.Fatal("non-full sample in filtered export")
 		}
+	}
+}
+
+// refusals counts moves the rules turned down, whether chosen or searched.
+type refusals struct {
+	Ruleset
+	n int
+}
+
+func (r *refusals) Play(b *Board, m Move) bool {
+	ok := r.Ruleset.Play(b, m)
+	if !ok {
+		r.n++
+	}
+	return ok
+}
+
+// Both engines must see every move. Advancing only the mover's tree left each
+// engine searching a root one ply behind the board, choosing among the opponent's
+// old candidates, some already occupied; the arena then played a pass instead.
+func TestArenaEnginesFollowEveryMove(t *testing.T) {
+	rs := &refusals{Ruleset: Chinese()}
+	black := newArenaEngineEval(rs, 50, 0, Heuristic{}, 1, false)
+	white := newArenaEngineEval(rs, 50, 0, Heuristic{}, 2, false)
+	playArenaGame(rs, NewBoard(5, 6.5), black, white, 5, 0, 0, rand.New(rand.NewSource(1)))
+	if rs.n > 0 {
+		t.Fatalf("the rules refused %d moves the engines chose or searched", rs.n)
+	}
+}
+
+// An engine's refused move is an error that identifies the position, and leaves
+// the board as it was; it is never replaced by a pass.
+func TestRefusedEngineMoveIsAnError(t *testing.T) {
+	b := setupBoard(t, "E5")
+	before := b.Hash()
+	err := playChosen(Chinese(), b, StoneMove(At(4, 4))) // E5, occupied
+	if err == nil {
+		t.Fatal("the rules accepted a stone on an occupied point")
+	}
+	for _, want := range []string{"E5", "White", fmt.Sprintf("%016x", before)} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error does not name %s: %v", want, err)
+		}
+	}
+	if b.Hash() != before || b.Player() != White || b.MoveNum() != 1 {
+		t.Fatal("a refused move changed the board")
+	}
+}
+
+// A capped arena game has no result: it counts toward no win, loss or draw, and
+// the match refuses to report rather than drop it and bias toward games that end.
+func TestCappedArenaGameHasNoResult(t *testing.T) {
+	res := RunMatch(MatchConfig{
+		Games: 4, Size: 9, Komi: 6.5, Playouts: 8, BlackEval: "heuristic", WhiteEval: "uniform",
+		Seed: 3, PlayAllGames: true, MaxMoves: 6,
+	})
+	if res.WinsBlack+res.WinsWhite+res.Draws != 0 || res.Games != 0 {
+		t.Fatalf("capped games produced results: %+v", res)
+	}
+	if res.Endings[EndMoveCap] != 4 {
+		t.Fatalf("endings %v, want 4 at the cap", res.Endings)
+	}
+	if err := checkFinishedGames(res); err == nil {
+		t.Fatal("a match of capped games was allowed to report")
 	}
 }

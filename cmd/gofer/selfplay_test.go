@@ -128,3 +128,39 @@ func TestSelfplayEvaluatorSelection(t *testing.T) {
 		t.Fatal("mix with fraction 0.0 expected Heuristic")
 	}
 }
+
+// A game stopped at the move cap was scored mid-fight; none of its rows may reach
+// a shard, because every one would carry that arbitrary position's labels.
+func TestCappedSelfplayGameContributesNoRows(t *testing.T) {
+	cfg := testSelfplayConfig("heuristic", 2)
+	cfg.MaxMoves = 6
+	samples, logs := RunSelfplayWithLogs(cfg)
+	if len(samples) != 0 {
+		t.Fatalf("%d rows from games that never finished", len(samples))
+	}
+	for i, l := range logs {
+		if l.End != EndMoveCap || len(l.Moves) != cfg.MaxMoves {
+			t.Fatalf("game %d: end %q after %d moves, want %q after %d", i, l.End, len(l.Moves), EndMoveCap, cfg.MaxMoves)
+		}
+	}
+}
+
+// Training must not start unless self-play games finish: at the old 83-move cap 99
+// of 100 heuristic games at these settings stopped mid-fight.
+func TestSelfplayGamesFinish(t *testing.T) {
+	if testing.Short() {
+		t.Skip("plays 20 full games")
+	}
+	cfg := DefaultSelfplayConfig()
+	cfg.Games = 20
+	cfg.Playouts, cfg.FullPlayouts, cfg.FastPlayouts = 200, 200, 50
+	cfg.CapRandomizeP = 0.2
+	cfg.TemperatureMoves = 16
+	cfg.Parallel = 4
+	cfg.Seed = 200048
+	cfg.EvalMode = "heuristic"
+	_, logs := RunSelfplayWithLogs(cfg)
+	if endings := countEndings(logs); endings[EndMoveCap] > 0 {
+		t.Fatalf("games stopped at the move cap: %v", endings)
+	}
+}

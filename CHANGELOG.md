@@ -6,6 +6,46 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
 
 ### Fixed
 
+The defects behind the pass collapse and the networks that got weaker as they trained,
+each reproduced before it was fixed. Details and measurements in
+[ADR 0009](docs/decisions/0009-search-and-arena-correctness.md). Every arena result recorded
+before them is void, including ADR 0008's table, and so is every network trained so far.
+
+- **A pass child read its parent's value from the parent's side.** The transposition table
+  keyed on stones only, and a pass leaves them unchanged, so passing always looked like the
+  negation of the position, at every node. With a 9% pass prior pass took 357 of 400
+  visits; the old search's top opening move with the collapsed network went from pass to
+  J1 as playouts rose. The table is deleted: its key could not cover the network's inputs,
+  and it also stopped every transposed node from expanding, for the rest of the game.
+- **A stone bordering two empty regions counted for only one**, in the rules scorer and the
+  heuristic's territory estimate. 12 of 100 self-play games were mis-scored; one had the
+  wrong winner.
+- **The arena advanced only the mover's tree**, so every engine searched one ply behind the
+  board, and a refused choice was silently played as a pass: 17% of all moves in 20 of 20
+  heuristic games. A refused move is now a panic, in the arena and in the search.
+- **Root noise reached only a game's first move**, because a reused root arrived already
+  expanded. The root is now prepared for every search; root temperature softens the priors
+  instead of dividing Q; fast searches run without noise.
+- **Forced playouts ran outside the budget and were never pruned** from the policy target.
+  They now run inside the search as `√(k·P·ΣN)`, and pruning takes them back out as Wu does.
+- **The heuristic ignored komi**, and **its prior put every capture at the floor**: a stone
+  in atari was left in place at 4000 playouts. Captures and atari rescues now add five per
+  stone.
+- **The sidecar rejected every request** after the feature schema moved to 3; the schema is
+  now pinned by a test.
+- **Most games were scored at the move cap.** Every loop stopped at `size²+2` (83 on 9×9)
+  and scored the board as finished: 86 of 100 heuristic self-play games, and 4.2% of all
+  recorded arena games, 18.5% of the reproducible baseline's. Loops now report why they
+  stopped; a capped self-play game contributes no rows, and an arena with a capped game
+  refuses to report. The cap is `3·size²+2`, and the search skips obvious own-eye fills,
+  which the heuristic's prior ranked highest of all. Two capped local datasets are
+  quarantined in `training/data/quarantine/`.
+- **The rules refused every snapback**, treating any single-stone capture as a ko, and
+  `-convert-sgf` rejected every recorded game containing one. Both ko test fixtures were
+  not kos.
+- **Silent fallbacks now fail.** An unknown evaluator name or self-play mode used to become
+  the heuristic; a refused engine move used to become a pass. Both are errors now.
+
 - **The seed gate measured the first network and then promoted it regardless.** `stage_gate`
   ran a 40-game arena against the heuristic, wrote the score into the lineage, and set
   `promote: True` unconditionally. A network that lost to the heuristic still became
@@ -115,6 +155,11 @@ evaluators, 200 games now split 99-101 by colour.
   the opponent.
 
 ### Removed
+
+- Tromp–Taylor rules, the superko wrapper and rules/board-size randomization, reachable only
+  through a switch nothing set, and broken besides: one repetition history shared by every
+  search branch, and superko refused every pass. Also the random-rollout path, which only
+  `Uniform` selected and the table always pre-empted.
 
 - The v3 training loop's Python side (`training/cycle.py`, `replay.py`, `manifest.py` and
   their tests, 413 lines), reachable only from `scripts/train-loop-v3.sh` and superseded by

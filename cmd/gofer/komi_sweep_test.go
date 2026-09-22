@@ -1,13 +1,17 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-// TestHeuristicFairKomiSweep documents stone-color win rate vs komi for equal heuristic
-// engines (same eval name — swap does not alternate stone color). Fair komi for
-// stone-color balance at 50 playouts is near 0..-1, not tournament 6.5.
+// TestHeuristicFairKomiSweep logs stone-colour win rate against komi for equal
+// heuristic engines, for recalibrating fair komi after engine changes. It asserts
+// nothing and plays 500 games, so it runs only when asked;
+// TestIdenticalEvalColorBalance checks the calibrated value.
 func TestHeuristicFairKomiSweep(t *testing.T) {
-	if testing.Short() {
-		t.Skip("short")
+	if os.Getenv("GOFER_KOMI_SWEEP") == "" {
+		t.Skip("a measurement, not a check: set GOFER_KOMI_SWEEP=1 to run it")
 	}
 	old := minGamesBeforePromote
 	minGamesBeforePromote = 201

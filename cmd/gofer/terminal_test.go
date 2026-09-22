@@ -9,7 +9,7 @@ import (
 type constEval struct{ v float32 }
 
 func (c constEval) Evaluate(b *Board) Result {
-	return Result{Value: float64(c.v), HasValue: true}
+	return Result{Value: float64(c.v)}
 }
 
 func playPasses(rs Ruleset, b *Board, n int) {
@@ -44,11 +44,12 @@ func TestTerminalValueUsesScoreNotEvaluator(t *testing.T) {
 	}
 	// An evaluator claiming the position is won must not override the real result.
 	eng := NewEngine(rs, constEval{v: 1}, DefaultConfig())
-	if got := eng.leafValue(b); got != -1 {
+	if got := eng.Analyze(b, 1).RootValue; got != -1 {
 		t.Fatalf("Black to move on an empty scored board loses by komi: got %v", got)
 	}
 	rs.Play(b, PassMove) // same finished board, now from White's side
-	if got := eng.leafValue(b); got != 1 {
+	eng = NewEngine(rs, constEval{v: 1}, DefaultConfig())
+	if got := eng.Analyze(b, 1).RootValue; got != 1 {
 		t.Fatalf("White wins the same finished board: got %v", got)
 	}
 }
@@ -67,6 +68,49 @@ func TestSearchAvoidsLosingPass(t *testing.T) {
 	m := eng.SelectMove(b, rand.New(rand.NewSource(1)), 0)
 	if m.Pass {
 		t.Fatal("Black passed into a komi loss")
+	}
+}
+
+// blackBehindEval rates Black as losing from whichever side is to move, so it is
+// consistent across a pass, unlike constEval. Its policy is flat except for pass,
+// which gets the ~9% share seen in collapsed self-play targets.
+type blackBehindEval struct{}
+
+func (blackBehindEval) Evaluate(b *Board) Result {
+	v := -0.5
+	if b.Player() == White {
+		v = 0.5
+	}
+	policy := Uniform{}.Evaluate(b).Policy
+	policy[len(policy)-1] = 8
+	return Result{Value: v, Policy: policy}
+}
+
+// A pass child has its parent's stones with the other side to move. Serving it the
+// parent's value, as a stones-keyed cache once did, makes passing read as the
+// negation of the position, so the losing side passes.
+func TestPassIsNotValuedFromTheParentsSide(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Playouts = 400
+	cfg.Workers = 1
+	eng := NewEngine(Chinese(), blackBehindEval{}, cfg)
+	a := eng.Analyze(NewBoard(9, 6.5), 82)
+
+	var pass *MoveCandidate
+	for i := range a.Candidates {
+		if a.Candidates[i].Move.Pass {
+			pass = &a.Candidates[i]
+		}
+	}
+	if pass == nil {
+		t.Fatal("pass was never visited")
+	}
+	if pass.Value > -0.5+1e-9 {
+		t.Fatalf("pass valued %+.3f for Black, better than the %+.3f the evaluator gives every "+
+			"position: the pass child read its parent's value from the parent's side", pass.Value, -0.5)
+	}
+	if a.Candidates[0].Move.Pass {
+		t.Fatalf("pass took %d of %d visits on an empty board", pass.Visits, cfg.Playouts)
 	}
 }
 

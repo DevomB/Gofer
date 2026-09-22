@@ -196,8 +196,8 @@ make bench-check    # compare before/after
 
 ## Included
 
-- Chinese + Tromp-Taylor rules, SGF import/export
-- PUCT MCTS, transposition table, parallel playouts
+- Chinese rules (area scoring, simple ko), SGF import/export
+- PUCT MCTS, parallel playouts
 - GTP subset, terminal play/analyze/watch, self-play samples
 - ONNX inference in-process via ONNX Runtime (default, `-tags=onnx`) or over an
   HTTP sidecar (`-eval-backend sidecar`)

@@ -135,6 +135,10 @@ func runMode(f cliFlags) bool {
 		fmt.Fprintln(os.Stderr, "only one mode flag allowed (-gtp, -play, -analyze, -selfplay, -watch, -arena, -convert-sgf, -verify-jsonl)")
 		os.Exit(1)
 	}
+	if err := checkEvalFlags(f); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 	switch {
 	case f.gtp:
 		runGTP(f.gtpPlayouts, f.size, f.think, f.eval, f.out)
@@ -226,6 +230,10 @@ func runArenaCLI(f cliFlags) {
 	}
 	result := RunMatch(cfg)
 	if err := checkEvalHealth(cfg, result); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := checkFinishedGames(result); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -331,6 +339,12 @@ func runSelfplayCLI(f cliFlags) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	endings := countEndings(logs)
+	fmt.Fprintf(os.Stderr, "game endings %v; games stopped at the move cap contribute no rows\n", endings)
+	if len(samples) == 0 {
+		fmt.Fprintln(os.Stderr, "no game finished: every one stopped at the move cap, so there is nothing to train on")
+		os.Exit(1)
+	}
 	passShare, passRows := openingPassShare(samples)
 	fmt.Fprintf(os.Stderr, "opening pass share %.3f over %d full-search rows\n", passShare, passRows)
 	if err := checkSelfplayPassCollapse(passShare, passRows, f.selfplayMaxPassShare); err != nil {
@@ -344,12 +358,13 @@ func runSelfplayCLI(f cliFlags) {
 			Model:            selfplayModelID(cfg.EvalMode, f.modelPath, cfg.ONNXFraction),
 			EvalFallbackRate: fallbackRate,
 			PassShare:        passShare,
+			Endings:          endings,
 		}
 		if err := WriteSampleShard(f.out, samples, meta); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "wrote %d rows (%d games) to %s\n", len(samples), len(logs), f.out)
+		fmt.Fprintf(os.Stderr, "wrote %d rows (%d of %d games finished) to %s\n", len(samples), len(logs)-endings[EndMoveCap], len(logs), f.out)
 	} else if f.out != "" {
 		writeSelfplayJSON(f.out, samples)
 	} else if f.sgfDir == "" {
