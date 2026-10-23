@@ -1,8 +1,11 @@
 package gtp
 
 import (
+	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/DevomB/gofer/internal/mcts"
 	"github.com/DevomB/gofer/internal/nn"
@@ -53,4 +56,39 @@ func TestGTPSession(t *testing.T) {
 			t.Fatalf("response %d = %q want %q", i, resp[i], w)
 		}
 	}
+}
+
+func TestLzAnalyzeStreamsUntilNextCommand(t *testing.T) {
+	e := NewEngine(Engine{Eval: nn.Uniform{}, Search: mcts.DefaultConfig(), Visits: 50})
+	pr, pw := io.Pipe()
+	var out safeBuffer
+	done := make(chan error, 1)
+	go func() { done <- e.Serve(pr, &out) }()
+	io.WriteString(pw, "1 lz-analyze b 5\n")
+	time.Sleep(300 * time.Millisecond)
+	io.WriteString(pw, "2 name\n3 quit\n")
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	s := out.String()
+	if !strings.HasPrefix(s, "=1\ninfo move ") || !strings.Contains(s, " pv ") || !strings.Contains(s, "\n\n=2 Gofer\n\n=3") {
+		t.Fatalf("unexpected lz-analyze transcript:\n%s", s)
+	}
+}
+
+type safeBuffer struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *safeBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *safeBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
 }

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DevomB/gofer/internal/game"
 	"github.com/DevomB/gofer/internal/mcts"
@@ -82,16 +83,39 @@ func (e *Engine) apply(c game.Color, p game.Point) error {
 var commands = []string{
 	"protocol_version", "name", "version", "known_command", "list_commands", "quit",
 	"boardsize", "clear_board", "komi", "play", "genmove", "undo", "showboard",
-	"final_score", "time_settings", "time_left", "gofer-analyze",
+	"final_score", "time_settings", "time_left", "gofer-analyze", "lz-analyze",
 }
+
+// maxAnalysisVisits bounds tree growth during open-ended analysis.
+const maxAnalysisVisits = 2_000_000
 
 // Serve runs the GTP loop until "quit" or EOF.
 func (e *Engine) Serve(r io.Reader, w io.Writer) error {
-	sc := bufio.NewScanner(r)
+	lines := make(chan string)
+	scanErr := make(chan error, 1)
+	go func() {
+		sc := bufio.NewScanner(r)
+		for sc.Scan() {
+			lines <- sc.Text()
+		}
+		scanErr <- sc.Err()
+		close(lines)
+	}()
 	out := bufio.NewWriter(w)
 	defer out.Flush()
-	for sc.Scan() {
-		line := strings.TrimSpace(strings.SplitN(sc.Text(), "#", 2)[0])
+	var pending *string
+	for {
+		var raw string
+		if pending != nil {
+			raw, pending = *pending, nil
+		} else {
+			l, ok := <-lines
+			if !ok {
+				return <-scanErr
+			}
+			raw = l
+		}
+		line := strings.TrimSpace(strings.SplitN(raw, "#", 2)[0])
 		if line == "" {
 			continue
 		}
@@ -103,18 +127,110 @@ func (e *Engine) Serve(r io.Reader, w io.Writer) error {
 				continue
 			}
 		}
-		resp, err := e.handle(strings.ToLower(f[0]), f[1:])
+		cmd := strings.ToLower(f[0])
+		if cmd == "lz-analyze" {
+			next, err := e.lzAnalyze(id, f[1:], out, lines)
+			if err != nil {
+				fmt.Fprintf(out, "?%s %s\n\n", id, err)
+				out.Flush()
+			}
+			if next == nil {
+				return <-scanErr // input closed during analysis
+			}
+			if *next != "" {
+				pending = next
+			}
+			continue
+		}
+		resp, err := e.handle(cmd, f[1:])
 		if err != nil {
 			fmt.Fprintf(out, "?%s %s\n\n", id, err)
 		} else {
 			fmt.Fprintf(out, "=%s %s\n\n", id, resp)
 		}
 		out.Flush()
-		if f[0] == "quit" {
+		if cmd == "quit" {
 			return nil
 		}
 	}
-	return sc.Err()
+}
+
+// lzAnalyze implements Leela Zero's streaming analysis (used by Sabaki and
+// Lizzie): "lz-analyze [color] [interval-centiseconds]". It prints "info"
+// lines until the next command arrives, which it returns (nil on EOF).
+func (e *Engine) lzAnalyze(id string, args []string, out *bufio.Writer, lines <-chan string) (*string, error) {
+	interval := 100 * time.Millisecond
+	for _, a := range args {
+		if c, err := parseColor(a); err == nil {
+			if e.board.ToPlay() != c {
+				e.board.SetToPlay(c)
+				e.s.Reset(e.board)
+			}
+			continue
+		}
+		cs, err := strconv.Atoi(a)
+		if err != nil {
+			return new(string), fmt.Errorf("syntax error")
+		}
+		if cs > 0 {
+			interval = time.Duration(cs) * 10 * time.Millisecond
+		}
+	}
+	if e.board.GameOver() {
+		e.s.Reset(e.board)
+	}
+	fmt.Fprintf(out, "=%s\n", id)
+	out.Flush()
+	last := time.Now()
+	for {
+		select {
+		case l, ok := <-lines:
+			fmt.Fprint(out, "\n")
+			out.Flush()
+			if !ok {
+				return nil, nil
+			}
+			return &l, nil
+		default:
+		}
+		if e.s.Visits() < maxAnalysisVisits {
+			if err := e.s.Run(32); err != nil {
+				return new(string), err
+			}
+		} else {
+			time.Sleep(interval)
+		}
+		if time.Since(last) >= interval {
+			fmt.Fprintln(out, e.lzInfo())
+			out.Flush()
+			last = time.Now()
+		}
+	}
+}
+
+func (e *Engine) lzInfo() string {
+	var sb strings.Builder
+	for i, c := range e.s.Children() {
+		if c.Visits == 0 {
+			break
+		}
+		if i > 0 {
+			sb.WriteByte(' ')
+		}
+		fmt.Fprintf(&sb, "info move %s visits %d winrate %d prior %d order %d pv %s",
+			game.FormatPoint(c.Move, e.size), c.Visits, int(5000*(1+c.Q)), int(10000*c.Prior), i,
+			formatPV(e.childPV(c.Move), e.size))
+	}
+	return sb.String()
+}
+
+// childPV is the principal variation starting with root move m.
+func (e *Engine) childPV(m game.Point) []game.Point {
+	pv := e.s.PVFrom(m, 10)
+	if len(pv) == 0 {
+		return []game.Point{m}
+	}
+	return pv
 }
 
 func (e *Engine) handle(cmd string, args []string) (string, error) {

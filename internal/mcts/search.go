@@ -482,8 +482,23 @@ func (s *Search) PolicyTarget() []float32 {
 
 // PV returns the principal variation (most visited line) up to maxLen moves.
 func (s *Search) PV(maxLen int) []game.Point {
-	var pv []game.Point
-	nd := s.root
+	return s.pvFrom(s.root, nil, maxLen)
+}
+
+// PVFrom returns the most visited line that starts with root move m.
+func (s *Search) PVFrom(m game.Point, maxLen int) []game.Point {
+	if s.root == nil {
+		return nil
+	}
+	for i := range s.root.children {
+		if c := &s.root.children[i]; c.move == m {
+			return s.pvFrom(c, []game.Point{m}, maxLen)
+		}
+	}
+	return nil
+}
+
+func (s *Search) pvFrom(nd *node, pv []game.Point, maxLen int) []game.Point {
 	for nd != nil && nd.expanded && len(pv) < maxLen {
 		var best *node
 		for i := range nd.children {

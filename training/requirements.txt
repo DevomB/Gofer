@@ -4,3 +4,4 @@ onnx>=1.15
 onnxruntime>=1.17
 onnxscript>=0.1
 pytest>=8
+matplotlib>=3.8  # training.report only
