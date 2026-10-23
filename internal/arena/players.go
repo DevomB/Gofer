@@ -56,6 +56,9 @@ func (p *MCTSPlayer) GenMove(b *game.Board) (game.Point, bool, error) {
 	if p.s.Board().Key() != b.Key() {
 		p.s.Reset(b)
 	}
+	if p.s.PassWins() {
+		return game.Pass, false, nil
+	}
 	if err := p.s.Run(p.Visits); err != nil {
 		return game.Pass, false, err
 	}
