@@ -45,6 +45,15 @@ In Sabaki: *Engines → Manage engines → Add*, path `bin/gofer`, arguments
 `gtp -model models/gofer-9x9.onnx`. Live analysis (`lz-analyze`) works out of
 the box.
 
+## Play it in the browser
+
+The landing page in [`web/`](web/) runs the same engine compiled to
+WebAssembly, with the network evaluated by onnxruntime-web: watch a game
+against GNU Go or play Gofer directly. Rebuild it with `make site`
+(Tailwind CSS, `GOOS=js GOARCH=wasm` engine, model copy; outputs are committed
+so any static host can serve `web/`), and preview with
+`python3 -m http.server -d web 8000`.
+
 ## Train your own
 
 ```bash
@@ -79,6 +88,7 @@ bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=10 -games 
 | `internal/nn` | features, batched evaluator, ONNX Runtime backend |
 | `internal/selfplay`, `internal/arena`, `internal/gtp`, `internal/sgf` | applications |
 | `cmd/gofer` | CLI |
+| `cmd/gofer-wasm`, `web/` | the engine in WebAssembly and the landing page |
 | `training/` | model, data, trainer, export, loop, Elo, report (+ tests) |
 | `docs/` | [architecture](docs/architecture.md), [training](docs/training.md), [v2 audit](docs/v2-audit.md) |
 
