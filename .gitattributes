@@ -1,0 +1,8 @@
+# GitHub's language bar should describe the engine and the trainer. The
+# landing page in web/ is the project's website, so it is counted as
+# documentation and left out of the language statistics.
+web/** linguist-documentation
+
+# Build outputs of scripts/build-site.sh and cmd/sitedata: collapsed in diffs.
+web/engine/** linguist-generated
+web/data/** linguist-generated
