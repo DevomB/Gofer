@@ -31,6 +31,30 @@ type Engine struct {
 	board *game.Board
 	moves []move
 	s     *mcts.Search
+	clock [3]clock // per color, from time_settings / time_left
+}
+
+// clock is a player's remaining time as reported by the controller.
+type clock struct {
+	set    bool
+	main   time.Duration // main time left, or byo-yomi period left when stones > 0
+	stones int           // stones to play in the current byo-yomi period (0: main time)
+	byo    time.Duration // byo-yomi period length
+}
+
+// budget returns how long to think for the next move (0: no time control).
+func (c clock) budget(movesLeft int) time.Duration {
+	if !c.set {
+		return 0
+	}
+	if c.stones > 0 {
+		return c.main * 9 / (10 * time.Duration(c.stones))
+	}
+	t := c.main / time.Duration(max(movesLeft, 8))
+	if c.byo > 0 {
+		t += c.byo * 8 / 10
+	}
+	return t
 }
 
 type move struct {
@@ -320,7 +344,38 @@ func (e *Engine) handle(cmd string, args []string) (string, error) {
 			return fmt.Sprintf("W+%g", -m), nil
 		}
 		return "0", nil
-	case "time_settings", "time_left":
+	case "time_settings":
+		if len(args) != 3 {
+			return "", fmt.Errorf("syntax error")
+		}
+		mainT, err1 := strconv.Atoi(args[0])
+		byo, err2 := strconv.Atoi(args[1])
+		stones, err3 := strconv.Atoi(args[2])
+		if err1 != nil || err2 != nil || err3 != nil {
+			return "", fmt.Errorf("syntax error")
+		}
+		for _, c := range []game.Color{game.Black, game.White} {
+			e.clock[c] = clock{set: mainT > 0 || byo > 0, main: time.Duration(mainT) * time.Second, byo: time.Duration(byo) * time.Second}
+			if mainT == 0 && stones > 0 {
+				e.clock[c].main, e.clock[c].stones = e.clock[c].byo, stones
+			}
+		}
+		return "", nil
+	case "time_left":
+		if len(args) != 3 {
+			return "", fmt.Errorf("syntax error")
+		}
+		c, err := parseColor(args[0])
+		if err != nil {
+			return "", err
+		}
+		secs, err1 := strconv.Atoi(args[1])
+		stones, err2 := strconv.Atoi(args[2])
+		if err1 != nil || err2 != nil {
+			return "", fmt.Errorf("syntax error")
+		}
+		e.clock[c].set = true
+		e.clock[c].main, e.clock[c].stones = time.Duration(secs)*time.Second, stones
 		return "", nil
 	case "gofer-analyze":
 		return e.analyze(args)
@@ -336,7 +391,17 @@ func (e *Engine) genmove(c game.Color) (string, error) {
 	if e.board.GameOver() {
 		e.s.Reset(e.board)
 	}
-	if err := e.s.Run(e.Visits); err != nil {
+	movesLeft := (e.board.NumPoints() - e.board.MoveNum()/2) / 2
+	if budget := e.clock[c].budget(movesLeft); budget > 0 {
+		// Under time control, search until the budget is spent (at least one
+		// batch, at most maxAnalysisVisits).
+		deadline := time.Now().Add(budget)
+		for done := 0; done == 0 || (time.Now().Before(deadline) && e.s.Visits() < maxAnalysisVisits); done++ {
+			if err := e.s.Run(64); err != nil {
+				return "", err
+			}
+		}
+	} else if err := e.s.Run(e.Visits); err != nil {
 		return "", err
 	}
 	v := e.s.RootValue()

@@ -92,3 +92,21 @@ func (s *safeBuffer) String() string {
 	defer s.mu.Unlock()
 	return s.b.String()
 }
+
+func TestTimeControlBudget(t *testing.T) {
+	if b := (clock{}).budget(40); b != 0 {
+		t.Fatalf("no clock should mean no budget, got %v", b)
+	}
+	if b := (clock{set: true, main: 60 * time.Second}).budget(30); b != 2*time.Second {
+		t.Fatalf("60s for 30 moves: got %v", b)
+	}
+	if b := (clock{set: true, main: 10 * time.Second, stones: 5}).budget(30); b != 1800*time.Millisecond {
+		t.Fatalf("byo-yomi 10s/5 stones: got %v", b)
+	}
+	e := NewEngine(Engine{Eval: nn.Uniform{}, Search: mcts.DefaultConfig(), Visits: 10})
+	start := time.Now()
+	resp := run(t, e, "time_settings 0 1 1\ngenmove b\nquit\n")
+	if el := time.Since(start); el < 500*time.Millisecond || el > 3*time.Second || !strings.HasPrefix(resp[1], "= ") {
+		t.Fatalf("1s byo-yomi genmove took %v: %q", el, resp)
+	}
+}
