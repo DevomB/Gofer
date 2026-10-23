@@ -55,6 +55,7 @@ const HistoryLen = 5
 type chain struct {
 	stones bitset
 	libs   bitset
+	hash   uint64 // xor of the chain's stone Zobrist keys
 	size   int16
 }
 
@@ -250,11 +251,31 @@ func (b *Board) isLegalSimple(m Point) bool {
 	return false
 }
 
+// repeatsPosition reports whether playing m (already known to be legal under
+// simple rules) recreates an earlier stone configuration. The resulting hash
+// is derived from per-chain hashes, so no trial move is played.
 func (b *Board) repeatsPosition(m Point) bool {
-	t := b.Clone()
-	t.superko = false
-	t.play(m)
-	h := t.stones
+	me, opp := b.toPlay, b.toPlay.Opp()
+	h := b.stones ^ zobristStone[m][me]
+	var done [4]int16
+	nd := 0
+outer:
+	for _, q := range b.nb.of(m) {
+		if b.cells[q] != opp {
+			continue
+		}
+		hq := b.chainOf[q]
+		for _, d := range done[:nd] {
+			if d == hq {
+				continue outer
+			}
+		}
+		done[nd] = hq
+		nd++
+		if b.chains[hq].libs.count() == 1 {
+			h ^= b.chains[hq].hash
+		}
+	}
 	for _, s := range b.seen {
 		if s == h {
 			return true
@@ -305,7 +326,7 @@ func (b *Board) play(m Point) {
 
 	// The new stone starts as its own chain with its empty neighbors as liberties.
 	head := m
-	ch := chain{size: 1}
+	ch := chain{size: 1, hash: zobristStone[m][me]}
 	ch.stones.set(int(m))
 	nbrs := b.nb.of(m)
 	for _, q := range nbrs {
@@ -360,6 +381,7 @@ func (b *Board) merge(a, c Point) Point {
 	cc.stones.forEach(func(s int) { b.chainOf[s] = int16(a) })
 	ca.stones.or(&cc.stones)
 	ca.libs.or(&cc.libs)
+	ca.hash ^= cc.hash
 	ca.size += cc.size
 	return a
 }
@@ -515,6 +537,7 @@ func (b *Board) rebuild() {
 			q := stack[len(stack)-1]
 			stack = stack[:len(stack)-1]
 			ch.stones.set(int(q))
+			ch.hash ^= zobristStone[q][c]
 			ch.size++
 			for _, r := range b.nb.of(q) {
 				switch b.cells[r] {
@@ -531,4 +554,15 @@ func (b *Board) rebuild() {
 		b.chains[p] = ch
 	}
 	b.ko = Pass
+}
+
+// WithoutStones returns a copy with the given stones removed (for scoring
+// after dead-stone agreement). Move history and side to move are kept.
+func (b *Board) WithoutStones(pts []Point) *Board {
+	c := b.Clone()
+	for _, p := range pts {
+		c.cells[p] = Empty
+	}
+	c.rebuild()
+	return c
 }
