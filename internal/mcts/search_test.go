@@ -204,3 +204,28 @@ func TestConservativePass(t *testing.T) {
 		t.Fatal("pass must be searchable after the opponent passed")
 	}
 }
+
+func TestPassWins(t *testing.T) {
+	b := game.NewBoard(game.Options{Size: 5, Komi: 0.5})
+	place(b, game.Black, b.P(2, 2))
+	b.SetToPlay(game.White)
+	b.Play(game.Pass) // white passes; black owns the board
+	s := New(DefaultConfig(), nn.Uniform{})
+	s.Reset(b)
+	if !s.PassWins() {
+		t.Fatal("black should see that passing wins")
+	}
+	b2 := game.NewBoard(game.Options{Size: 5, Komi: 7.5})
+	b2.Play(game.Pass) // black passes on an empty board; white wins on komi
+	s.Reset(b2)
+	if !s.PassWins() {
+		t.Fatal("white should see that passing wins on komi")
+	}
+	b3 := game.NewBoard(game.Options{Size: 5, Komi: 7.5})
+	b3.SetToPlay(game.White)
+	b3.Play(game.Pass) // black to move would lose by passing
+	s.Reset(b3)
+	if s.PassWins() {
+		t.Fatal("passing loses for black here")
+	}
+}
