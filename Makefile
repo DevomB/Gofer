@@ -2,7 +2,7 @@ PYTHON ?= .venv/bin/python
 MODEL  ?= models/gofer-9x9.onnx
 RUN    ?= runs/9x9
 
-.PHONY: build build-nocgo test test-go test-py race lint bench gtp play train ort
+.PHONY: build build-nocgo test test-go test-py race lint bench gtp play train ort site site-data
 
 # Engine with ONNX Runtime (needs CGO and scripts/install-ort.sh).
 build:
@@ -43,3 +43,11 @@ train: build
 
 ort:
 	scripts/install-ort.sh
+
+# Static site in web/: the engine as WebAssembly plus the released network (outputs are committed).
+site:
+	scripts/build-site.sh
+
+# The page's data (hero analysis, per-generation openings, games, Elo) from a training run.
+site-data:
+	CGO_ENABLED=1 go run -tags onnx ./cmd/sitedata -run $(RUN)

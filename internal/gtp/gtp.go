@@ -391,6 +391,12 @@ func (e *Engine) genmove(c game.Color) (string, error) {
 	if e.board.GameOver() {
 		e.s.Reset(e.board)
 	}
+	if e.s.PassWins() {
+		if err := e.apply(c, game.Pass); err != nil {
+			return "", err
+		}
+		return "pass", nil
+	}
 	movesLeft := (e.board.NumPoints() - e.board.MoveNum()/2) / 2
 	if budget := e.clock[c].budget(movesLeft); budget > 0 {
 		// Under time control, search until the budget is spent (at least one

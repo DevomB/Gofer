@@ -35,6 +35,20 @@ A rewrite of the engine core and the training pipeline. See
 - Evaluation: arena with paired openings, GNU Go (or any GTP engine) as anchors with dead-stone
   adjudication, Wilson intervals, Elo, SPRT, and a Bradley-Terry ladder across generations
 
+### Web
+
+- Redesigned landing page: hand-written CSS and self-hosted fonts (no CSS build step, no runtime CDN
+  for styles), canvas boards, inline SVG charts, new icons and social image
+- Play the real engine in the browser: `cmd/gofer-wasm` compiles rules and search to WebAssembly and
+  evaluates the network with onnxruntime-web, loaded on demand. The search yields to the browser
+  every 16 visits, so the page stays responsive while Gofer thinks; a new game or undo cancels a
+  running search
+- The hero replays a real win over GNU Go level 10 with Gofer's own analysis of every position
+- "Watch it learn": all 18 generations with one self-play game each, the raw opening policy, and the
+  Elo ladder against GNU Go, generated from the training run by `cmd/sitedata` (`make site-data`)
+- Players pass once the opponent has passed and passing wins on the count, instead of filling their
+  own territory
+
 ### Removed
 
 - HTTP inference sidecar, heuristic evaluator, JSONL samples, SGF-to-JSONL converter, Lightsail/AWS
