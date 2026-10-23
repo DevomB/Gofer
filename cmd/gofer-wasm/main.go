@@ -24,9 +24,13 @@ type engine struct {
 	moves  []game.Point
 	search *mcts.Search
 	eval   *jsEval
+	epoch  int // bumped by every reset, so a search still running for the old game gives up
 }
 
+var errCancelled = errors.New("gofer: search cancelled by a new game or undo")
+
 func (e *engine) reset() {
+	e.epoch++
 	e.board = game.NewBoard(game.Options{Size: size, Komi: e.komi, Superko: true})
 	e.moves = nil
 	cfg := mcts.DefaultConfig()
@@ -124,6 +128,19 @@ func await(p js.Value) (js.Value, error) {
 	return r.v, r.err
 }
 
+// yieldToBrowser lets the page render and handle input. The search runs on
+// the page's only thread, and network evaluations resolve as microtasks, so
+// without this a long search freezes the page until it finishes.
+func yieldToBrowser() {
+	var cb js.Func
+	cb = js.FuncOf(func(_ js.Value, args []js.Value) any {
+		js.Global().Call("setTimeout", args[0], 0)
+		return nil
+	})
+	await(js.Global().Get("Promise").New(cb))
+	cb.Release()
+}
+
 func float32Array(xs []float32) js.Value {
 	arr := js.Global().Get("Float32Array").New(len(xs))
 	buf := js.Global().Get("Uint8Array").New(arr.Get("buffer"))
@@ -197,7 +214,7 @@ func promise(fn func() (any, error)) js.Value {
 func main() {
 	e := &engine{komi: 7.5, eval: &jsEval{rng: rand.New(rand.NewSource(rand.Int63())), cache: map[uint64]nn.Output{}}}
 	e.reset()
-	busy := false
+	busy, busyEpoch := false, 0
 	api := map[string]any{
 		"setEvaluator": js.FuncOf(func(_ js.Value, args []js.Value) any {
 			e.eval.fn = args[0]
@@ -212,7 +229,7 @@ func main() {
 		}),
 		"state": js.FuncOf(func(js.Value, []js.Value) any { return js.ValueOf(e.state()) }),
 		"play": js.FuncOf(func(_ js.Value, args []js.Value) any {
-			if busy {
+			if busy && busyEpoch == e.epoch {
 				return js.ValueOf(map[string]any{"ok": false, "error": "engine is thinking"})
 			}
 			if err := e.play(game.Point(args[0].Int())); err != nil {
@@ -243,11 +260,12 @@ func main() {
 				progress = args[1]
 			}
 			return promise(func() (any, error) {
-				if busy {
-					return nil, errors.New("engine is thinking")
+				for busy { // a cancelled search stops at its next step
+					yieldToBrowser()
 				}
-				busy = true
+				busy, busyEpoch = true, e.epoch
 				defer func() { busy = false }()
+				epoch := e.epoch
 				if e.search.PassWins() {
 					res := summary(e.search, 0, 0)
 					if err := e.play(game.Pass); err != nil {
@@ -258,13 +276,17 @@ func main() {
 					return js.ValueOf(res), nil
 				}
 				for done := 0; done < visits; {
-					step := min(48, visits-done)
+					step := min(16, visits-done)
 					if err := e.search.Run(step); err != nil {
 						return nil, err
 					}
 					done += step
 					if progress.Type() == js.TypeFunction {
 						progress.Invoke(js.ValueOf(summary(e.search, done, visits)))
+					}
+					yieldToBrowser()
+					if e.epoch != epoch {
+						return nil, errCancelled
 					}
 				}
 				res := summary(e.search, visits, visits)

@@ -48,11 +48,13 @@ the box.
 ## Play it in the browser
 
 The landing page in [`web/`](web/) runs the same engine compiled to
-WebAssembly, with the network evaluated by onnxruntime-web: watch a game
-against GNU Go or play Gofer directly. Rebuild it with `make site`
-(Tailwind CSS, `GOOS=js GOARCH=wasm` engine, model copy; outputs are committed
-so any static host can serve `web/`), and preview with
-`python3 -m http.server -d web 8000`.
+WebAssembly, with the network evaluated by onnxruntime-web: play Gofer,
+watch its analysis of a win over GNU Go, and scrub through all 18
+generations of the training run. The page is plain HTML, CSS and JavaScript;
+`make site` rebuilds the engine (`GOOS=js GOARCH=wasm`) and copies the model,
+and `make site-data RUN=runs/9x9` regenerates `web/data/` from a training run
+(`cmd/sitedata`). Outputs are committed, so any static host can serve `web/`;
+preview with `python3 -m http.server -d web 8000`.
 
 ## Train your own
 
@@ -89,6 +91,7 @@ bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=10 -games 
 | `internal/selfplay`, `internal/arena`, `internal/gtp`, `internal/sgf` | applications |
 | `cmd/gofer` | CLI |
 | `cmd/gofer-wasm`, `web/` | the engine in WebAssembly and the landing page |
+| `cmd/sitedata` | builds the landing page's data from a training run |
 | `training/` | model, data, trainer, export, loop, Elo, report (+ tests) |
 | `docs/` | [architecture](docs/architecture.md), [training](docs/training.md), [v2 audit](docs/v2-audit.md) |
 

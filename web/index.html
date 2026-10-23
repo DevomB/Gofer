@@ -1,575 +1,380 @@
-<!DOCTYPE html>
-<html lang="en" class="scroll-smooth">
+<!doctype html>
+<html lang="en" class="no-js">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gofer — a Go engine that teaches itself</title>
-<meta name="description" content="An AlphaZero-style Go engine in ~4,300 lines of Go — bitset board, PUCT search, batched ONNX inference, GTP — with a PyTorch loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
+<title>Gofer — a Go engine that taught itself</title>
+<meta name="description" content="Gofer is an AlphaZero-style Go engine written in Go. It learned 9×9 Go from nothing by playing itself, and 3.6 hours later beat GNU Go 66–34. Play it in your browser.">
 <meta name="author" content="DevomB">
-<meta property="og:title" content="Gofer — a Go engine that teaches itself">
-<meta property="og:description" content="Four thousand years of Go. Four thousand lines of Go. Self-taught from random play, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
+<meta name="theme-color" content="#f3eee4">
+<meta property="og:title" content="Gofer — taught itself Go. In Go.">
+<meta property="og:description" content="An AlphaZero-style engine that learned 9×9 Go from zero by self-play and beat GNU Go 66–34 after 3.6 hours on four CPU cores. Play it in your browser.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Gofer">
-<meta property="og:image" content="https://gofer.devomb.com/og-image.png">
 <meta property="og:url" content="https://gofer.devomb.com/">
+<meta property="og:image" content="https://gofer.devomb.com/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Gofer — a Go engine that teaches itself">
-<meta name="twitter:description" content="PUCT search, batched ONNX inference, GTP, and a self-play loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
+<meta name="twitter:title" content="Gofer — taught itself Go. In Go.">
+<meta name="twitter:description" content="Self-play from zero to beating GNU Go 66–34 in 3.6 hours on four CPU cores. Play it in your browser.">
 <meta name="twitter:image" content="https://gofer.devomb.com/og-image.png">
-<meta name="theme-color" content="#07070D">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
-<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Gofer","description":"An AlphaZero-style Go engine in ~4,300 lines of Go — bitset board, PUCT search, batched ONNX inference, GTP — with a PyTorch loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.","codeRepository":"https://github.com/DevomB/Gofer","programmingLanguage":"Go","runtimePlatform":"Go 1.22+","author":{"@type":"Person","name":"DevomB","url":"https://github.com/DevomB"}}
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="preload" href="fonts/bricolage-grotesque.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
+<script>document.documentElement.classList.remove('no-js')</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Gofer","description":"An AlphaZero-style Go engine written in Go, with a PyTorch self-play training loop that learned 9×9 Go from zero.","codeRepository":"https://github.com/DevomB/Gofer","programmingLanguage":["Go","Python"],"author":{"@type":"Person","name":"DevomB","url":"https://github.com/DevomB"}}
+</script>
 </head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
 
-<body class="bg-bg text-ink font-sans antialiased overflow-x-hidden">
-
-<!-- ======================= NAV ======================= -->
-<header class="fixed top-0 inset-x-0 z-50 border-b border-line bg-bg/80 backdrop-blur-md">
-  <nav class="mx-auto max-w-6xl px-5 h-16 flex items-center justify-between">
-    <a href="#top" class="flex items-center gap-3 group">
-      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
-        <rect width="26" height="26" rx="6" fill="#151827"/>
-        <path d="M6.5 6.5h13M6.5 13h13M6.5 19.5h13M6.5 6.5v13M13 6.5v13M19.5 6.5v13" stroke="#5B4FC0" stroke-width="1" fill="none"/>
-        <circle cx="13" cy="13" r="3.4" fill="#07070D" stroke="#2A2D45" stroke-width=".5"/>
-        <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
-      </svg>
-      <span class="font-display text-lg tracking-wide">Gofer</span>
-      <span class="hidden sm:inline font-mono text-[.65rem] text-ink-mute border border-line rounded px-1.5 py-0.5 mt-0.5">v3.0</span>
+<header class="nav" id="nav">
+  <div class="wrap nav-in">
+    <a class="brand" href="#top" aria-label="Gofer, back to top">
+      <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><defs><radialGradient id="mk" cx=".36" cy=".3" r=".75"><stop offset="0" stop-color="#5b5b58"/><stop offset=".55" stop-color="#1b1a18"/><stop offset="1" stop-color="#050505"/></radialGradient></defs><circle cx="16" cy="16" r="14.5" fill="url(#mk)"/><circle cx="16" cy="16" r="4.3" fill="#d63c1b"/></svg>
+      <span>gofer</span>
     </a>
-    <div class="hidden md:flex items-center gap-7 text-sm text-ink-dim">
-      <a href="#engine" class="hover:text-ink transition-colors">Engine</a>
-      <a href="#loop" class="hover:text-ink transition-colors">The Loop</a>
-      <a href="#terminal" class="hover:text-ink transition-colors">Terminal</a>
-      <a href="#bench" class="hover:text-ink transition-colors">Benchmarks</a>
-      <a href="#decisions" class="hover:text-ink transition-colors">Paper trail</a>
-      <a href="#quickstart" class="hover:text-ink transition-colors">Quickstart</a>
-    </div>
-    <a href="https://github.com/DevomB/Gofer" class="hidden sm:flex items-center gap-2 text-sm bg-surface2 text-ink border border-line rounded-lg px-3.5 py-1.5 hover:border-violet/50 hover:text-violet-bright transition-all">
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
-      GitHub
-    </a>
-    <button id="nav-toggle" class="md:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-line text-ink-dim hover:text-ink hover:border-violet/40 transition-all" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="mobile-nav">
-      <svg id="nav-icon-open" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 5h13M2.5 9h13M2.5 13h13"/></svg>
-      <svg id="nav-icon-close" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" class="hidden" aria-hidden="true"><path d="M4 4l10 10M14 4L4 14"/></svg>
-    </button>
-  </nav>
-  <div id="mobile-nav" class="md:hidden border-t border-line bg-bg/95 backdrop-blur-md">
-    <div class="px-5 py-2 flex flex-col text-sm text-ink-dim">
-      <a href="#engine" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Engine</a>
-      <a href="#loop" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">The Loop</a>
-      <a href="#terminal" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Terminal</a>
-      <a href="#bench" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Benchmarks</a>
-      <a href="#decisions" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Paper trail</a>
-      <a href="#quickstart" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Quickstart</a>
-      <a href="https://github.com/DevomB/Gofer" class="nav-link py-3 flex items-center gap-2 text-violet-bright">GitHub ↗</a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#loop">How it learns</a>
+      <a href="#generations">Watch it learn</a>
+      <a href="#play">Play</a>
+      <a href="#engine">Engine</a>
+    </nav>
+    <div class="nav-cta">
+      <a class="btn btn-sm btn-ghost gh" href="https://github.com/DevomB/Gofer">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a class="btn btn-sm btn-ink" href="#play">Play</a>
     </div>
   </div>
 </header>
 
-<!-- ======================= HERO ======================= -->
-<section id="top" class="relative pt-28 pb-16 lg:pt-32 lg:pb-24 overflow-hidden">
-  <div class="absolute inset-0 hero-grid" aria-hidden="true"></div>
-  <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-32 w-[42rem] h-[42rem] rounded-full bg-violet/[.09] blur-[130px]"></div>
-  <div aria-hidden="true" class="pointer-events-none absolute top-24 -right-40 w-[36rem] h-[36rem] rounded-full bg-gold/[.06] blur-[130px]"></div>
+<main id="main">
 
-  <div class="relative mx-auto max-w-6xl px-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-14 lg:gap-10 items-start">
-    <div class="min-w-0 lg:pt-10">
-      <p class="eyebrow mb-6 rv">self-taught &nbsp;·&nbsp; 9×9 Go</p>
-      <h1 class="rv font-display font-light text-[2.6rem] leading-[1.08] sm:text-6xl lg:text-[4.2rem] tracking-tight max-w-2xl">
-        Four thousand years of Go. <em class="italic whitespace-nowrap bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Four thousand lines</em> of&nbsp;Go.
-      </h1>
-      <p class="rv mt-7 text-lg text-ink-dim leading-relaxed max-w-xl">
-        Gofer is an AlphaZero-style Go engine — a bitset board, PUCT search, batched ONNX
-        inference and GTP, in Go — plus a PyTorch loop that taught it 9×9 Go from random play.
-        <span class="text-ink">3.6 hours on four CPU cores later, it beats GNU Go 66–34.</span>
-        Every number on this page is measured: Wilson intervals, an Elo ladder, GNU Go as the yardstick.
-      </p>
-      <div class="rv mt-9 flex flex-wrap items-center gap-3">
-        <a href="#board-card" data-play-gofer class="text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-5 py-2.5 hover:brightness-110 shadow-lg shadow-violet/20 transition-all">Play Gofer in your browser →</a>
-        <button data-copy="git clone https://github.com/DevomB/Gofer.git" class="copy-btn group flex items-center gap-3 font-mono text-sm bg-surface border border-line rounded-lg pl-4 pr-3 py-2.5 hover:border-violet/50 transition-all text-left">
-          <span class="text-violet select-none">$</span>
-          <span class="text-ink-dim group-hover:text-ink transition-colors">git clone DevomB/Gofer.git</span>
-          <svg class="copy-icon w-4 h-4 text-ink-mute group-hover:text-violet transition-colors shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
-        </button>
+<!-- ============ hero ============ -->
+<section class="hero" id="top">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <p class="kicker rv"><span class="live" aria-hidden="true"></span>Self-play reinforcement learning · 9×9</p>
+      <h1 class="display rv" style="--d:.06s"><span class="line">Taught itself</span><span class="line">Go. <em>In Go.</em></span></h1>
+      <p class="lede rv" style="--d:.12s">Gofer started out knowing only the rules. It played <b>10,200 games against itself</b>, learned from every one, and <b>3.6 hours later beat GNU Go 66–34</b>. No human games. No GPU. Four CPU cores and one loop.</p>
+      <div class="cta-row rv" style="--d:.18s">
+        <a class="btn btn-red btn-lg" href="#play">Play against it <span class="arrow" aria-hidden="true">→</span></a>
+        <a class="btn btn-line btn-lg" href="https://github.com/DevomB/Gofer">Read the code</a>
       </div>
-      <p class="rv mt-6 font-mono text-xs text-ink-mute">scripts/setup.sh → bin/gofer &nbsp;·&nbsp; rules, search, GTP and arena build in pure Go</p>
+      <ul class="stack rv" style="--d:.24s" aria-label="Built with">
+        <li>Go engine</li><li>PyTorch trainer</li><li>ONNX Runtime</li><li>WebAssembly</li>
+      </ul>
     </div>
 
-    <!-- goban card -->
-    <div id="board-card" class="rv relative min-w-0 scroll-mt-24">
-      <div class="absolute -inset-6 bg-violet/[.08] blur-3xl rounded-full" aria-hidden="true"></div>
-      <div class="absolute -inset-2 translate-x-10 translate-y-10 bg-gold/[.06] blur-3xl rounded-full" aria-hidden="true"></div>
-      <div class="relative bg-surface border border-line rounded-2xl overflow-hidden shadow-2xl shadow-black/60">
-        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
-          <div class="flex items-center gap-2 font-mono text-[.7rem] shrink-0" role="tablist" aria-label="Board mode">
-            <button id="mode-watch" role="tab" aria-selected="true" class="mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40">WATCH</button>
-            <button id="mode-play" role="tab" aria-selected="false" class="mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim">PLAY GOFER</button>
-          </div>
-          <div id="board-label" class="font-mono text-[.68rem] text-ink-mute truncate">vs GNU Go level 10</div>
-        </div>
-
-        <div class="p-4 sm:p-5">
-          <div class="relative">
-            <canvas id="goban" class="w-full rounded-lg block" aria-label="9×9 Go board: replay of Gofer against GNU Go, or a game against Gofer"></canvas>
-            <div id="play-overlay" class="absolute inset-0 hidden flex-col items-center justify-center gap-4 rounded-lg text-center px-6">
-              <p class="font-display text-2xl sm:text-3xl text-ink">Play the real engine</p>
-              <p class="text-sm text-ink-dim max-w-xs leading-relaxed">The same search and network that beat GNU Go, running in this tab. About 5&nbsp;MB, downloaded once.</p>
-              <div class="flex flex-wrap justify-center gap-2">
-                <button data-color="1" class="start-btn text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-4 py-2 hover:brightness-110">Play Black</button>
-                <button data-color="2" class="start-btn text-sm font-medium text-ink bg-surface2 border border-line rounded-lg px-4 py-2 hover:border-violet/50">Play White</button>
-              </div>
-              <p id="load-status" class="font-mono text-[.7rem] text-violet min-h-[1rem]" role="status" aria-live="polite"></p>
-            </div>
-            <noscript><p class="text-center text-sm text-ink-mute py-20">Enable JavaScript to watch Gofer's games or play against it.</p></noscript>
-          </div>
-
-          <!-- watch controls -->
-          <div id="watch-ctl" class="mt-4">
-            <div class="flex items-center gap-1.5">
-              <button id="rp-start" class="btn-ctl" title="Restart" aria-label="Restart replay"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 2h1.6v10H3zM12 2 5.5 7 12 12z"/></svg></button>
-              <button id="rp-back" class="btn-ctl" title="Back one move" aria-label="Back one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M10.5 2 4 7l6.5 5z"/></svg></button>
-              <button id="rp-play" class="btn-ctl !w-9 !h-9 !bg-surface2 border border-line hover:border-violet/50" title="Play / pause" aria-label="Play replay"></button>
-              <button id="rp-fwd" class="btn-ctl" title="Forward one move" aria-label="Forward one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3.5 2 10 7l-6.5 5z"/></svg></button>
-              <button id="rp-speed" class="btn-ctl !w-auto px-2 font-mono text-[.7rem]" title="Playback speed" aria-label="Playback speed">×1</button>
-              <input id="rp-scrub" type="range" class="scrub flex-1 min-w-0 mx-2" min="0" max="70" value="0" aria-label="Scrub through the game">
-              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums w-14 text-right shrink-0">0 / 70</span>
-            </div>
-          </div>
-
-          <!-- play controls -->
-          <div id="play-ctl" class="mt-4 hidden">
-            <div class="flex items-center gap-2 flex-wrap">
-              <span class="flex items-center gap-2 font-mono text-[.7rem] text-ink-dim mr-1 min-w-0"><span id="turn-dot" class="inline-block w-3 h-3 rounded-full bg-black border border-white/30 shrink-0"></span><span id="turn-label">Choose a color to start</span></span>
-              <span class="flex items-center gap-1.5 ml-auto">
-                <button id="fp-pass" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">pass</button>
-                <button id="fp-undo" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">undo</button>
-                <button id="fp-new" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">new</button>
-                <label class="font-mono text-[.7rem]"><span class="sr-only">Engine strength</span>
-                  <select id="fp-strength" class="strength">
-                    <option value="100">quick</option>
-                    <option value="400" selected>normal</option>
-                    <option value="1600">strong</option>
-                  </select>
-                </label>
-              </span>
-            </div>
-            <div class="mt-3" aria-label="Gofer's win-rate estimate">
-              <div class="flex justify-between font-mono text-[.64rem] text-ink-mute"><span>Black <span id="wb-b" class="text-ink-dim">50%</span></span><span>Gofer's estimate</span><span>White <span id="wb-w" class="text-ink-dim">50%</span></span></div>
-              <div class="mt-1 h-2 rounded-full bg-[#F2EDE0] overflow-hidden ring-1 ring-white/20"><div id="wb-fill" class="h-full bg-[#30343c]" style="width:50%"></div></div>
-            </div>
-            <p id="fp-msg" class="mt-2 font-mono text-[.7rem] text-violet min-h-[1rem]" role="status" aria-live="polite"></p>
-          </div>
-
-          <div class="mt-3 flex items-center justify-between gap-3 font-mono text-[.68rem] text-ink-mute">
-            <span id="board-status" class="truncate">&nbsp;</span>
-            <span id="board-caps" class="shrink-0">captures — B 0 · W 0</span>
-          </div>
+    <figure class="hero-board rv" style="--d:.1s" aria-label="Replay of Gofer beating GNU Go, with Gofer's analysis">
+      <div class="matchup">
+        <div class="player" id="hero-pb"><i class="stone b"></i><div><b>GNU Go 3.8</b><span>level 10 · Black</span></div></div>
+        <span class="vs">vs</span>
+        <div class="player right" id="hero-pw"><i class="stone w"></i><div><b>Gofer</b><span>400 visits · White</span></div></div>
+      </div>
+      <div class="goban" id="hero-goban">
+        <canvas id="hero-board" role="img" aria-label="Go board"></canvas>
+        <div class="board-ctrls">
+          <button class="icon-btn" id="hero-toggle" aria-label="Pause"><svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="3" y="2" width="3.5" height="12" rx="1"/><rect x="9.5" y="2" width="3.5" height="12" rx="1"/></svg></button>
+          <button class="icon-btn" id="hero-restart" aria-label="Restart"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M2.5 8a5.5 5.5 0 1 0 1.7-4"/><path d="M2.5 1.8v3h3"/></svg></button>
         </div>
       </div>
-      <p class="mt-4 text-center font-mono text-[.68rem] text-ink-mute leading-relaxed">
-        <span id="board-caption">A game from the final evaluation.</span>
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= STAT BAND ======================= -->
-<section class="border-y border-line bg-surface/40">
-  <div class="mx-auto max-w-6xl px-5 py-12 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-10">
-    <div class="rv">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">66–34</div>
-      <div class="mt-2 text-sm text-ink-dim">against GNU Go 3.8, level 10</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">100 games · 400 visits · Elo +115 [+44, +187]</div>
-    </div>
-    <div class="rv" style="transition-delay:.07s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">3.6<span class="text-xl text-ink-dim ml-1">h</span></div>
-      <div class="mt-2 text-sm text-ink-dim">from random play, on 4 vCPUs</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">10,200 self-play games · no GPU · no human data</div>
-    </div>
-    <div class="rv" style="transition-delay:.14s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">20–0</div>
-      <div class="mt-2 text-sm text-ink-dim">against the v2 engine</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">at a quarter of its search budget</div>
-    </div>
-    <div class="rv" style="transition-delay:.21s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">490k</div>
-      <div class="mt-2 text-sm text-ink-dim">playouts per second of pure search</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">4 vCPUs · ~4 µs per playout · was ~520 µs</div>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= ENGINE ======================= -->
-<section id="engine" class="mx-auto max-w-6xl px-5 pt-24 pb-8">
-  <p class="eyebrow rv">Inside the engine</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Everything a Go engine needs. <em class="italic text-gold-bright">Nothing it doesn't.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">One binary plays, analyzes, referees and generates training data; Python only trains. The design is written down in <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">docs/architecture.md</a>.</p>
-
-  <div class="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="4" y="4" width="20" height="20" rx="2"/><path d="M4 11h20M4 18h20M11 4v20M18 4v20"/></svg>
-      <h3 class="mt-4 font-medium text-lg">Rules that hold up</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chains and exact liberties kept incrementally in bitsets, simple ko, positional superko from per-chain Zobrist hashes, Tromp-Taylor area scoring. Differential-tested against a naive reference on random games from 5×5 to 19×19.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">internal/game · 0.7 µs per move incl. legal moves</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="14" cy="5" r="2.5"/><circle cx="7" cy="14" r="2.5"/><circle cx="21" cy="14" r="2.5"/><circle cx="4" cy="23" r="2.5"/><circle cx="10" cy="23" r="2.5"/><path d="m12.5 6.8-4 4.7M15.5 6.8l4 4.7M6 16.4l-1.3 4.2M8 16.4l1.3 4.2"/></svg>
-      <h3 class="mt-4 font-medium text-lg">PUCT search, done right</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">One documented sign convention, virtual-loss leaf batching, Dirichlet root noise, tree reuse, exact scoring of finished games, and a pass rule that keeps an untrained net from ending games at random.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">internal/mcts · regression test for every v2 defect</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="7" y="7" width="14" height="14" rx="2"/><path d="M11 7V3.5M17 7V3.5M11 24.5V21M17 24.5V21M7 11H3.5M7 17H3.5M24.5 11H21M24.5 17H21"/></svg>
-      <h3 class="mt-4 font-medium text-lg">Batched inference</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Concurrent searches feed one evaluator; worker sessions run ONNX Runtime on every CPU core, or CUDA / TensorRT on a GPU. Random board symmetry per evaluation and a position cache.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-device cpu|cuda|tensorrt · 6×64 net · 477k params</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 8h12M4 14h20M4 20h16"/><path d="m20 5 3 3-3 3M18 17l3 3-3 3"/></svg>
-      <h3 class="mt-4 font-medium text-lg">Speaks GTP</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Drop it into Sabaki or Lizzie. Live <span class="font-mono text-[.8em]">lz-analyze</span> overlays, <span class="font-mono text-[.8em]">time_settings</span>/<span class="font-mono text-[.8em]">time_left</span> budgets, undo, final_score, resignation.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">bin/gofer gtp -model models/gofer-9x9.onnx</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 4h13l5 5v15H5z"/><path d="M18 4v5h5M9 14h10M9 18h10M9 10h4"/></svg>
-      <h3 class="mt-4 font-medium text-lg">A data factory</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play with KataGo's playout-cap randomization writes compact NumPy shards: 13 feature planes, visit-count policy, game result, search value, final ownership. Resignation with measured false-positive rate.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">gofer selfplay → .npz · ~1.2 games/s on 4 vCPUs</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
-      <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M14 4v20M6 24h16"/><path d="M14 7 7 12h14zM4 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3zM18 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3z"/></svg>
-      <h3 class="mt-4 font-medium text-lg">An honest arena</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Any two players — networks, rollout MCTS, GNU Go or any GTP engine. Paired openings with colors swapped, GNU Go dead-stone adjudication, Wilson intervals, Elo, and SPRT for gating.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">gofer arena -a nn:model.onnx -b gnugo,level=10</p>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= THE LOOP ======================= -->
-<section id="loop" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
-  <p class="eyebrow rv">The training loop</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Random play to <em class="italic text-gold-bright">GNU Go, in an afternoon.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every generation: the newest network plays itself, a replay window of recent games trains the next one with all eight board symmetries, the export is checked against PyTorch, and the result is rated against its predecessor and against GNU Go. Stop it anywhere — the same command resumes.</p>
-
-  <!-- circular loop (desktop) -->
-  <div class="rv mt-10 hidden md:block">
-    <svg viewBox="0 0 760 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay window, train, export ONNX, evaluate, Elo ladder, and back to self-play">
-      <!-- ring -->
-      <circle cx="380" cy="280" r="185" fill="none" stroke="#232741" stroke-width="1.5"/>
-      <circle class="loop-ring" cx="380" cy="280" r="185" fill="none" stroke="#8B7CF6" stroke-width="1.5" opacity=".6"/>
-      <!-- clockwise direction arrows at segment midpoints -->
-      <g fill="#4E4599" opacity=".95">
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(472.5 119.8) rotate(30)"/>
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(565 280) rotate(90)"/>
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(472.5 440.2) rotate(150)"/>
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(287.5 440.2) rotate(210)"/>
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(195 280) rotate(270)"/>
-        <path d="M-5 -3.5 L6 0 L-5 3.5 z" transform="translate(287.5 119.8) rotate(330)"/>
-      </g>
-
-      <!-- center -->
-      <text x="380" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#8B7CF6">THE LOOP</text>
-      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">generation 17</text>
-      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">10,200 games · 197k positions</text>
-
-      <!-- nodes: angles -90,-30,30,90,150,210 on r=185 around (380,280) -->
-      <g font-family="Inter, sans-serif">
-        <!-- SELF-PLAY (top) -->
-        <g>
-          <circle cx="380" cy="95" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="380" y="66" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Self-play</text>
-          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">newest net vs itself → .npz</text>
-        </g>
-        <!-- REPLAY BUFFER (upper right) -->
-        <g>
-          <circle cx="540.2" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay window</text>
-          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">grows 60k → 400k rows</text>
-        </g>
-        <!-- TRAIN (lower right) -->
-        <g>
-          <circle cx="540.2" cy="372.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="562" y="368" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Train</text>
-          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · 8 symmetries · AdamW</text>
-        </g>
-        <!-- EXPORT (bottom) -->
-        <g>
-          <circle cx="380" cy="465" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="380" y="497" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Export ONNX</text>
-          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · 1.9 MB · verified vs PyTorch</text>
-        </g>
-        <!-- ARENA (lower left) — the gate, emphasized -->
-        <g>
-          <circle cx="219.8" cy="372.5" r="10" fill="#D6A85C"/>
-          <circle cx="219.8" cy="372.5" r="15" fill="none" stroke="#D6A85C" stroke-width="1" opacity=".35"/>
-          <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Evaluate</text>
-          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">vs previous gen + GNU Go</text>
-        </g>
-        <!-- PROMOTE (upper left) -->
-        <g>
-          <circle cx="219.8" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="198" y="180" text-anchor="end" font-size="13.5" font-weight="600" fill="#EAEAF4">Elo ladder</text>
-          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">Bradley–Terry fit, gen 0 = 0</text>
-        </g>
-      </g>
-    </svg>
-  </div>
-
-  <!-- stacked loop (mobile) -->
-  <div class="rv mt-10 md:hidden space-y-0">
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">newest net vs itself → .npz</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay window</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">grows 60k → 400k rows</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · 8 symmetries · AdamW</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 1.9 MB · verified</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Evaluate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">vs previous gen + GNU Go</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Elo ladder — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">Bradley–Terry fit, gen 0 = 0</div></div></div>
-  </div>
-
-  <div class="rv mt-12 bg-surface border border-line rounded-xl p-5 sm:p-7">
-    <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <p class="eyebrow !text-[.62rem]">Strength by generation</p>
-      <p class="font-mono text-[.66rem] text-ink-mute">Bradley–Terry Elo, generation 0 = random play · 40-game matches at 100 visits</p>
-    </div>
-    <div id="elo-chart" class="mt-4"></div>
-  </div>
-
-  <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
-    <div class="rv bg-surface border border-line rounded-xl p-6">
-      <p class="eyebrow !text-[.62rem]">No gate</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Like AlphaZero and KataGo, the newest network always plays the next games. Evaluation is <span class="text-ink">measurement, not a toll booth</span> — v2 spent five times more compute gating than generating data. SPRT is there if you want a gate.</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
-      <p class="eyebrow !text-[.62rem]">The yardstick</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Strength is measured against an engine nobody tuned for: <span class="text-ink">GNU Go 3.8 — 66–34 at its default level 10, 78–22 at level 1, over 100 games each with colors swapped.</span> GNU Go judges dead stones at the end of every game.</p>
-    </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.14s">
-      <p class="eyebrow !text-[.62rem]">The honest part</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">v2's search backed values up with the wrong sign and skipped the search on fresh trees, so its training never had a chance. <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="text-ink underline underline-offset-4 decoration-violet/30 hover:text-violet-bright">The audit</a> lists every defect, with measurements and a regression test.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ======================= TERMINAL ======================= -->
-<section id="terminal" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
-  <div class="grid grid-cols-1 lg:grid-cols-[.9fr_1.1fr] gap-12 items-start">
-    <div class="lg:sticky lg:top-28 min-w-0">
-      <p class="eyebrow rv">One binary</p>
-      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Meet it in the <em class="italic text-gold-bright">terminal.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or referee a match against GNU Go. Every session below is real, captured output from the generation-17 network.</p>
-      <div class="rv mt-8 flex flex-wrap gap-2 font-mono text-[.7rem]">
-        <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">play</button>
-        <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">gtp</button>
-        <button data-tab="selfplay" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">selfplay</button>
-        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">arena</button>
+      <div class="winbar" aria-hidden="true">
+        <div class="winbar-track"><div class="winbar-b" id="hero-wb"></div><div class="winbar-mid"></div></div>
+        <div class="winbar-labels"><span>Black <b id="hero-wb-b">50%</b></span><span>Gofer's win estimate</span><span>White <b id="hero-wb-w">50%</b></span></div>
       </div>
-    </div>
+      <figcaption class="hero-cap" id="hero-cap" aria-live="off">A real game from the evaluation: 100 games like this one, colors swapped, GNU Go judging dead stones.</figcaption>
+    </figure>
+  </div>
+</section>
 
-    <div class="rv min-w-0">
-      <div class="bg-[#0B0C15] border border-line rounded-xl overflow-hidden shadow-2xl shadow-black/60">
-        <div class="flex items-center gap-2 px-4 py-3 border-b border-line bg-surface">
-          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
-          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
-          <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
-          <span id="term-title" class="ml-3 font-mono text-[.68rem] text-ink-mute">bin/gofer play -model models/gofer-9x9.onnx</span>
-        </div>
-        <pre id="term-body" class="p-5 font-mono text-[.78rem] leading-[1.55] text-ink-dim overflow-x-auto min-h-[26rem] max-h-[26rem] overflow-y-auto whitespace-pre" aria-live="off"></pre>
-      </div>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer v3 — not a mock-up</p>
+<!-- ============ scoreboard ============ -->
+<section class="scores" aria-label="Results">
+  <div class="wrap scores-grid">
+    <div class="score rv">
+      <p class="score-num"><span data-count="66">66</span><span class="dash">–</span><span data-count="34">34</span></p>
+      <p class="score-label">against GNU Go 3.8 at its default level</p>
+      <p class="score-note">100 games · 400 visits a move · Elo +115 [+44, +187]</p>
+    </div>
+    <div class="score rv" style="--d:.08s">
+      <p class="score-num"><span data-count="3.6" data-dec="1">3.6</span><small>hours</small></p>
+      <p class="score-label">from random play to that result</p>
+      <p class="score-note">17 generations · one 4-vCPU VM · no GPU</p>
+    </div>
+    <div class="score rv" style="--d:.16s">
+      <p class="score-num"><span data-count="10200">10,200</span></p>
+      <p class="score-label">games it played against itself</p>
+      <p class="score-note">197k training positions, each seen in 8 symmetries</p>
+    </div>
+    <div class="score rv" style="--d:.24s">
+      <p class="score-num"><span>0</span></p>
+      <p class="score-label">human games it ever saw</p>
+      <p class="score-note">the rules, then self-play: nothing else</p>
     </div>
   </div>
 </section>
 
-<!-- ======================= BENCH ======================= -->
-<section id="bench" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
-    <div class="min-w-0">
-      <p class="eyebrow rv">Where the time goes</p>
-      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">The network is <em class="italic text-gold-bright">the only bottleneck.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">v2 spent about as long in Go code as in the network for every evaluation, and ran the network on one core. v3 keeps chains and liberties incrementally, so a whole search step costs ~4 µs, and spreads inference over every core — or a GPU.</p>
-      <p class="rv mt-4 text-ink-dim leading-relaxed">Measured on a 4-vCPU cloud VM with <span class="font-mono text-[.85em] text-ink">go test -bench</span> and <span class="font-mono text-[.85em] text-ink">gofer bench</span>.</p>
-    </div>
-    <div class="rv min-w-0">
-      <div class="bg-surface border border-line rounded-xl overflow-x-auto">
-        <table class="w-full text-sm min-w-[26rem]">
-          <thead>
-            <tr class="border-b border-line font-mono text-[.66rem] uppercase tracking-wider text-ink-mute">
-              <th class="text-left font-medium px-5 py-3">benchmark</th>
-              <th class="text-right font-medium px-3 py-3">v3</th>
-              <th class="text-right font-medium px-5 py-3">v2</th>
-            </tr>
-          </thead>
-          <tbody class="font-mono text-[.8rem] [font-variant-numeric:tabular-nums]">
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Random 9×9 game <span class="text-ink-mute">(legal moves every ply)</span></td><td class="px-3 py-3 text-right text-ink-dim">134 µs</td><td class="px-5 py-3 text-right text-ink-dim">—</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Board copy</td><td class="px-3 py-3 text-right text-ink-dim">86 ns</td><td class="px-5 py-3 text-right text-ink-dim">130 ns</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Go-side cost per network eval</td><td class="px-3 py-3 text-right"><span class="text-violet">~4 µs</span></td><td class="px-5 py-3 text-right text-ink-dim">~520 µs</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Pure search, 4 vCPUs</td><td class="px-3 py-3 text-right"><span class="text-violet">490k/s</span></td><td class="px-5 py-3 text-right text-ink-dim">—</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Network evals, 6×64, 4 vCPUs</td><td class="px-3 py-3 text-right"><span class="text-violet">6,000/s</span></td><td class="px-5 py-3 text-right text-ink-dim">1,130/s</td></tr>
-            <tr><td class="px-5 py-3 text-ink">Cores used by self-play</td><td class="px-3 py-3 text-right"><span class="text-violet">4 of 4</span></td><td class="px-5 py-3 text-right text-ink-dim">1.2 of 4</td></tr>
-          </tbody>
-        </table>
-      </div>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">v2 network figure is its own (larger) 6×64 net; see docs/v2-audit.md</p>
-    </div>
-  </div>
-</section>
+<!-- ============ the loop ============ -->
+<section class="section" id="loop">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="sec-num rv"><span>01</span>How it learns</p>
+      <h2 class="h2 rv" style="--d:.06s">The whole trick is <em>one loop.</em></h2>
+      <p class="sec-lede rv" style="--d:.12s">Play, learn, check, repeat. Each lap produces a new network, and that network plays the next lap's games, so the teacher and the student improve together. Gofer ran the loop 17 times, about 13 minutes a lap.</p>
+    </header>
 
-<!-- ======================= DECISIONS ======================= -->
-<section id="decisions" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
-  <p class="eyebrow rv">Paper trail</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Every defect, <em class="italic text-gold-bright">written down.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">v3 started with an audit of v2. The findings, the design that replaced it, and the run that proved it are all in the repo — including v2's original decision records.</p>
-
-  <div class="mt-10 space-y-3">
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">AUDIT</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Why v2 could not learn</span>
-      <span class="text-sm text-ink-dim">Inverted backup sign, searches that never ran, near-uniform policy targets, one-core inference, truncated games — 13 defects, each measured.</span>
-      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
-    </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.04s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">DESIGN</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Architecture</span>
-      <span class="text-sm text-ink-dim">Packages, the search's sign convention, batching, feature schema, network and data format.</span>
-      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
-    </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/training.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.08s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">TRAIN</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Training guide</span>
-      <span class="text-sm text-ink-dim">The loop, its settings, throughput by network size, and how to run it on a GPU.</span>
-      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
-    </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/results/summary.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.12s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">RESULTS</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">The run</span>
-      <span class="text-sm text-ink-dim">Every generation: self-play speed, held-out losses, Elo, and results against GNU Go.</span>
-      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
-    </a>
-    <a href="https://github.com/DevomB/Gofer/tree/main/docs/archive/decisions" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.16s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">v2 decision records</span>
-      <span class="text-sm text-ink-dim">The original five ADRs, kept for the record.</span>
-      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
-    </a>
-  </div>
-</section>
-
-<!-- ======================= QUICKSTART ======================= -->
-<section id="quickstart" class="mx-auto max-w-6xl px-5 pt-24 pb-24">
-  <p class="eyebrow rv">Quickstart</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">five minutes</em> — <a href="#board-card" data-play-gofer class="text-violet hover:text-violet-bright text-2xl sm:text-3xl align-middle">or right now ↑</a></h2>
-
-  <div class="mt-12 grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-10 items-start">
-    <ol class="space-y-4 min-w-0">
-      <li class="rv flex gap-4">
-        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">1</span>
-        <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> git clone https://github.com/DevomB/Gofer.git &amp;&amp; cd Gofer</pre>
-            <button data-copy="git clone https://github.com/DevomB/Gofer.git && cd Gofer" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
-          </div>
+    <ol class="loop-steps">
+      <li class="step rv">
+        <div class="step-top"><span class="step-n">1</span><span class="step-tag">Go<br>internal/selfplay</span></div>
+        <h3>Play itself</h3>
+        <p>The newest network plays 600 games against itself. Every move comes from a tree search that the network guides, and the search's choice, not the network's first guess, becomes the lesson.</p>
+        <div class="step-viz">
+          <div class="viz-box"><div class="goban"><canvas id="loop-board" aria-label="A self-play game being played"></canvas></div></div>
+          <p class="viz-cap"><span><b>600</b> games a lap</span><span><b>1.3</b> games/s</span></p>
         </div>
       </li>
-      <li class="rv flex gap-4">
-        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">2</span>
-        <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> scripts/setup.sh &amp;&amp; make test</pre>
-            <button data-copy="scripts/setup.sh && make test" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
-          </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">ONNX Runtime, GNU Go, Python venv, bin/gofer</p>
+      <li class="step rv" style="--d:.08s">
+        <div class="step-top"><span class="step-n">2</span><span class="step-tag">PyTorch<br>training/</span></div>
+        <h3>Learn from it</h3>
+        <p>A small residual network learns to predict two things from each position: where the search wanted to play, and who went on to win. Every position is used in all eight rotations and reflections.</p>
+        <div class="step-viz">
+          <div class="viz-box"><svg class="spark" id="loss-spark" aria-label="Policy loss by generation"></svg></div>
+          <p class="viz-cap"><span>policy loss <b>4.41 → 2.39</b></span><span>lower is better</span></p>
         </div>
       </li>
-      <li class="rv flex gap-4">
-        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">3</span>
-        <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer play -model models/gofer-9x9.onnx</pre>
-            <button data-copy="bin/gofer play -model models/gofer-9x9.onnx" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
-          </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">you're Black — type hint if you get stuck</p>
-        </div>
-      </li>
-      <li class="rv flex gap-4">
-        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">4</span>
-        <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer gtp -model models/gofer-9x9.onnx</pre>
-            <button data-copy="bin/gofer gtp -model models/gofer-9x9.onnx" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
-          </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">register as an engine in Sabaki or Lizzie — lz-analyze works</p>
-        </div>
-      </li>
-      <li class="rv flex gap-4">
-        <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
-        <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> make train</pre>
-            <button data-copy="make train" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
-          </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">python -m training.loop — self-play → train → export → evaluate, resumable</p>
+      <li class="step rv" style="--d:.16s">
+        <div class="step-top"><span class="step-n">3</span><span class="step-tag">Go<br>internal/arena</span></div>
+        <h3>Prove it</h3>
+        <p>The new network plays the previous one and GNU Go, colors swapped, with GNU Go judging dead stones. Every result goes onto an Elo ladder. Then the next lap starts.</p>
+        <div class="step-viz">
+          <div class="viz-box"><div class="tally" id="tally"></div></div>
+          <p class="viz-cap"><span>gen 16's report card</span><span>● win ○ loss</span></p>
         </div>
       </li>
     </ol>
+    <div class="loop-return" aria-hidden="true">
+      <svg viewBox="0 0 1000 70" preserveAspectRatio="none">
+        <path class="path" id="return-path" d="M 833 0 C 833 52, 780 58, 700 58 L 300 58 C 220 58, 167 52, 167 4"/>
+        <path class="head" d="M 161 12 L 167 0 L 173 12 Z"/>
+        <circle class="runner" r="6" id="runner"><animateMotion dur="3.2s" repeatCount="indefinite" rotate="auto"><mpath href="#return-path"/></animateMotion></circle>
+      </svg>
+      <p class="loop-return-label">the new network starts the next lap · <b>×17</b></p>
+    </div>
+  </div>
+</section>
 
-    <div class="rv bg-surface border border-line rounded-xl p-6 lg:sticky lg:top-28 min-w-0">
-      <p class="eyebrow !text-[.62rem]">What you need</p>
-      <ul class="mt-4 space-y-3 text-sm text-ink-dim">
-        <li class="flex gap-3"><span class="text-violet mt-0.5">●</span><span><span class="text-ink">Go 1.22+</span> and a C compiler for the engine</span></li>
-        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">ONNX Runtime</span> — fetched by scripts/install-ort.sh (CPU or GPU)</span></li>
-        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">Python + PyTorch</span> — only to train networks</span></li>
-      </ul>
-      <div class="mt-6 pt-5 border-t border-line">
-        <p class="font-mono text-[.68rem] text-ink-mute leading-relaxed">Default visits per move:</p>
-        <div class="mt-3 grid grid-cols-3 gap-2 text-center font-mono text-[.7rem]">
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">play</div><div class="text-ink-mute mt-0.5">400</div></div>
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">gtp</div><div class="text-ink-mute mt-0.5">800</div></div>
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">arena</div><div class="text-ink-mute mt-0.5">200</div></div>
+<!-- ============ generations ============ -->
+<section class="section gens" id="generations">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="sec-num rv"><span>02</span>Watch it learn</p>
+      <h2 class="h2 rv" style="--d:.06s">From noise to <em>Go,</em> one generation at a time.</h2>
+      <p class="sec-lede rv" style="--d:.12s">Drag through all 18 networks. On the left is a real game each one played against itself, or the moves it wants to open with before any search. On the right is how strong it was.</p>
+    </header>
+
+    <div class="gen-grid">
+      <div class="gen-board-col rv">
+        <div class="seg" role="group" aria-label="Board view">
+          <button type="button" data-view="game" aria-pressed="true">A game it played</button>
+          <button type="button" data-view="instinct" aria-pressed="false">Its first instinct</button>
+        </div>
+        <div class="goban"><canvas id="gen-board" role="img" aria-label="Board for the selected generation"></canvas></div>
+        <div class="gen-board-cap"><span id="gen-cap"></span><button class="btn btn-sm btn-line" id="gen-replay" type="button">Replay ▸</button></div>
+      </div>
+
+      <div class="gen-info-col rv" style="--d:.08s">
+        <div class="gen-readout">
+          <div><span class="gen-label">Generation</span><span class="gen-num" id="gen-num" aria-live="polite">17</span></div>
+          <div class="gen-elo"><span class="gen-label">Elo</span><b id="gen-elo">+2318</b><small id="gen-se">± 54 · gen 0 = 0</small></div>
+        </div>
+        <p class="gen-note" id="gen-note"></p>
+        <ul class="gen-results" id="gen-results" aria-label="Evaluation results"></ul>
+        <div class="chart" id="elo-chart"></div>
+        <div class="range-wrap">
+          <label class="sr-only" for="gen-range">Generation</label>
+          <input class="range" id="gen-range" type="range" min="0" max="17" step="1" value="17">
+          <div class="range-ticks" aria-hidden="true"><span>0</span><span>3</span><span>6</span><span>9</span><span>12</span><span>15</span><span>17</span></div>
         </div>
       </div>
-      <div class="mt-6 pt-5 border-t border-line">
-        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">architecture</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/training.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">training guide</a>, and the <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">v2 audit</a>.</p>
+    </div>
+
+    <div class="gen-strip-head">
+      <p>The final position of one self-play game from each generation. Tap one to open it.</p>
+      <p>gen 0: scattered stones · gen 17: walls and territory</p>
+    </div>
+    <div class="gen-strip" id="gen-strip"></div>
+  </div>
+</section>
+
+<!-- ============ play ============ -->
+<section class="section night" id="play">
+  <div class="glow" aria-hidden="true"></div>
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="sec-num rv"><span>03</span>Play</p>
+      <h2 class="h2 rv" style="--d:.06s">Your <em>move.</em></h2>
+      <p class="sec-lede rv" style="--d:.12s">This is the real engine, not a recording: the same Go search and the same network as <code>bin/gofer</code>, compiled to WebAssembly and running on your device. Nothing is sent to a server.</p>
+    </header>
+
+    <div class="play-grid">
+      <div class="play-board-col rv">
+        <div class="goban" id="play-goban">
+          <canvas id="play-board" role="img" aria-label="Your game against Gofer"></canvas>
+          <div class="play-overlay" id="play-overlay">
+            <div id="play-overlay-in"><button type="button" class="btn btn-red btn-lg" id="ov-start">Start a game <span class="arrow" aria-hidden="true">→</span></button><p class="msg" id="ov-hint">You play Black · Club strength</p></div>
+          </div>
+        </div>
+      </div>
+
+      <aside class="panel rv" style="--d:.08s" aria-label="Game controls">
+        <div id="pp-setup">
+          <div class="pp-block">
+            <p class="pp-label" id="side-label">Your stones</p>
+            <div class="side-pick" role="radiogroup" aria-labelledby="side-label">
+              <button type="button" class="side" role="radio" data-color="1" aria-checked="true"><i class="stone b"></i><span><b>Black</b><small>you move first</small></span></button>
+              <button type="button" class="side" role="radio" data-color="2" aria-checked="false"><i class="stone w"></i><span><b>White</b><small>Gofer opens</small></span></button>
+            </div>
+          </div>
+          <div class="pp-block">
+            <p class="pp-label" id="str-label">Gofer's strength</p>
+            <div class="seg seg-dark" role="radiogroup" aria-labelledby="str-label">
+              <button type="button" role="radio" data-visits="100" aria-checked="false">Casual<small>100 visits</small></button>
+              <button type="button" role="radio" data-visits="400" aria-checked="true">Club<small>400 visits</small></button>
+              <button type="button" role="radio" data-visits="1600" aria-checked="false">Full<small>1600 visits</small></button>
+            </div>
+          </div>
+          <button type="button" class="btn btn-red btn-lg btn-block pp-start" id="play-start">Start a game <span class="arrow" aria-hidden="true">→</span></button>
+          <p class="pp-fine">First start downloads the engine and network (about 5 MB).</p>
+        </div>
+
+        <div id="pp-game" hidden>
+          <div class="pp-status">
+            <p class="pp-turn" id="pp-turn" aria-live="polite"><i class="stone b"></i><span>Your move</span></p>
+            <span class="pp-progress" id="pp-progress"></span>
+          </div>
+          <div class="pbar"><i id="pp-pbar"></i></div>
+          <div class="winbar" aria-hidden="true">
+            <div class="winbar-track"><div class="winbar-b" id="pp-wb"></div><div class="winbar-mid"></div></div>
+            <div class="winbar-labels"><span>Black <b id="pp-wb-b">50%</b></span><span>Gofer's estimate</span><span>White <b id="pp-wb-w">50%</b></span></div>
+          </div>
+          <div class="cand cand-head" aria-hidden="true"><span>move</span><span>share of search</span><span class="wr">Gofer wins</span></div>
+          <ol class="cands" id="pp-cands" aria-label="Moves Gofer is considering"><li class="cands-empty">Gofer's candidate moves appear here while it thinks.</li></ol>
+          <dl class="pp-meta">
+            <div><dt>Move</dt><dd id="pp-move">0</dd></div>
+            <div><dt>Captures</dt><dd id="pp-caps">0 · 0</dd></div>
+            <div><dt>Komi</dt><dd>7.5</dd></div>
+          </dl>
+          <div class="pp-result" id="pp-result" hidden></div>
+          <div class="pp-actions">
+            <button type="button" class="btn btn-night" id="pp-pass">Pass</button>
+            <button type="button" class="btn btn-night" id="pp-undo">Undo</button>
+            <button type="button" class="btn btn-night" id="pp-new">New game</button>
+          </div>
+        </div>
+      </aside>
+    </div>
+    <div class="play-foot">
+      <span><b>Rules</b> area scoring, komi 7.5, positional superko</span>
+      <span><b>Tip</b> capture dead stones before you pass</span>
+      <span><b>Strength</b> “Club” is the setting that beat GNU Go 66–34</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ engine ============ -->
+<section class="section" id="engine">
+  <div class="wrap">
+    <header class="sec-head">
+      <p class="sec-num rv"><span>04</span>Under the hood</p>
+      <h2 class="h2 rv" style="--d:.06s">Built like a <em>real</em> engine.</h2>
+      <p class="sec-lede rv" style="--d:.12s">About 5,000 lines of Go and 1,000 of Python, with tests at every layer and a CI job that runs a whole lap of the loop against GNU Go.</p>
+    </header>
+
+    <div class="engine-grid">
+      <dl class="specs rv">
+        <div class="spec"><dt>Board</dt><dd>Bitset board with exact liberties and positional superko from per-chain Zobrist hashes, differential-tested against a naive reference from 5×5 to 19×19.<br><span class="metric">134 µs per random 9×9 game</span></dd></div>
+        <div class="spec"><dt>Search</dt><dd>PUCT Monte-Carlo tree search with virtual-loss leaf batching, tree reuse, Dirichlet root noise and playout-cap randomization.<br><span class="metric">≈4 µs per playout</span></dd></div>
+        <div class="spec"><dt>Network</dt><dd>Residual net, 6 blocks × 64 channels with global pooling; policy, value and ownership heads over 13 input planes.<br><span class="metric">477k parameters · 1.9 MB</span></dd></div>
+        <div class="spec"><dt>Inference</dt><dd>ONNX Runtime called from Go, batched across worker sessions with a position cache. CPU, CUDA or TensorRT.<br><span class="metric">6,400 playouts/s on 4 vCPUs</span></dd></div>
+        <div class="spec"><dt>Training</dt><dd>PyTorch with AdamW, eight-fold symmetry augmentation and a replay window that grows from 60k to 400k positions. Stop it any time; the same command resumes.</dd></div>
+        <div class="spec"><dt>Measuring</dt><dd>Bradley–Terry Elo, Wilson intervals and SPRT, with GNU Go as the outside yardstick.</dd></div>
+        <div class="spec"><dt>Protocol</dt><dd>GTP v2 with live <code>lz-analyze</code>, so it plays inside Sabaki, Lizzie and GoGui.</dd></div>
+        <div class="spec"><dt>Browser</dt><dd>This page: the search compiled to WebAssembly, the network in onnxruntime-web.</dd></div>
+      </dl>
+
+      <div class="rv" style="--d:.08s">
+        <div class="term">
+          <div class="term-bar">
+            <div class="term-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+            <div class="term-tabs" role="tablist" aria-label="Captured sessions">
+              <button type="button" role="tab" data-session="play" aria-selected="true">play</button>
+              <button type="button" role="tab" data-session="gtp" aria-selected="false">gtp</button>
+              <button type="button" role="tab" data-session="selfplay" aria-selected="false">selfplay</button>
+              <button type="button" role="tab" data-session="loop" aria-selected="false">arena</button>
+            </div>
+          </div>
+          <p class="term-title" id="term-title">captured sessions, replayed</p>
+          <pre id="term-body" role="tabpanel" aria-live="off"></pre>
+        </div>
+        <div class="quick">
+          <div class="quick-head">
+            <p class="gen-label">Run it yourself</p>
+            <button class="copy" id="quick-copy" type="button" aria-label="Copy commands"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="2"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          </div>
+          <div class="quick-box">
+<pre id="quick-code"><code>git clone https://github.com/DevomB/Gofer &amp;&amp; cd Gofer
+scripts/setup.sh   <span class="c"># ONNX Runtime, GNU Go, venv, bin/gofer</span>
+bin/gofer play -model models/gofer-9x9.onnx</code></pre>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ======================= FOOTER ======================= -->
-<footer class="border-t border-line bg-surface/40">
-  <div class="mx-auto max-w-6xl px-5 py-14">
-    <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-8">
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="foot-top">
       <div>
-        <div class="flex items-center gap-3">
-          <svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true">
-            <rect width="26" height="26" rx="6" fill="#151827"/>
-            <path d="M6.5 6.5h13M6.5 13h13M6.5 19.5h13M6.5 6.5v13M13 6.5v13M19.5 6.5v13" stroke="#5B4FC0" stroke-width="1" fill="none"/>
-            <circle cx="13" cy="13" r="3.4" fill="#07070D" stroke="#2A2D45" stroke-width=".5"/>
-            <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
-          </svg>
-          <span class="font-display text-lg">Gofer</span>
-        </div>
-        <p class="mt-3 font-display italic text-ink-dim">Not KataGo. <span class="text-gold-bright">Yet.</span></p>
-        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">4,315 lines of Go · Go + Python test suites · end-to-end CI · built with Go, PyTorch &amp; ONNX Runtime</p>
-        <p class="mt-1 font-mono text-[.68rem] text-ink-mute">solo project · v3 rewrite Oct 2026</p>
+        <p class="foot-tag">Not KataGo. <em>Yet.</em></p>
+        <p class="foot-sub">A solo project by DevomB: engine, trainer and evaluator, rebuilt from the ground up in v3. Every number on this page comes from a committed result, a benchmark or a captured session.</p>
       </div>
-      <div class="flex flex-col gap-2.5 text-sm text-ink-dim font-mono text-[.78rem]">
-        <a href="https://github.com/DevomB/Gofer" class="hover:text-violet-bright transition-colors">github.com/DevomB/Gofer ↗</a>
-        <a href="https://github.com/DevomB/Gofer/blob/main/CHANGELOG.md" class="hover:text-violet-bright transition-colors">changelog ↗</a>
-        <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="hover:text-violet-bright transition-colors">architecture ↗</a>
-        <a href="https://arxiv.org/abs/1902.10565" class="hover:text-violet-bright transition-colors">Wu et al. 2020 — the paper ↗</a>
+      <div class="foot-links">
+        <div>
+          <h4>Code</h4>
+          <a href="https://github.com/DevomB/Gofer">GitHub</a>
+          <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md">Architecture</a>
+          <a href="https://github.com/DevomB/Gofer/blob/main/docs/training.md">Training guide</a>
+          <a href="https://github.com/DevomB/Gofer/blob/main/CHANGELOG.md">Changelog</a>
+        </div>
+        <div>
+          <h4>Results</h4>
+          <a href="https://github.com/DevomB/Gofer/blob/main/docs/results/summary.md">Every generation</a>
+          <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md">The v2 audit</a>
+          <a href="https://github.com/DevomB/Gofer/blob/main/models/README.md">Model card</a>
+        </div>
+        <div>
+          <h4>Reading</h4>
+          <a href="https://arxiv.org/abs/1902.10565">KataGo paper</a>
+          <a href="https://www.science.org/doi/10.1126/science.aar6404">AlphaZero</a>
+          <a href="https://www.gnu.org/software/gnugo/">GNU Go</a>
+        </div>
       </div>
     </div>
-    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed result, a benchmark, or a captured session — nothing is made up.</p>
+    <p class="foot-word" aria-hidden="true">gofer<span class="seal"></span></p>
+    <div class="foot-bottom">
+      <span>© 2026 DevomB · source on GitHub</span>
+      <span>Set in Bricolage Grotesque, Instrument Serif &amp; JetBrains Mono</span>
+    </div>
   </div>
 </footer>
 

@@ -15,7 +15,7 @@ jobs:
       - name: gofmt
         run: test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)
       - name: vet
-        run: go vet ./...
+        run: go vet ./... && CGO_ENABLED=1 go vet -tags onnx ./...
       - name: install GNU Go (arena integration test)
         run: sudo apt-get install -y gnugo
       - name: test
@@ -26,6 +26,10 @@ jobs:
         run: CGO_ENABLED=0 go build -o bin/gofer ./cmd/gofer
       - name: WebAssembly engine (web/engine/gofer.wasm)
         run: GOOS=js GOARCH=wasm go vet ./cmd/gofer-wasm && GOOS=js GOARCH=wasm go build -o /tmp/gofer.wasm ./cmd/gofer-wasm
+      - name: site scripts and data
+        run: |
+          node --check web/site.js && node --check web/engine.js
+          for f in web/data/*.json; do node -e "JSON.parse(require('fs').readFileSync('$f', 'utf8'))" || exit 1; done
 
   python:
     runs-on: ubuntu-latest
