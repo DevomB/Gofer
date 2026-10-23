@@ -5,6 +5,7 @@ package nn
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	ort "github.com/yalue/onnxruntime_go"
@@ -20,15 +21,36 @@ var (
 
 func initORT() error {
 	ortOnce.Do(func() {
-		lib := os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH")
+		lib := findORTLibrary()
 		if lib == "" {
-			ortErr = fmt.Errorf("nn: set ONNXRUNTIME_SHARED_LIBRARY_PATH to libonnxruntime.so")
+			ortErr = fmt.Errorf("nn: ONNX Runtime not found; run scripts/install-ort.sh or set ONNXRUNTIME_SHARED_LIBRARY_PATH")
 			return
 		}
 		ort.SetSharedLibraryPath(lib)
 		ortErr = ort.InitializeEnvironment()
 	})
 	return ortErr
+}
+
+// findORTLibrary checks $ONNXRUNTIME_SHARED_LIBRARY_PATH, then
+// third_party/onnxruntime/lib next to the working directory or the binary.
+func findORTLibrary() string {
+	if p := os.Getenv("ONNXRUNTIME_SHARED_LIBRARY_PATH"); p != "" {
+		return p
+	}
+	roots := []string{"."}
+	if exe, err := os.Executable(); err == nil {
+		roots = append(roots, filepath.Dir(exe), filepath.Join(filepath.Dir(exe), ".."))
+	}
+	for _, r := range roots {
+		for _, pat := range []string{"libonnxruntime.so.*", "libonnxruntime.*.dylib"} {
+			m, _ := filepath.Glob(filepath.Join(r, "third_party", "onnxruntime", "lib", pat))
+			if len(m) > 0 {
+				return m[len(m)-1]
+			}
+		}
+	}
+	return ""
 }
 
 // ORTOptions selects the execution provider for an ONNX model.

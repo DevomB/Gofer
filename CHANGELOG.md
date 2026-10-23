@@ -2,6 +2,45 @@
 
 All notable changes to Gofer are documented here. Format based on [Keep a Changelog](https://keepachangelog.com/).
 
+## [3.0.0] - unreleased
+
+A rewrite of the engine core and the training pipeline. See
+[docs/v2-audit.md](docs/v2-audit.md) for the defects that motivated it.
+
+### Fixed
+
+- Search backed values up with the wrong sign, so it chose the opponent's best move
+- Fresh searches did no work: the root lost its `Expanded` flag when the node arena reallocated
+- Transposition table returned other positions' values (no key check; pass collided with the parent)
+- Forced root playouts made policy targets near-uniform
+- Network inference ran on a single core regardless of machine size
+- Superko/Tromp-Taylor state was shared with search playouts; simple ko was set on any single-stone capture
+- Self-play and arena games were truncated at 83 moves and scored unfinished
+- ONNX export traced BatchNorm in training mode when the wrapper module was not in `eval()`
+
+### Changed
+
+- Engine split into packages: `internal/{game,sgf,nn,mcts,selfplay,arena,gtp}`; `cmd/gofer` is a
+  subcommand CLI (`gtp`, `play`, `selfplay`, `arena`, `bench`) replacing the v2 flag set
+- Board with incremental chains and exact liberties: ~0.7 µs per move including legal-move generation;
+  hash-based positional superko
+- PUCT search with virtual-loss leaf batching, Dirichlet noise, tree reuse, exact terminal scoring,
+  and a conservative pass rule so games are played to a settled finish
+- Batched evaluator with multiple ONNX Runtime sessions (CPU) or CUDA/TensorRT, random symmetry,
+  position cache
+- Feature schema 3: liberty planes, edge plane, pass flags, komi from the side to move's view
+- Network: residual trunk with global-pooling blocks and fully convolutional heads
+- Training: `.npz` shards, growing replay window, 8-fold symmetry augmentation, AdamW with a
+  per-generation cosine schedule, resumable `python -m training.loop`
+- Evaluation: arena with paired openings, GNU Go (or any GTP engine) as anchors with dead-stone
+  adjudication, Wilson intervals, Elo, SPRT, and a Bradley-Terry ladder across generations
+
+### Removed
+
+- HTTP inference sidecar, heuristic evaluator, JSONL samples, SGF-to-JSONL converter, Lightsail/AWS
+  scripts, the arena-gated v2 loop (`train-loop-v3.sh`), and the v2 bootstrap model (incompatible
+  features). v2 design docs are kept in `docs/archive/`.
+
 ## [2.7.1] - 2026-07-07
 
 ### Added
