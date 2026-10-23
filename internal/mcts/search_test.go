@@ -182,3 +182,25 @@ func BenchmarkSearch200(b *testing.B) {
 		s.Run(200)
 	}
 }
+
+func TestConservativePass(t *testing.T) {
+	b := game.NewBoard(game.Options{Size: 9, Komi: 7.5})
+	s := New(DefaultConfig(), nn.Uniform{})
+	s.Reset(b)
+	s.Run(50)
+	for _, c := range s.Children() {
+		if c.Move == game.Pass {
+			t.Fatal("pass must not be searched on an open board")
+		}
+	}
+	b.Play(game.Pass)
+	s.Reset(b)
+	s.Run(50)
+	found := false
+	for _, c := range s.Children() {
+		found = found || c.Move == game.Pass
+	}
+	if !found {
+		t.Fatal("pass must be searchable after the opponent passed")
+	}
+}

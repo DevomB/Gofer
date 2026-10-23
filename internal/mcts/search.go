@@ -28,6 +28,12 @@ type Config struct {
 	NoiseFrac        float64
 	Batch            int // leaves gathered (with virtual loss) per evaluator call
 	MaxMoves         int // positions at this move number are scored as final; 0 = 3*points
+	// ConservativePass only searches Pass when the opponent just passed (so
+	// passing ends the game and is scored exactly) or when every other legal
+	// move would fill one of our own eyes. Games are then played out until
+	// dead stones are captured, which makes area scoring exact, and an
+	// untrained network cannot end games by passing at random.
+	ConservativePass bool
 	Seed             int64
 }
 
@@ -39,6 +45,7 @@ func DefaultConfig() Config {
 		RootFPUReduction: 0.1,
 		NoiseFrac:        0.25,
 		Batch:            8,
+		ConservativePass: true,
 		Seed:             1,
 	}
 }
@@ -258,6 +265,9 @@ func (s *Search) expand(nd *node, b *game.Board, policy []float32) {
 		return
 	}
 	s.legal = b.LegalMoves(s.legal[:0])
+	if s.cfg.ConservativePass {
+		s.legal = filterMoves(b, s.legal)
+	}
 	n := b.NumPoints()
 	children := make([]node, len(s.legal))
 	sum := float32(0)
@@ -278,6 +288,24 @@ func (s *Search) expand(nd *node, b *game.Board, policy []float32) {
 	}
 	nd.children = children
 	nd.expanded = true
+}
+
+// filterMoves applies ConservativePass: drop own-eye fills, and drop Pass
+// unless the opponent just passed or nothing else is left.
+func filterMoves(b *game.Board, legal []game.Point) []game.Point {
+	last, ok := b.LastMove(0)
+	oppPassed := ok && last == game.Pass
+	out := legal[:0]
+	for _, m := range legal {
+		if m == game.Pass || b.FillsOwnEye(m) {
+			continue
+		}
+		out = append(out, m)
+	}
+	if len(out) == 0 || oppPassed {
+		out = append(out, game.Pass)
+	}
+	return out
 }
 
 func (s *Search) backup(path []*node, v float64) {

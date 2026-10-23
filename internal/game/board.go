@@ -566,3 +566,15 @@ func (b *Board) WithoutStones(pts []Point) *Board {
 	c.rebuild()
 	return c
 }
+
+// FillsOwnEye reports whether the side to move playing p would fill a
+// single-point eye of its own: every neighbor is a friendly stone not in atari.
+func (b *Board) FillsOwnEye(p Point) bool {
+	me := b.toPlay
+	for _, q := range b.nb.of(p) {
+		if b.cells[q] != me || b.chains[b.chainOf[q]].libs.count() == 1 {
+			return false
+		}
+	}
+	return true
+}
