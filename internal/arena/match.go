@@ -112,7 +112,20 @@ func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 				next++
 				mu.Unlock()
 
-				out, nameA, nameB, err := playOne(cfg, g, openings[g/2], newA, newB)
+				// External engines occasionally crash (GNU Go 3.8 has known
+				// assertion failures); replay the game with fresh players
+				// before giving up on the match.
+				var (
+					out          Game
+					nameA, nameB string
+					err          error
+				)
+				for attempt := 0; attempt < 3; attempt++ {
+					if out, nameA, nameB, err = playOne(cfg, g, openings[g/2], newA, newB); err == nil {
+						break
+					}
+					cfg.Log("arena: game %d attempt %d failed: %v", g, attempt+1, err)
+				}
 				mu.Lock()
 				if err != nil {
 					errOut = err
