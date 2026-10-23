@@ -419,6 +419,23 @@ func (s *Search) Visits() int {
 	return int(s.root.n)
 }
 
+// PassWins reports whether the opponent just passed and passing now would end
+// the game as a win for the side to move under area scoring. Players use it to
+// pass instead of filling their own territory once the game is decided; the
+// network rarely proposes pass because self-play only allows it at the end.
+func (s *Search) PassWins() bool {
+	b := s.board
+	if b == nil {
+		return false
+	}
+	if m, ok := b.LastMove(0); !ok || m != game.Pass {
+		return false
+	}
+	t := b.Clone()
+	t.PlayUnchecked(game.Pass)
+	return t.Winner() == b.ToPlay()
+}
+
 // BestMove returns the most visited root move (Pass if the game is over).
 func (s *Search) BestMove() game.Point {
 	ch := s.Children()

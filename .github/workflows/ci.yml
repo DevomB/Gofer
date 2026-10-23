@@ -24,6 +24,8 @@ jobs:
         run: go test -race -short -count=1 ./...
       - name: pure-Go build
         run: CGO_ENABLED=0 go build -o bin/gofer ./cmd/gofer
+      - name: WebAssembly engine (web/engine/gofer.wasm)
+        run: GOOS=js GOARCH=wasm go vet ./cmd/gofer-wasm && GOOS=js GOARCH=wasm go build -o /tmp/gofer.wasm ./cmd/gofer-wasm
 
   python:
     runs-on: ubuntu-latest

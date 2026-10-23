@@ -89,6 +89,12 @@ func cmdPlay(args []string) error {
 			}
 			m = p
 		} else {
+			if s.PassWins() {
+				fmt.Println("Gofer passes: the game is decided.")
+				b.Play(game.Pass)
+				s.Advance(game.Pass, b)
+				continue
+			}
 			if err := s.Run(sf.visits); err != nil {
 				return err
 			}
