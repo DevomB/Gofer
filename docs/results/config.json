@@ -1,0 +1,37 @@
+{
+  "board_size": 9,
+  "komi": 7.5,
+  "blocks": 6,
+  "channels": 64,
+  "games_per_gen": 600,
+  "full_visits": 160,
+  "fast_visits": 32,
+  "full_prob": 0.25,
+  "temp_moves": 10,
+  "resign": -0.9,
+  "no_resign_prob": 0.1,
+  "window_min": 60000,
+  "window_max": 400000,
+  "window_growth": 25000,
+  "sample_reuse": 8.0,
+  "total_gens": 30,
+  "train": {
+    "batch_size": 256,
+    "lr": 0.002,
+    "weight_decay": 0.0001,
+    "value_weight": 1.0,
+    "ownership_weight": 0.15,
+    "q_weight": 0.0,
+    "grad_clip": 5.0,
+    "warmup_steps": 200
+  },
+  "eval_games": 40,
+  "eval_visits": 100,
+  "anchors": [
+    "rollout,visits=800",
+    "gnugo,level=1",
+    "gnugo,level=6"
+  ],
+  "anchor_every": 2,
+  "anchor_games": 40
+}

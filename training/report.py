@@ -31,6 +31,7 @@ def plot(ratings: dict, metrics: list[dict], path: Path) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import matplotlib.ticker
 
     gens = sorted((int(p.split("-")[1]), v) for p, v in ratings.items() if p.startswith("gen-"))
     anchors = {p: v for p, v in ratings.items() if not p.startswith("gen-")}
@@ -40,9 +41,14 @@ def plot(ratings: dict, metrics: list[dict], path: Path) -> None:
     y = [v["elo"] for _, v in gens]
     e = [v["stderr"] for _, v in gens]
     ax1.errorbar(x, y, yerr=e, marker="o", ms=4, capsize=2, color="#3b6fd8", label="Gofer generation")
-    for name, v in sorted(anchors.items(), key=lambda kv: kv[1]["elo"]):
+    ranked = sorted(anchors.items(), key=lambda kv: kv[1]["elo"])
+    for i, (name, v) in enumerate(ranked):
         ax1.axhline(v["elo"], ls="--", lw=1, color="#888")
-        ax1.text(x[-1] if x else 0, v["elo"], f" {name}", va="bottom", ha="right", fontsize=8, color="#555")
+        # put a label under its line when the next anchor sits close above it
+        crowded = i + 1 < len(ranked) and ranked[i + 1][1]["elo"] - v["elo"] < 150
+        ax1.text(0.2, v["elo"], name, va="top" if crowded else "bottom", ha="left", fontsize=8, color="#555")
+    ax1.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
+    ax2.xaxis.set_major_locator(matplotlib.ticker.MaxNLocator(integer=True))
     ax1.set_xlabel("generation")
     ax1.set_ylabel("Elo (gen 0 = 0)")
     ax1.set_title("Strength by generation")
