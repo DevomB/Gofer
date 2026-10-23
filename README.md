@@ -1,204 +1,102 @@
-# Gofer v2.7.0
+# Gofer
 
-A Go engine with Chinese rules, MCTS search, GTP, and self-play — inspired by [Wu et al. 2020](https://arxiv.org/abs/1902.10565). Not KataGo.
+An AlphaZero-style Go engine written in Go, with a PyTorch training loop that
+learns 9×9 Go from zero by self-play. Techniques follow
+[Wu 2020, *Accelerating Self-Play Learning in Go*](docs/wu-2020-accelerating-self-play.pdf)
+(KataGo) at hobby scale: playout-cap randomization, global-pooling residual
+network, ownership auxiliary target, Dirichlet root noise.
 
-See [CHANGELOG.md](CHANGELOG.md) for release notes.
+- **Engine (Go):** incremental bitset board with exact liberties and superko,
+  PUCT search with virtual-loss batching, batched multi-core/GPU inference
+  through ONNX Runtime, GTP server with live analysis for Sabaki and Lizzie.
+- **Training (Python):** self-play shards → augmented training → verified ONNX
+  export → evaluation against the previous generation and GNU Go → Elo ladder.
+  Resumable, one command.
+
+## Results
+
+Trained from random play on one 4-vCPU cloud VM (no GPU, no human games):
+17 generations, 10,200 self-play games, **3.6 hours**.
+
+| Final network (400 visits/move) vs | Games | Score | Elo difference (95% CI) |
+|------------------------------------|------:|------:|------------------------:|
+| GNU Go 3.8, level 10 (default) | 100 | **66–34** | +115 [+44, +187] |
+| GNU Go 3.8, level 1 | 100 | **78–22** | +220 [+138, +301] |
+| Gofer v2 engine + its model (400 playouts) — generation 9 at 100 visits | 20 | **20–0** | ≥ +287 |
+
+Games alternate colors over paired random openings; GNU Go judges dead
+stones at the end. The v2 engine lost 0–20 to GNU Go level 1.
+
+![Elo by generation](docs/results/elo.png)
+
+Per-generation numbers: [docs/results/summary.md](docs/results/summary.md).
 
 ## Quick start
 
 ```bash
-make build          # -> bin/gofer
+scripts/setup.sh                 # ONNX Runtime, GNU Go, .venv, bin/gofer (add "gpu" on NVIDIA machines)
 make test
-make bench-check    # same regression gate as CI
+
+bin/gofer play -model models/gofer-9x9.onnx            # play in the terminal
+bin/gofer gtp  -model models/gofer-9x9.onnx -visits 800 # GTP engine for Sabaki / Lizzie / GoGui
 ```
 
-### Play in the terminal
+In Sabaki: *Engines → Manage engines → Add*, path `bin/gofer`, arguments
+`gtp -model models/gofer-9x9.onnx`. Live analysis (`lz-analyze`) works out of
+the box.
+
+## Train your own
 
 ```bash
-bin/gofer -play -size 9 -color b
-# commands: play D4 | genmove | analyze | board | score | undo | quit
-# save game on quit: bin/gofer -play -o game.sgf
+.venv/bin/python -m training.loop --run runs/9x9 --gofer bin/gofer --hours 8
+.venv/bin/python -m training.report runs/9x9 --out runs/9x9/report
 ```
 
-### Analyze a position
+Stop it any time and rerun the same command to resume. See
+[docs/training.md](docs/training.md) for the loop, settings, throughput, and
+how to use a GPU.
+
+## Commands
+
+| Command | What it does |
+|---------|--------------|
+| `gofer gtp` | GTP v2 server (`genmove`, `undo`, `final_score`, `lz-analyze`, ...) |
+| `gofer play` | Play against the engine in the terminal (`hint` shows its suggestion) |
+| `gofer selfplay` | Generate training shards (`.npz`) and SGFs |
+| `gofer arena` | Match between two players with Elo, confidence interval and optional SPRT; players are `nn:model.onnx`, `rollout`, `uniform`, `gnugo,level=N` or `gtp:<command>` |
+| `gofer bench` | Search and inference throughput |
 
 ```bash
-bin/gofer -analyze -size 9 -playouts 400
-bin/gofer -analyze -size 9 -think-time 3s -top 8
-bin/gofer -analyze -size 9 -moves D4,Q16,pass
+bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=10 -games 100 -sgf games/
 ```
 
-### GTP (Sabaki, Lizzie, KaGo tools)
+## Layout
 
-Engine command:
+| Path | |
+|------|--|
+| `internal/game` | rules, board, scoring |
+| `internal/mcts` | search |
+| `internal/nn` | features, batched evaluator, ONNX Runtime backend |
+| `internal/selfplay`, `internal/arena`, `internal/gtp`, `internal/sgf` | applications |
+| `cmd/gofer` | CLI |
+| `training/` | model, data, trainer, export, loop, Elo, report (+ tests) |
+| `docs/` | [architecture](docs/architecture.md), [training](docs/training.md), [v2 audit](docs/v2-audit.md) |
 
-```text
-bin/gofer -gtp -size 9 -think-time 5s -eval heuristic
-```
-
-Save game on quit:
-
-```text
-bin/gofer -gtp -size 9 -o game.sgf
-```
-
-Or fixed playouts:
-
-```text
-bin/gofer -gtp -gtp-playouts 800 -eval heuristic
-```
-
-Sabaki demo (9×9, think-time, SGF on quit):
-
-1. Build: `make build`
-2. Sabaki → **Engines → Manage engines → Add**
-3. Command: `bin/gofer -gtp -size 9 -think-time 5s -eval heuristic -o demo.sgf`
-4. New game 9×9, play; on quit the engine writes `demo.sgf`
-
-Plot arena gating curve: `./scripts/plot-gating.sh .tectonix/reports/arena-9x9-baseline.json`
-
-Nightly 200-game arena workflow: [`.github/workflows/arena-nightly.yml`](.github/workflows/arena-nightly.yml) (also `make reproduce-9x9-baseline`).
-
-### Watch engine vs engine
+## Development
 
 ```bash
-bin/gofer -watch -size 9 -playouts 50
+make lint test race     # gofmt, vet (with and without ONNX), Go + Python tests, race detector
+make build-nocgo        # pure-Go binary: rules, search, GTP, arena (no network inference)
 ```
 
-### ONNX inference (v2.5+)
+The board is differential-tested against a naive reference on random games
+from 5×5 to 19×19; the search has regression tests for every defect found in
+the [v2 audit](docs/v2-audit.md); CI runs a full self-play → train → export →
+arena generation against GNU Go.
 
-Default path is **in-process ORT** (no sidecar). Build with ONNX support:
+## Version 3
 
-```bash
-make build-onnx     # CGO + -tags=onnx -> bin/gofer
-```
-
-Use `-eval-backend` to choose the transport:
-
-| Flag / env | Values | Default |
-|------------|--------|---------|
-| `-eval-backend` | `inprocess`, `sidecar` | `inprocess` |
-| `EVAL_BACKEND` | same (train loop) | `inprocess` |
-| `-model` | champion ONNX path | `models/gofer-9x9-bootstrap.onnx` |
-| `-model-2` | challenger ONNX (`onnx2` eval) | — |
-
-**Sidecar fallback** (HTTP, still supported):
-
-```bash
-make sidecar    # python training/inference_server.py on :8080
-bin/gofer -gtp -size 9 -eval onnx -eval-backend sidecar -onnx-url http://127.0.0.1:8080
-```
-
-**Parity harness** — proves Go ORT matches Python `inference_server.Session` bit-exact (ORT 1.26.0):
-
-```bash
-# quick (500 positions)
-bash scripts/parity-onnx.sh
-
-# full samples file
-GOFER_PARITY_LIMIT=1722 bash scripts/parity-onnx.sh
-```
-
-Requires `onnxruntime==1.26.0` on the Python side (`training/requirements-ort-parity.txt` or pip). Linux amd64 also needs `ONNXRUNTIME_SHARED_LIBRARY_PATH` (script downloads ORT 1.26.0 if missing). Go test: `CGO_ENABLED=1 go test -tags=onnx ./cmd/gofer/ -run TestONNXParityPythonRef`.
-
-See [ADR 0004](docs/decisions/0004-in-process-onnx-inference.md).
-
-### Arena (gating)
-
-Equal-config ONNX strength check (200 games, same playouts):
-
-```bash
-make sidecar
-make reproduce-9x9-onnx-gate
-```
-
-Legacy asymmetric heuristic gate (600 vs 200 playouts):
-
-```bash
-bin/gofer -arena -games 200 -size 9 -playouts 400 \
-  -black-playouts 600 -white-playouts 200 \
-  -black-eval heuristic -white-eval heuristic -seed 42 \
-  -arena-enhanced baseline \
-  -json .tectonix/reports/arena-report.json
-```
-
-### Self-play
-
-```bash
-bin/gofer -selfplay -games 5 -size 9 -playouts 200 -selfplay-eval mix -o samples.jsonl
-bin/gofer -selfplay -games 3 -size 9 -sgf-dir games/
-```
-
-### ML training loop v3
-
-Persistent replay buffer, resume training, monotonic arena promote:
-
-```bash
-SEED_FROM_CYCLE2=1 WEEK_DAYS=14 bash scripts/train-loop-v3.sh
-# Lightsail: bash scripts/aws-run-arena.sh IP start-v3
-```
-
-See [docs/decisions/0003-iterative-training-loop.md](docs/decisions/0003-iterative-training-loop.md).
-
-### SGF replay
-
-```bash
-bin/gofer -sgf cmd/gofer/testdata/simple.sgf
-```
-
-## Defaults
-
-| Board | Default playouts (when `-playouts 0`) |
-|-------|---------------------------------------|
-| 9×9   | 400                                   |
-| 13×13 | 800                                   |
-| 19×19 | 1600                                  |
-
-`-think-time` overrides playout count for that move (GTP `time_left`, `-play`, `-analyze`, `-gtp`).
-
-## Evaluators
-
-- **`heuristic`** (default) — stones, liberties, territory estimate, move priors for PUCT
-- **`uniform`** — random-ish MCTS baseline
-- **`batched`** / **`mock-batch`** — batched mock inference queue
-- **`onnx`** — ONNX Runtime via HTTP sidecar (`-onnx-url`, `-batch-size`, `-eval-timeout`)
-
-## Profile-guided build (optional)
-
-```bash
-make pgo-profile    # generates default.pgo (gitignored)
-make pgo-build      # bin/gofer with -pgo=
-make bench-check    # compare before/after
-```
-
-`make pgo-profile` profiles `BenchmarkLegalMoves` only; self-play would be a better macro workload if PGO gains matter.
-
-## Project layout
-
-| Path | Role |
-|------|------|
-| `cmd/gofer/` | Engine binary (rules, MCTS, GTP, CLI) |
-| `cmd/bench/` | Benchmark regression runner |
-| `training/` | PyTorch bootstrap trainer + ONNX sidecar |
-| `models/` | Exported ONNX weights |
-| `docs/` | Blueprint, traceability, scorecard |
-
-## Docs
-
-- [`docs/implementation-blueprint.md`](docs/implementation-blueprint.md) — milestones
-- [`docs/research-traceability.md`](docs/research-traceability.md) — paper ↔ code
-- [`docs/optimization-scorecard.md`](docs/optimization-scorecard.md) — benches & quality gate
-
-## Included
-
-- Chinese + Tromp-Taylor rules, SGF import/export
-- PUCT MCTS, transposition table, parallel playouts
-- GTP subset, terminal play/analyze/watch, self-play samples
-- Arena gating, Wilson CI, training sample export
-- ONNX sidecar inference (`-eval onnx`), bootstrap 9×9 net
-
-## Not yet
-
-- KataGo-level strength or full analysis API
-- In-process ONNX (CGO); sidecar is v2.5 default
-- Full time controls (byo-yomi); `time_left` uses remaining time as next-move budget
+v3 rewrote the engine core and the training pipeline after an audit found
+that v2's search backed up values with the wrong sign, skipped the search on
+fresh trees, and trained the policy toward uniform targets, among other
+defects. The details, with measurements, are in [docs/v2-audit.md](docs/v2-audit.md).

@@ -1,63 +1,45 @@
-.PHONY: test bench race lint profile memprofile pgo-build pgo-profile build build-onnx bench-check reproduce-9x9-baseline reproduce-9x9-onnx-gate sidecar train-bootstrap export-onnx
+PYTHON ?= .venv/bin/python
+MODEL  ?= models/gofer-9x9.onnx
+RUN    ?= runs/9x9
 
-test:
-	go test ./...
+.PHONY: build build-nocgo test test-go test-py race lint bench gtp play train ort
 
-bench:
-	go run ./cmd/bench
+# Engine with ONNX Runtime (needs CGO and scripts/install-ort.sh).
+build:
+	CGO_ENABLED=1 go build -tags onnx -o bin/gofer ./cmd/gofer
 
-bench-check:
-	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
+# Pure-Go build: rules, search, GTP and arena work; network inference does not.
+build-nocgo:
+	CGO_ENABLED=0 go build -o bin/gofer ./cmd/gofer
+
+test: test-go test-py
+
+test-go:
+	go test -short ./...
+
+test-py:
+	$(PYTHON) -m pytest -q training
 
 race:
-	go test -race ./...
+	go test -race -short ./...
 
 lint:
+	@test -z "$$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)
 	go vet ./...
+	CGO_ENABLED=1 go vet -tags onnx ./...
 
-profile:
-	go test -cpuprofile=.tectonix/reports/legalmoves-cpu.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
+bench:
+	go test -run '^$$' -bench . -benchmem ./internal/game ./internal/mcts
+	bin/gofer bench -model $(MODEL)
 
-memprofile:
-	go test -memprofile=.tectonix/reports/legalmoves-mem.prof -bench=BenchmarkLegalMoves -benchtime=3s ./cmd/gofer/
+gtp: build
+	bin/gofer gtp -model $(MODEL)
 
-pgo-profile:
-	go test -cpuprofile=default.pgo -bench=BenchmarkLegalMoves -benchtime=10s ./cmd/gofer/
+play: build
+	bin/gofer play -model $(MODEL)
 
-pgo-build:
-	@test -f default.pgo || (echo "run: make pgo-profile" && exit 1)
-	go build -pgo=default.pgo -o bin/gofer ./cmd/gofer
+train: build
+	$(PYTHON) -m training.loop --run $(RUN) --gofer bin/gofer
 
-build-onnx:
-	CGO_ENABLED=1 go build -tags=onnx -o bin/gofer ./cmd/gofer
-
-build:
-	go build -o bin/gofer ./cmd/gofer
-
-play:
-	go run ./cmd/gofer -play -size 9
-
-analyze:
-	go run ./cmd/gofer -analyze -size 9 -playouts 200
-
-sidecar:
-	python training/inference_server.py --model models/gofer-9x9-bootstrap.onnx --port 8080
-
-export-onnx:
-	python training/export_onnx.py --out models/gofer-9x9-bootstrap.onnx
-
-train-bootstrap:
-	go run ./cmd/gofer -selfplay -games 100 -size 9 -playouts 100 -eval heuristic -o training/data/samples.jsonl -seed 42
-	python training/train_bootstrap.py --data training/data/samples.jsonl --epochs 20
-	python training/export_onnx.py --checkpoint training/checkpoints/best.pt --out models/gofer-9x9-bootstrap.onnx
-
-reproduce-9x9-baseline:
-	go test ./... -count=1
-	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
-	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-playouts 600 -white-playouts 200 -black-eval heuristic -white-eval heuristic -seed 42 -arena-enhanced baseline -json .tectonix/reports/arena-9x9-baseline.json
-
-reproduce-9x9-onnx-gate:
-	go test ./... -count=1
-	go run ./cmd/bench -baseline .tectonix/reports/bench-regression.json -check
-	@test -f models/gofer-9x9-bootstrap.onnx || (echo "run: make export-onnx" && exit 1)
-	go run ./cmd/gofer -arena -games 200 -size 9 -playouts 400 -black-eval heuristic -white-eval onnx -seed 42 -arena-enhanced none -json .tectonix/reports/arena-9x9-onnx-v25.json
+ort:
+	scripts/install-ort.sh

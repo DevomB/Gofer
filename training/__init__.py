@@ -1,1 +1,0 @@
-"""Gofer bootstrap training package."""

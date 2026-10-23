@@ -2,16 +2,14 @@ default.pgo
 bin/
 *.exe
 .tectonix/session-baseline.json
-training/checkpoints/
-training/data/**/*.jsonl
 **/__pycache__/
 
 # Local training data / experiment artifacts (huge, never commit)
 training/experiments/
 
-# Rotating local model artifacts (bootstrap reference model stays tracked)
+# Rotating local model artifacts (the released model stays tracked)
 models/*.onnx
-!models/gofer-9x9-bootstrap.onnx
+!models/gofer-9x9.onnx
 
 # Secrets / local AWS (never commit)
 .tectonix/*.pem
@@ -21,5 +19,8 @@ models/*.onnx
 
 # Local reports / profiles (not release artifacts)
 .tectonix/reports/*
-!.tectonix/reports/bench-regression.json
-train-v3.log
+
+# v3 layout
+third_party/
+runs/
+.venv/

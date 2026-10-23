@@ -2,24 +2,29 @@
 max_cycles = 0
 max_cc = 25
 max_fn_lines = 100
-no_god_files = false
+no_god_files = true
 
 [[layers]]
-name = "core"
-paths = ["cmd/gofer/*"]
+name = "rules"
+paths = ["internal/game/*", "internal/sgf/*"]
 order = 0
+
+[[layers]]
+name = "engine"
+paths = ["internal/nn/*", "internal/mcts/*"]
+order = 1
+
+[[layers]]
+name = "apps"
+paths = ["internal/selfplay/*", "internal/arena/*", "internal/gtp/*", "cmd/gofer/*"]
+order = 2
 
 [[layers]]
 name = "training"
 paths = ["training/*"]
-order = 1
-
-[[layers]]
-name = "ops"
-paths = ["scripts/*"]
-order = 2
+order = 3
 
 [[boundaries]]
-from = "scripts/*"
-to = "cmd/gofer/*"
-reason = "Shell ops must not import Go engine internals directly"
+from = "internal/game/*"
+to = "internal/nn/*"
+reason = "Rules must not depend on the network"
