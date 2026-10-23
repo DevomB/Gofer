@@ -237,13 +237,13 @@ func playOne(cfg Config, idx int, opening []game.Point, newA, newB func() (Playe
 	}
 	if out.Reason != "resign" {
 		final := b
+		// The first player able to judge dead stones (e.g. GNU Go) adjudicates.
 		for _, p := range []Player{black, white} {
 			if j, ok := p.(DeadStoneJudge); ok {
-				dead, err := j.DeadStones()
-				if err == nil {
+				if dead, err := j.DeadStones(); err == nil {
 					final = b.WithoutStones(dead)
+					break
 				}
-				break
 			}
 		}
 		out.Margin = final.Margin()
