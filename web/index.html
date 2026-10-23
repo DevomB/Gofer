@@ -10,13 +10,14 @@
 <meta property="og:description" content="Four thousand years of Go. Four thousand lines of Go. Self-taught from random play, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Gofer">
-<meta property="og:image" content="og-image.png">
+<meta property="og:image" content="https://gofer.devomb.com/og-image.png">
+<meta property="og:url" content="https://gofer.devomb.com/">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Gofer — a Go engine that teaches itself">
 <meta name="twitter:description" content="PUCT search, batched ONNX inference, GTP, and a self-play loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
-<meta name="twitter:image" content="og-image.png">
+<meta name="twitter:image" content="https://gofer.devomb.com/og-image.png">
 <meta name="theme-color" content="#07070D">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -28,90 +29,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script>
-tailwind.config = {
-  theme: {
-    extend: {
-      colors: {
-        bg:       '#07070D',
-        surface:  '#0D0F19',
-        surface2: '#151827',
-        line:     'rgba(139,124,246,0.14)',
-        ink:      { DEFAULT: '#EAEAF4', dim: '#9DA2BC', mute: '#636880' },
-        violet:   { DEFAULT: '#8B7CF6', bright: '#A99CFF', deep: '#5B4FC0' },
-        gold:     { DEFAULT: '#D6A85C', bright: '#E8C285', deep: '#8A6A38' },
-      },
-      fontFamily: {
-        display: ['Fraunces', 'Georgia', 'serif'],
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
-      },
-    }
-  }
-}
-</script>
-<style>
-  ::selection { background: #8B7CF6; color: #07070D; }
-  html { background: #07070D; }
-  body { text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
-
-  /* thin scrollbar */
-  ::-webkit-scrollbar { width: 10px; }
-  ::-webkit-scrollbar-track { background: #07070D; }
-  ::-webkit-scrollbar-thumb { background: #232741; border-radius: 5px; }
-  ::-webkit-scrollbar-thumb:hover { background: #5B4FC0; }
-
-  /* scroll reveal */
-  .rv { opacity: 0; transform: translateY(18px); transition: opacity .7s ease, transform .7s ease; }
-  .rv.on { opacity: 1; transform: none; }
-
-  /* section eyebrow */
-  .eyebrow { font-family: "JetBrains Mono", monospace; font-size: .72rem; letter-spacing: .28em; text-transform: uppercase; color: #8B7CF6; }
-
-  /* faint grid behind hero */
-  .hero-grid {
-    background-image:
-      linear-gradient(rgba(139,124,246,.055) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(139,124,246,.055) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse 85% 60% at 50% 12%, black 25%, transparent 72%);
-    -webkit-mask-image: radial-gradient(ellipse 85% 60% at 50% 12%, black 25%, transparent 72%);
-  }
-
-  /* terminal caret */
-  .caret::after { content: "▋"; margin-left: 2px; color: #8B7CF6; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-
-  /* orbiting dot on the loop diagram */
-  .loop-ring { stroke-dasharray: 6 10; animation: ringspin 40s linear infinite; }
-  @keyframes ringspin { to { stroke-dashoffset: -1000; } }
-
-  .copy-ok { color: #8B7CF6 !important; }
-
-  input[type="range"].scrub { -webkit-appearance: none; appearance: none; height: 3px; border-radius: 2px; background: #232741; outline: none; }
-  input[type="range"].scrub::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border-radius: 50%; background: #8B7CF6; cursor: pointer; border: 2px solid #07070D; }
-  input[type="range"].scrub::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #8B7CF6; cursor: pointer; border: 2px solid #07070D; }
-
-  .btn-ctl { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; border-radius: .5rem; color: #9DA2BC; transition: all .15s; }
-  .btn-ctl:hover { color: #EAEAF4; background: #151827; }
-
-  /* keyboard focus, everywhere — never rely on browser default against this bg */
-  a:focus-visible, button:focus-visible, input:focus-visible {
-    outline: 2px solid #8B7CF6; outline-offset: 2px; border-radius: 4px;
-  }
-
-  /* mobile nav panel */
-  #mobile-nav { max-height: 0; overflow: hidden; transition: max-height .35s ease; }
-  #mobile-nav.open { max-height: 24rem; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rv { transition: none; opacity: 1; transform: none; }
-    .loop-ring, .caret::after { animation: none; }
-    html { scroll-behavior: auto; }
-    #mobile-nav { transition: none; }
-  }
-</style>
+<link rel="stylesheet" href="site.css">
 </head>
 
 <body class="bg-bg text-ink font-sans antialiased overflow-x-hidden">
@@ -165,9 +83,9 @@ tailwind.config = {
   <div aria-hidden="true" class="pointer-events-none absolute -top-32 -left-32 w-[42rem] h-[42rem] rounded-full bg-violet/[.09] blur-[130px]"></div>
   <div aria-hidden="true" class="pointer-events-none absolute top-24 -right-40 w-[36rem] h-[36rem] rounded-full bg-gold/[.06] blur-[130px]"></div>
 
-  <div class="relative mx-auto max-w-6xl px-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-14 lg:gap-10 items-center">
-    <div class="min-w-0">
-      <p class="eyebrow mb-6 rv">MCTS &nbsp;·&nbsp; GTP &nbsp;·&nbsp; ONNX &nbsp;·&nbsp; self-play</p>
+  <div class="relative mx-auto max-w-6xl px-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-14 lg:gap-10 items-start">
+    <div class="min-w-0 lg:pt-10">
+      <p class="eyebrow mb-6 rv">self-taught &nbsp;·&nbsp; 9×9 Go</p>
       <h1 class="rv font-display font-light text-[2.6rem] leading-[1.08] sm:text-6xl lg:text-[4.2rem] tracking-tight max-w-2xl">
         Four thousand years of Go. <em class="italic whitespace-nowrap bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Four thousand lines</em> of&nbsp;Go.
       </h1>
@@ -178,33 +96,42 @@ tailwind.config = {
         Every number on this page is measured: Wilson intervals, an Elo ladder, GNU Go as the yardstick.
       </p>
       <div class="rv mt-9 flex flex-wrap items-center gap-3">
+        <a href="#board-card" data-play-gofer class="text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-5 py-2.5 hover:brightness-110 shadow-lg shadow-violet/20 transition-all">Play Gofer in your browser →</a>
         <button data-copy="git clone https://github.com/DevomB/Gofer.git" class="copy-btn group flex items-center gap-3 font-mono text-sm bg-surface border border-line rounded-lg pl-4 pr-3 py-2.5 hover:border-violet/50 transition-all text-left">
           <span class="text-violet select-none">$</span>
           <span class="text-ink-dim group-hover:text-ink transition-colors">git clone DevomB/Gofer.git</span>
           <svg class="copy-icon w-4 h-4 text-ink-mute group-hover:text-violet transition-colors shrink-0" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg>
         </button>
-        <a href="#quickstart" class="text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-5 py-2.5 hover:brightness-110 shadow-lg shadow-violet/20 transition-all">Quickstart →</a>
       </div>
       <p class="rv mt-6 font-mono text-xs text-ink-mute">scripts/setup.sh → bin/gofer &nbsp;·&nbsp; rules, search, GTP and arena build in pure Go</p>
     </div>
 
     <!-- goban card -->
-    <div class="rv relative min-w-0">
+    <div id="board-card" class="rv relative min-w-0 scroll-mt-24">
       <div class="absolute -inset-6 bg-violet/[.08] blur-3xl rounded-full" aria-hidden="true"></div>
       <div class="absolute -inset-2 translate-x-10 translate-y-10 bg-gold/[.06] blur-3xl rounded-full" aria-hidden="true"></div>
       <div class="relative bg-surface border border-line rounded-2xl overflow-hidden shadow-2xl shadow-black/60">
-        <div class="flex items-center justify-between px-4 py-3 border-b border-line">
-          <div class="flex items-center gap-2 font-mono text-[.7rem]">
-            <button id="mode-watch" class="mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40">WATCH</button>
-            <button id="mode-play" class="mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim">PLAY</button>
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-line">
+          <div class="flex items-center gap-2 font-mono text-[.7rem] shrink-0" role="tablist" aria-label="Board mode">
+            <button id="mode-watch" role="tab" aria-selected="true" class="mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40">WATCH</button>
+            <button id="mode-play" role="tab" aria-selected="false" class="mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim">PLAY GOFER</button>
           </div>
-          <div id="board-label" class="font-mono text-[.68rem] text-ink-mute">1846 · Shusaku vs Gennan Inseki</div>
+          <div id="board-label" class="font-mono text-[.68rem] text-ink-mute truncate">vs GNU Go level 10</div>
         </div>
 
         <div class="p-4 sm:p-5">
           <div class="relative">
-            <canvas id="goban" class="w-full rounded-lg block" aria-label="Go board replaying the ear-reddening game: Honinbo Shusaku versus Inoue Gennan Inseki, 1846"></canvas>
-            <noscript><p class="text-center text-sm text-ink-mute py-20">Enable JavaScript to watch the 1846 ear-reddening game replay here.</p></noscript>
+            <canvas id="goban" class="w-full rounded-lg block" aria-label="9×9 Go board: replay of Gofer against GNU Go, or a game against Gofer"></canvas>
+            <div id="play-overlay" class="absolute inset-0 hidden flex-col items-center justify-center gap-4 rounded-lg text-center px-6">
+              <p class="font-display text-2xl sm:text-3xl text-ink">Play the real engine</p>
+              <p class="text-sm text-ink-dim max-w-xs leading-relaxed">The same search and network that beat GNU Go, running in this tab. About 5&nbsp;MB, downloaded once.</p>
+              <div class="flex flex-wrap justify-center gap-2">
+                <button data-color="1" class="start-btn text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-4 py-2 hover:brightness-110">Play Black</button>
+                <button data-color="2" class="start-btn text-sm font-medium text-ink bg-surface2 border border-line rounded-lg px-4 py-2 hover:border-violet/50">Play White</button>
+              </div>
+              <p id="load-status" class="font-mono text-[.7rem] text-violet min-h-[1rem]" role="status" aria-live="polite"></p>
+            </div>
+            <noscript><p class="text-center text-sm text-ink-mute py-20">Enable JavaScript to watch Gofer's games or play against it.</p></noscript>
           </div>
 
           <!-- watch controls -->
@@ -212,33 +139,46 @@ tailwind.config = {
             <div class="flex items-center gap-1.5">
               <button id="rp-start" class="btn-ctl" title="Restart" aria-label="Restart replay"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3 2h1.6v10H3zM12 2 5.5 7 12 12z"/></svg></button>
               <button id="rp-back" class="btn-ctl" title="Back one move" aria-label="Back one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M10.5 2 4 7l6.5 5z"/></svg></button>
-              <button id="rp-play" class="btn-ctl !w-9 !h-9 !bg-surface2 border border-line hover:border-violet/50" title="Play / pause" aria-label="Play or pause replay"></button>
+              <button id="rp-play" class="btn-ctl !w-9 !h-9 !bg-surface2 border border-line hover:border-violet/50" title="Play / pause" aria-label="Play replay"></button>
               <button id="rp-fwd" class="btn-ctl" title="Forward one move" aria-label="Forward one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3.5 2 10 7l-6.5 5z"/></svg></button>
-              <button id="rp-speed" class="btn-ctl !w-auto px-2 font-mono text-[.7rem]" title="Playback speed">×1</button>
-              <input id="rp-scrub" type="range" class="scrub flex-1 mx-2" min="0" max="325" value="0" aria-label="Scrub through game moves">
-              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums w-16 text-right">0 / 325</span>
+              <button id="rp-speed" class="btn-ctl !w-auto px-2 font-mono text-[.7rem]" title="Playback speed" aria-label="Playback speed">×1</button>
+              <input id="rp-scrub" type="range" class="scrub flex-1 min-w-0 mx-2" min="0" max="70" value="0" aria-label="Scrub through the game">
+              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums w-14 text-right shrink-0">0 / 70</span>
             </div>
           </div>
 
           <!-- play controls -->
           <div id="play-ctl" class="mt-4 hidden">
             <div class="flex items-center gap-2 flex-wrap">
-              <span class="flex items-center gap-2 font-mono text-[.7rem] text-ink-dim mr-1"><span id="turn-dot" class="inline-block w-3 h-3 rounded-full bg-black border border-white/30"></span><span id="turn-label">Black to play</span></span>
-              <button id="fp-pass" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">pass</button>
-              <button id="fp-undo" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">undo</button>
-              <button id="fp-clear" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">clear</button>
-              <span id="fp-msg" class="font-mono text-[.7rem] text-violet ml-auto" role="status"></span>
+              <span class="flex items-center gap-2 font-mono text-[.7rem] text-ink-dim mr-1 min-w-0"><span id="turn-dot" class="inline-block w-3 h-3 rounded-full bg-black border border-white/30 shrink-0"></span><span id="turn-label">Choose a color to start</span></span>
+              <span class="flex items-center gap-1.5 ml-auto">
+                <button id="fp-pass" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">pass</button>
+                <button id="fp-undo" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">undo</button>
+                <button id="fp-new" class="font-mono text-[.7rem] px-2.5 py-1 rounded-md border border-line text-ink-dim hover:text-ink hover:border-violet/50 transition-all">new</button>
+                <label class="font-mono text-[.7rem]"><span class="sr-only">Engine strength</span>
+                  <select id="fp-strength" class="strength">
+                    <option value="100">quick</option>
+                    <option value="400" selected>normal</option>
+                    <option value="1600">strong</option>
+                  </select>
+                </label>
+              </span>
             </div>
+            <div class="mt-3" aria-label="Gofer's win-rate estimate">
+              <div class="flex justify-between font-mono text-[.64rem] text-ink-mute"><span>Black <span id="wb-b" class="text-ink-dim">50%</span></span><span>Gofer's estimate</span><span>White <span id="wb-w" class="text-ink-dim">50%</span></span></div>
+              <div class="mt-1 h-2 rounded-full bg-[#F2EDE0] overflow-hidden ring-1 ring-white/20"><div id="wb-fill" class="h-full bg-[#30343c]" style="width:50%"></div></div>
+            </div>
+            <p id="fp-msg" class="mt-2 font-mono text-[.7rem] text-violet min-h-[1rem]" role="status" aria-live="polite"></p>
           </div>
 
-          <div class="mt-3 flex items-center justify-between font-mono text-[.68rem] text-ink-mute">
-            <span id="board-status">&nbsp;</span>
-            <span id="board-caps">captures — B 0 · W 0</span>
+          <div class="mt-3 flex items-center justify-between gap-3 font-mono text-[.68rem] text-ink-mute">
+            <span id="board-status" class="truncate">&nbsp;</span>
+            <span id="board-caps" class="shrink-0">captures — B 0 · W 0</span>
           </div>
         </div>
       </div>
       <p class="mt-4 text-center font-mono text-[.68rem] text-ink-mute leading-relaxed">
-        <span id="board-caption">The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. Gofer itself never saw a human game.</span>
+        <span id="board-caption">A game from the final evaluation.</span>
       </p>
     </div>
   </div>
@@ -396,7 +336,15 @@ tailwind.config = {
     <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Elo ladder — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">Bradley–Terry fit, gen 0 = 0</div></div></div>
   </div>
 
-  <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
+  <div class="rv mt-12 bg-surface border border-line rounded-xl p-5 sm:p-7">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <p class="eyebrow !text-[.62rem]">Strength by generation</p>
+      <p class="font-mono text-[.66rem] text-ink-mute">Bradley–Terry Elo, generation 0 = random play · 40-game matches at 100 visits</p>
+    </div>
+    <div id="elo-chart" class="mt-4"></div>
+  </div>
+
+  <div class="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-5">
     <div class="rv bg-surface border border-line rounded-xl p-6">
       <p class="eyebrow !text-[.62rem]">No gate</p>
       <p class="mt-3 text-sm text-ink-dim leading-relaxed">Like AlphaZero and KataGo, the newest network always plays the next games. Evaluation is <span class="text-ink">measurement, not a toll booth</span> — v2 spent five times more compute gating than generating data. SPRT is there if you want a gate.</p>
@@ -507,7 +455,7 @@ tailwind.config = {
       <span class="text-sm text-ink-dim">Every generation: self-play speed, held-out losses, Elo, and results against GNU Go.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/archive/decisions" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.16s">
+    <a href="https://github.com/DevomB/Gofer/tree/main/docs/archive/decisions" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.16s">
       <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR</span>
       <span class="font-medium text-ink sm:w-64 shrink-0">v2 decision records</span>
       <span class="text-sm text-ink-dim">The original five ADRs, kept for the record.</span>
@@ -519,7 +467,7 @@ tailwind.config = {
 <!-- ======================= QUICKSTART ======================= -->
 <section id="quickstart" class="mx-auto max-w-6xl px-5 pt-24 pb-24">
   <p class="eyebrow rv">Quickstart</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">five minutes.</em></h2>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">five minutes</em> — <a href="#board-card" data-play-gofer class="text-violet hover:text-violet-bright text-2xl sm:text-3xl align-middle">or right now ↑</a></h2>
 
   <div class="mt-12 grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-10 items-start">
     <ol class="space-y-4 min-w-0">
@@ -566,10 +514,10 @@ tailwind.config = {
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> .venv/bin/python -m training.loop --run runs/9x9 --gofer bin/gofer</pre>
-            <button data-copy=".venv/bin/python -m training.loop --run runs/9x9 --gofer bin/gofer" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> make train</pre>
+            <button data-copy="make train" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop, resumable: self-play → train → export → evaluate</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">python -m training.loop — self-play → train → export → evaluate, resumable</p>
         </div>
       </li>
     </ol>
@@ -625,872 +573,7 @@ tailwind.config = {
   </div>
 </footer>
 
-<script>
-/* ============================================================
-   Gofer site JS — goban rules + replay, terminal, UI sugar.
-   The rules engine below was validated in Node against 7 real
-   SGFs produced by bin/gofer before shipping.
-   ============================================================ */
-(function () {
-  'use strict';
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  /* ---------- mobile nav ---------- */
-  const navToggle = document.getElementById('nav-toggle');
-  const mobileNav = document.getElementById('mobile-nav');
-  const navIconOpen = document.getElementById('nav-icon-open');
-  const navIconClose = document.getElementById('nav-icon-close');
-  function setNavOpen(open) {
-    mobileNav.classList.toggle('open', open);
-    navToggle.setAttribute('aria-expanded', String(open));
-    navIconOpen.classList.toggle('hidden', open);
-    navIconClose.classList.toggle('hidden', !open);
-  }
-  navToggle.addEventListener('click', () => setNavOpen(!mobileNav.classList.contains('open')));
-  mobileNav.querySelectorAll('.nav-link').forEach(a => a.addEventListener('click', () => setNavOpen(false)));
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') setNavOpen(false); });
-  document.addEventListener('click', e => {
-    if (mobileNav.classList.contains('open') && !mobileNav.contains(e.target) && !navToggle.contains(e.target)) setNavOpen(false);
-  });
-
-  /* ---------- scroll reveal ---------- */
-  const io = new IntersectionObserver(es => es.forEach(e => {
-    if (e.isIntersecting) { e.target.classList.add('on'); io.unobserve(e.target); }
-  }), { threshold: 0.12 });
-  document.querySelectorAll('.rv').forEach(el => io.observe(el));
-
-  /* ---------- copy buttons ---------- */
-  function legacyCopy(text) {
-    const ta = document.createElement('textarea');
-    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
-    document.body.appendChild(ta); ta.focus(); ta.select();
-    try { document.execCommand('copy'); } catch (e) { /* no-op: clipboard unavailable */ }
-    document.body.removeChild(ta);
-  }
-  document.querySelectorAll('.copy-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const flash = () => {
-        const icon = btn.querySelector('.copy-icon');
-        if (icon) { icon.classList.add('copy-ok'); setTimeout(() => icon.classList.remove('copy-ok'), 1200); }
-      };
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(btn.dataset.copy).then(flash, () => { legacyCopy(btn.dataset.copy); flash(); });
-      } else {
-        legacyCopy(btn.dataset.copy); flash();
-      }
-    });
-  });
-
-  /* ============================================================
-     GO RULES CORE  (positional superko, suicide ban, captures)
-     ============================================================ */
-  const EMPTY = 0, BLACK = 1, WHITE = 2;
-  const FP_SIZE = 9;    // free-play board
-  const HERO_SIZE = 19; // the historical game
-
-  function makeGoban(size) {
-    const g = { size, grid: new Int8Array(size * size), keys: [''], prisoners: { 1: 0, 2: 0 } };
-    g.keys[0] = g.grid.join('');
-    return g;
-  }
-  function neighbors(i, size) {
-    const x = i % size, y = (i / size) | 0, out = [];
-    if (x > 0) out.push(i - 1);
-    if (x < size - 1) out.push(i + 1);
-    if (y > 0) out.push(i - size);
-    if (y < size - 1) out.push(i + size);
-    return out;
-  }
-  function groupAt(g, i) {
-    const color = g.grid[i], seen = new Set([i]), stack = [i], stones = [];
-    let libs = 0; const libSeen = new Set();
-    while (stack.length) {
-      const p = stack.pop(); stones.push(p);
-      for (const n of neighbors(p, g.size)) {
-        const v = g.grid[n];
-        if (v === EMPTY) { if (!libSeen.has(n)) { libSeen.add(n); libs++; } }
-        else if (v === color && !seen.has(n)) { seen.add(n); stack.push(n); }
-      }
-    }
-    return { stones, libs };
-  }
-  // strict=true → enforce suicide + positional superko (free play mode)
-  function play(g, i, color, strict) {
-    if (i === -1) { g.keys.push(g.grid.join('')); return { ok: true, captures: [] }; }
-    if (g.grid[i] !== EMPTY) return { ok: false, reason: 'occupied' };
-    const opp = color === BLACK ? WHITE : BLACK;
-    g.grid[i] = color;
-    let captures = []; const checked = new Set();
-    for (const n of neighbors(i, g.size)) {
-      if (g.grid[n] === opp && !checked.has(n)) {
-        const gr = groupAt(g, n);
-        gr.stones.forEach(s => checked.add(s));
-        if (gr.libs === 0) captures = captures.concat(gr.stones);
-      }
-    }
-    for (const c of captures) g.grid[c] = EMPTY;
-    if (groupAt(g, i).libs === 0) {
-      for (const c of captures) g.grid[c] = opp;
-      g.grid[i] = EMPTY;
-      return { ok: false, reason: 'suicide' };
-    }
-    const key = g.grid.join('');
-    if (strict && g.keys.includes(key)) {
-      for (const c of captures) g.grid[c] = opp;
-      g.grid[i] = EMPTY;
-      return { ok: false, reason: 'superko' };
-    }
-    g.keys.push(key);
-    g.prisoners[color] += captures.length;
-    return { ok: true, captures };
-  }
-
-  /* ---------- the hero game ----------
-     The "ear-reddening" game: Honinbo Shusaku (B) vs Inoue Gennan Inseki (W),
-     Sep 1846, B+2 — the most famous game in Go history. Source:
-     training/experiments/warmstart/raw/aeb/games/Shusaku/126.sgf, one of the
-     95,894 pro games Gofer's -convert-sgf turns into warm-start rows. */
-  const HERO_SGF = '(;FF[4]SZ[19]KM[0]PB[Honinbo Shusaku]PW[Inoue Gennan Inseki]DT[1846-09-11]RE[B+2];B[qd];W[dc];B[pq];W[oc];B[cp];W[cf];B[ep];W[qo];B[pe];W[np];B[po];W[pp];B[op];W[qp];B[oq];W[oo];B[pn];W[qq];B[nq];W[on];B[pm];W[om];B[pl];W[mp];B[mq];W[ol];B[pk];W[lq];B[lr];W[kr];B[lp];W[kq];B[qr];W[rr];B[rs];W[mr];B[nr];W[pr];B[ps];W[qs];B[no];W[mo];B[qr];W[rm];B[rl];W[qs];B[lo];W[mn];B[qr];W[qm];B[or];W[ql];B[qj];W[rj];B[ri];W[rk];B[ln];W[mm];B[qi];W[rq];B[jn];W[ls];B[ns];W[gq];B[go];W[ck];B[kc];W[ic];B[pc];W[nj];B[ke];W[og];B[oh];W[pb];B[qb];W[ng];B[mi];W[mj];B[nd];W[ph];B[qg];W[pg];B[hq];W[hr];B[ir];W[iq];B[hp];W[jr];B[fc];W[lc];B[ld];W[mc];B[lb];W[mb];B[md];W[qf];B[pf];W[qh];B[rg];W[rh];B[sh];W[rf];B[sg];W[pj];B[pi];W[oi];B[oj];W[ni];B[qk];W[ok];B[qe];W[kb];B[jb];W[ka];B[jc];W[ob];B[ja];W[la];B[db];W[cc];B[fe];W[cn];B[gr];W[is];B[fq];W[io];B[ji];W[eb];B[fb];W[eg];B[dj];W[dk];B[ej];W[cj];B[dh];W[ij];B[hm];W[gj];B[eh];W[fl];B[fg];W[er];B[dm];W[fn];B[dn];W[gn];B[jj];W[jk];B[kk];W[ii];B[ik];W[jl];B[kl];W[il];B[jh];W[co];B[do];W[ih];B[hn];W[hl];B[bl];W[dg];B[gh];W[ch];B[ig];W[ec];B[cr];W[fd];B[gd];W[ed];B[gc];W[bk];B[cm];W[gs];B[gp];W[li];B[kg];W[in];B[lj];W[lg];B[gm];W[jf];B[jg];W[im];B[fm];W[kf];B[lf];W[mf];B[le];W[gf];B[hf];W[ff];B[gg];W[lk];B[kj];W[km];B[lm];W[ll];B[jm];W[ge];B[he];W[ef];B[ea];W[cb];B[fr];W[fs];B[dr];W[qa];B[ra];W[pa];B[rb];W[da];B[gi];W[fj];B[fi];W[fa];B[ga];W[gl];B[ek];W[em];B[ho];W[el];B[en];W[jo];B[kn];W[ci];B[lh];W[mh];B[mg];W[di];B[ei];W[lg];B[qn];W[rn];B[re];W[sl];B[mg];W[bm];B[am];W[lg];B[eq];W[es];B[mg];W[ha];B[gb];W[lg];B[ds];W[hs];B[mg];W[sj];B[si];W[lg];B[sr];W[sq];B[mg];W[hd];B[hb];W[lg];B[ro];W[so];B[mg];W[ss];B[qs];W[lg];B[sn];W[rp];B[mg];W[cl];B[bn];W[lg];B[ml];W[mk];B[mg];W[pj];B[sf];W[lg];B[nn];W[nl];B[mg];W[ib];B[ia];W[lg];B[nc];W[nb];B[mg];W[jd];B[kd];W[lg];B[ma];W[na];B[mg];W[qc];B[rc];W[lg];B[js];W[ks];B[mg];W[hc];B[id];W[lg];B[fk];W[hj];B[mg];W[hh];B[hg];W[lg];B[gk];W[hk];B[mg];W[ak];B[lg];W[al];B[bm];W[nf];B[od];W[ki];B[ms];W[kp];B[ip];W[jp];B[lr];W[oj];B[mr];W[ea];B[sr])';
-
-  function parseSGF(text, size) {
-    const moves = [], re = /;([BW])\[([a-z]{0,2})\]/g;
-    let m;
-    while ((m = re.exec(text))) {
-      const color = m[1] === 'B' ? BLACK : WHITE;
-      if (m[2] === '' || m[2] === 'tt') { moves.push({ color, i: -1 }); continue; }
-      const x = m[2].charCodeAt(0) - 97, y = m[2].charCodeAt(1) - 97;
-      moves.push({ color, i: y * size + x, x, y });
-    }
-    return moves;
-  }
-  const heroMoves = parseSGF(HERO_SGF, HERO_SIZE);
-
-  const COLS = 'ABCDEFGHJKLMNOPQRST';
-  function vertexName(i, size) { return COLS[i % size] + (size - ((i / size) | 0)); }
-
-  /* ============================================================
-     CANVAS GOBAN
-     ============================================================ */
-  const canvas = document.getElementById('goban');
-  const ctx = canvas.getContext('2d');
-  let px = 0;          // canvas CSS size (square)
-  let cell = 0, pad = 0, bsize = 19;
-  const anims = [];    // {i, color, type:'place'|'capture', t0}
-
-  function layout() {
-    const w = canvas.parentElement.clientWidth;
-    const dpr = window.devicePixelRatio || 1;
-    px = w;
-    canvas.style.height = w + 'px';
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(w * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw();
-  }
-
-  function stoneXY(i) {
-    return [pad + (i % bsize) * cell, pad + ((i / bsize) | 0) * cell];
-  }
-
-  function drawWood() {
-    const g1 = ctx.createLinearGradient(0, 0, px, px);
-    g1.addColorStop(0, '#C89E5E');
-    g1.addColorStop(0.5, '#BC9152');
-    g1.addColorStop(1, '#A87E42');
-    ctx.fillStyle = g1;
-    ctx.fillRect(0, 0, px, px);
-    // grain: deterministic wavy lines
-    ctx.strokeStyle = 'rgba(90,62,30,0.09)';
-    ctx.lineWidth = 1;
-    for (let k = 0; k < 22; k++) {
-      const y0 = (k * 97 % 613) / 613 * px;
-      ctx.beginPath();
-      for (let x = 0; x <= px; x += 8) {
-        const y = y0 + Math.sin((x * 0.011) + k * 2.1) * 3.2 + Math.sin(x * 0.037 + k) * 1.1;
-        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-    // vignette
-    const vg = ctx.createRadialGradient(px / 2, px / 2, px * 0.35, px / 2, px / 2, px * 0.75);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(40,20,0,0.18)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, px, px);
-  }
-
-  function drawGrid() {
-    ctx.strokeStyle = 'rgba(52,36,18,0.85)';
-    ctx.lineWidth = Math.max(1, px / (bsize > 9 ? 900 : 480));
-    for (let k = 0; k < bsize; k++) {
-      const p = pad + k * cell;
-      ctx.beginPath(); ctx.moveTo(pad, p); ctx.lineTo(px - pad, p); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(p, pad); ctx.lineTo(p, px - pad); ctx.stroke();
-    }
-    // hoshi
-    ctx.fillStyle = 'rgba(52,36,18,0.9)';
-    const hoshi = bsize === 9
-      ? [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]]
-      : [[3, 3], [9, 3], [15, 3], [3, 9], [9, 9], [15, 9], [3, 15], [9, 15], [15, 15]];
-    for (const [hx, hy] of hoshi) {
-      const [x, y] = stoneXY(hy * bsize + hx);
-      ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, cell * 0.13), 0, 7); ctx.fill();
-    }
-    // coordinates
-    ctx.fillStyle = 'rgba(52,36,18,0.55)';
-    ctx.font = `${Math.max(7, px / (bsize * 4.8))}px "JetBrains Mono", monospace`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    for (let k = 0; k < bsize; k++) {
-      ctx.fillText(COLS[k], pad + k * cell, px - pad * 0.35);
-      ctx.fillText(String(bsize - k), pad * 0.35, pad + k * cell);
-    }
-  }
-
-  function drawStone(x, y, color, r, alpha) {
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.shadowColor = 'rgba(30,15,0,0.45)';
-    ctx.shadowBlur = r * 0.5;
-    ctx.shadowOffsetY = r * 0.18;
-    const g = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.15, x, y, r * 1.05);
-    if (color === BLACK) {
-      g.addColorStop(0, '#4a4f55');
-      g.addColorStop(0.4, '#22252a');
-      g.addColorStop(1, '#0b0c0e');
-    } else {
-      g.addColorStop(0, '#FFFEF9');
-      g.addColorStop(0.55, '#F2EDE0');
-      g.addColorStop(1, '#C9C2B0');
-    }
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
-    ctx.restore();
-  }
-
-  let hoverIdx = -1; // free-play ghost
-  function draw() {
-    if (!px) return;
-    const g = active();
-    bsize = g.size;
-    pad = px * (bsize > 9 ? 0.048 : 0.075);
-    cell = (px - pad * 2) / (bsize - 1);
-    drawWood(); drawGrid();
-    const r = cell * 0.47;
-    const now = performance.now();
-    // capture fade-outs
-    for (const a of anims) {
-      if (a.type !== 'capture') continue;
-      const t = (now - a.t0) / 320;
-      if (t >= 1) continue;
-      const [x, y] = stoneXY(a.i);
-      drawStone(x, y, a.color, r * (1 - t * 0.4), 1 - t);
-    }
-    // stones
-    for (let i = 0; i < bsize * bsize; i++) {
-      if (g.grid[i] === EMPTY) continue;
-      let rr = r, aa = 1;
-      const a = anims.find(a2 => a2.i === i && a2.type === 'place');
-      if (a) {
-        const t = Math.min(1, (now - a.t0) / 180);
-        rr = r * (0.6 + 0.4 * t); aa = t;
-      }
-      const [x, y] = stoneXY(i);
-      drawStone(x, y, g.grid[i], rr, aa);
-    }
-    // last move marker
-    const lm = mode === 'watch' ? lastReplayMove() : fpLast;
-    if (lm >= 0 && g.grid[lm] !== EMPTY) {
-      const [x, y] = stoneXY(lm);
-      ctx.strokeStyle = g.grid[lm] === BLACK ? 'rgba(232,194,133,0.95)' : 'rgba(90,60,20,0.8)';
-      ctx.lineWidth = Math.max(1.4, px / 300);
-      ctx.beginPath(); ctx.arc(x, y, r * 0.45, 0, 7); ctx.stroke();
-    }
-    // ghost stone
-    if (mode === 'play' && hoverIdx >= 0 && g.grid[hoverIdx] === EMPTY) {
-      const [x, y] = stoneXY(hoverIdx);
-      drawStone(x, y, fpTurn, r, 0.45);
-    }
-  }
-
-  let rafOn = false;
-  function animate() {
-    if (rafOn) return;
-    rafOn = true;
-    (function tick() {
-      draw();
-      const now = performance.now();
-      for (let k = anims.length - 1; k >= 0; k--) {
-        if (now - anims[k].t0 > 400) anims.splice(k, 1);
-      }
-      if (anims.length) requestAnimationFrame(tick);
-      else { rafOn = false; draw(); }
-    })();
-  }
-
-  /* ---------- two board states: replay + free play ---------- */
-  let mode = 'watch';
-  let replayG = makeGoban(HERO_SIZE), replayN = 0, playing = false, timer = null;
-  const speeds = [650, 325, 160]; let speedIdx = 0;
-  const SHOWCASE = 127; let autoLoop = true, loopTimer = null;
-  let fpG = makeGoban(FP_SIZE), fpTurn = BLACK, fpLast = -1, fpPasses = 0;
-  const fpStack = [];
-
-  function active() { return mode === 'watch' ? replayG : fpG; }
-  function lastReplayMove() {
-    for (let k = replayN - 1; k >= 0; k--) if (heroMoves[k].i >= 0) return heroMoves[k].i;
-    return -1;
-  }
-
-  const $ = id => document.getElementById(id);
-  const statusEl = $('board-status'), capsEl = $('board-caps'), scrub = $('rp-scrub'), countEl = $('rp-count');
-  scrub.max = heroMoves.length;
-
-  function replaySet(n, withAnim) {
-    n = Math.max(0, Math.min(heroMoves.length, n));
-    if (n < replayN) {           // rebuild from scratch (cheap)
-      replayG = makeGoban(HERO_SIZE); replayN = 0;
-    }
-    while (replayN < n) {
-      const mv = heroMoves[replayN];
-      const res = play(replayG, mv.i, mv.color, false);
-      if (withAnim && replayN === n - 1) {
-        if (mv.i >= 0) anims.push({ i: mv.i, color: mv.color, type: 'place', t0: performance.now() });
-        for (const c of res.captures) anims.push({ i: c, color: mv.color === BLACK ? WHITE : BLACK, type: 'capture', t0: performance.now() });
-      }
-      replayN++;
-    }
-    scrub.value = replayN;
-    countEl.textContent = replayN + ' / ' + heroMoves.length;
-    capsEl.textContent = 'captures — B ' + replayG.prisoners[BLACK] + ' · W ' + replayG.prisoners[WHITE];
-    const mv = replayN > 0 ? heroMoves[replayN - 1] : null;
-    if (!mv) statusEl.innerHTML = '&nbsp;';
-    else statusEl.textContent = 'move ' + replayN + ' — ' + (mv.color === BLACK ? '● B ' : '○ W ') + (mv.i < 0 ? 'passes' : vertexName(mv.i, HERO_SIZE)) + (replayN === 127 ? ' · the “ear-reddening” move' : '');
-    if (replayN === heroMoves.length) {
-      $('board-caption').innerHTML = 'B+2 after 325 moves. Shusaku was seventeen. Replayed by the rules engine in your browser — all 60 captures included.';
-    }
-    withAnim && !reduceMotion ? animate() : draw();
-  }
-
-  const playBtn = $('rp-play');
-  function setPlayIcon() {
-    playBtn.innerHTML = playing
-      ? '<svg width="13" height="13" viewBox="0 0 14 14" fill="#8B7CF6" aria-hidden="true"><path d="M3 2h3v10H3zM8 2h3v10H8z"/></svg>'
-      : '<svg width="13" height="13" viewBox="0 0 14 14" fill="#8B7CF6" aria-hidden="true"><path d="M3.5 2 12 7l-8.5 5z"/></svg>';
-  }
-  function stop() { playing = false; clearInterval(timer); clearTimeout(loopTimer); setPlayIcon(); }
-  function start() {
-    if (replayN >= heroMoves.length) replaySet(0, false);
-    playing = true; setPlayIcon();
-    clearInterval(timer);
-    timer = setInterval(() => {
-      if (mode !== 'watch') return;
-      if (autoLoop && replayN >= SHOWCASE) {
-        stop();
-        statusEl.textContent = 'move 127 — the “ear-reddening” move · restarting (scrub for all ' + heroMoves.length + ')';
-        loopTimer = setTimeout(() => { if (autoLoop && mode === 'watch') { replaySet(0, false); start(); } }, 2600);
-        return;
-      }
-      if (replayN >= heroMoves.length) { stop(); return; }
-      replaySet(replayN + 1, true);
-    }, speeds[speedIdx]);
-  }
-  setPlayIcon();
-
-  playBtn.addEventListener('click', () => { autoLoop = false; playing ? stop() : start(); });
-  $('rp-start').addEventListener('click', () => { autoLoop = false; stop(); replaySet(0, false); });
-  $('rp-back').addEventListener('click', () => { autoLoop = false; stop(); replaySet(replayN - 1, false); });
-  $('rp-fwd').addEventListener('click', () => { autoLoop = false; stop(); replaySet(replayN + 1, true); });
-  $('rp-speed').addEventListener('click', e => {
-    speedIdx = (speedIdx + 1) % speeds.length;
-    e.currentTarget.textContent = '×' + [1, 2, 4][speedIdx];
-    if (playing) start();
-  });
-  scrub.addEventListener('input', () => { autoLoop = false; stop(); replaySet(+scrub.value, false); });
-
-  /* ---------- free play ---------- */
-  const fpMsg = $('fp-msg'), turnDot = $('turn-dot'), turnLabel = $('turn-label');
-  function fpUpdate(msg) {
-    turnDot.className = 'inline-block w-3 h-3 rounded-full border ' + (fpTurn === BLACK ? 'bg-black border-white/30' : 'bg-[#F2EDE0] border-black/30');
-    turnLabel.textContent = (fpTurn === BLACK ? 'Black' : 'White') + ' to play';
-    capsEl.textContent = 'captures — B ' + fpG.prisoners[BLACK] + ' · W ' + fpG.prisoners[WHITE];
-    fpMsg.textContent = msg || '';
-    statusEl.textContent = fpLast >= 0 ? 'last: ' + vertexName(fpLast, FP_SIZE) : 'click an intersection';
-  }
-  function boardIdxFromEvent(e) {
-    const rect = canvas.getBoundingClientRect();
-    const x = (e.clientX - rect.left), y = (e.clientY - rect.top);
-    const cx = Math.round((x - pad) / cell), cy = Math.round((y - pad) / cell);
-    if (cx < 0 || cx >= bsize || cy < 0 || cy >= bsize) return -1;
-    const [sx, sy] = stoneXY(cy * bsize + cx);
-    if (Math.hypot(sx - x, sy - y) > cell * 0.55) return -1;
-    return cy * bsize + cx;
-  }
-  canvas.addEventListener('mousemove', e => {
-    if (mode !== 'play') return;
-    const i = boardIdxFromEvent(e);
-    if (i !== hoverIdx) { hoverIdx = i; draw(); }
-    canvas.style.cursor = i >= 0 && fpG.grid[i] === EMPTY ? 'pointer' : 'default';
-  });
-  canvas.addEventListener('mouseleave', () => { hoverIdx = -1; draw(); });
-  canvas.addEventListener('click', e => {
-    if (mode !== 'play') return;
-    const i = boardIdxFromEvent(e);
-    if (i < 0) return;
-    fpStack.push({ grid: fpG.grid.slice(), keys: fpG.keys.slice(), pb: fpG.prisoners[1], pw: fpG.prisoners[2], turn: fpTurn, last: fpLast, passes: fpPasses });
-    const res = play(fpG, i, fpTurn, true);
-    if (!res.ok) {
-      fpStack.pop();
-      fpUpdate(res.reason === 'superko' ? 'illegal — positional superko' : res.reason === 'suicide' ? 'illegal — suicide' : 'occupied');
-      return;
-    }
-    if (!reduceMotion) {
-      anims.push({ i, color: fpTurn, type: 'place', t0: performance.now() });
-      for (const c of res.captures) anims.push({ i: c, color: fpTurn === BLACK ? WHITE : BLACK, type: 'capture', t0: performance.now() });
-    }
-    fpLast = i; fpPasses = 0;
-    fpTurn = fpTurn === BLACK ? WHITE : BLACK;
-    fpUpdate(res.captures.length ? 'captured ' + res.captures.length : '');
-    reduceMotion ? draw() : animate();
-  });
-  $('fp-pass').addEventListener('click', () => {
-    fpStack.push({ grid: fpG.grid.slice(), keys: fpG.keys.slice(), pb: fpG.prisoners[1], pw: fpG.prisoners[2], turn: fpTurn, last: fpLast, passes: fpPasses });
-    play(fpG, -1, fpTurn, true);
-    fpPasses++;
-    fpTurn = fpTurn === BLACK ? WHITE : BLACK;
-    fpUpdate(fpPasses >= 2 ? 'both passed — game over. scoring is bin/gofer’s job' : (fpTurn === BLACK ? 'White' : 'Black') + ' passes');
-  });
-  $('fp-undo').addEventListener('click', () => {
-    const s = fpStack.pop();
-    if (!s) return;
-    fpG.grid = Int8Array.from(s.grid); fpG.keys = s.keys;
-    fpG.prisoners[1] = s.pb; fpG.prisoners[2] = s.pw;
-    fpTurn = s.turn; fpLast = s.last; fpPasses = s.passes;
-    fpUpdate(''); draw();
-  });
-  $('fp-clear').addEventListener('click', () => {
-    fpG = makeGoban(FP_SIZE); fpTurn = BLACK; fpLast = -1; fpPasses = 0; fpStack.length = 0;
-    fpUpdate(''); draw();
-  });
-
-  /* ---------- mode toggle ---------- */
-  const modeWatch = $('mode-watch'), modePlay = $('mode-play');
-  function setMode(m) {
-    mode = m;
-    const on = 'mode-btn px-2.5 py-1 rounded-md bg-surface2 text-violet border border-violet/40';
-    const off = 'mode-btn px-2.5 py-1 rounded-md text-ink-mute border border-transparent hover:text-ink-dim';
-    modeWatch.className = m === 'watch' ? on : off;
-    modePlay.className = m === 'play' ? on : off;
-    $('watch-ctl').classList.toggle('hidden', m !== 'watch');
-    $('play-ctl').classList.toggle('hidden', m !== 'play');
-    if (m === 'play') {
-      autoLoop = false; stop();
-      $('board-label').textContent = 'full rules · runs in your browser';
-      $('board-caption').innerHTML = 'Captures, suicide and positional superko enforced — the same rules <span class="text-ink-dim">cmd/gofer</span> implements in Go. The engine itself lives in your terminal.';
-      fpUpdate('');
-    } else {
-      $('board-label').textContent = '1846 · Shusaku vs Gennan Inseki';
-      $('board-caption').innerHTML = 'The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. Gofer itself never saw a human game.';
-      replaySet(replayN, false);
-    }
-    hoverIdx = -1;
-    draw();
-  }
-  modeWatch.addEventListener('click', () => setMode('watch'));
-  modePlay.addEventListener('click', () => setMode('play'));
-
-  /* ---------- boot ---------- */
-  layout();
-  new ResizeObserver(layout).observe(canvas.parentElement);
-  if (reduceMotion) {
-    replaySet(127, false);          // rest on the famous position, no autoplay
-  } else {
-    const heroIO = new IntersectionObserver(es => {
-      if (es.some(e => e.isIntersecting)) { heroIO.disconnect(); setTimeout(start, 600); }
-    }, { threshold: 0.35 });
-    heroIO.observe(canvas);
-  }
-
-  /* ============================================================
-     TERMINAL — real captured sessions
-     ============================================================ */
-  const B9 = [
-    '  A B C D E F G H J',
-    ' 9 . . . . . . . . .', ' 8 . . . . . . . . .', ' 7 . . . . . . . . .',
-    ' 6 . . . . . . . . .', ' 5 . . . . . . . . .', ' 4 . . . . . . . . .',
-    ' 3 . . . . . . . . .', ' 2 . . . . . . . . .', ' 1 . . . . . . . . .',
-  ];
-  const SESSIONS = {
-    "play": {
-      "title": "bin/gofer play -model models/gofer-9x9.onnx",
-      "lines": [
-        {
-          "t": "cmd",
-          "s": "bin/gofer play -model models/gofer-9x9.onnx"
-        },
-        {
-          "t": "out",
-          "s": "Moves: D4, pass, resign, hint, quit"
-        },
-        {
-          "t": "in",
-          "s": "E5"
-        },
-        {
-          "t": "gold",
-          "s": "Gofer plays D4 (win 54%, pv D4 D6 F4 E4 E3)"
-        },
-        {
-          "t": "dim",
-          "s": "   A B C D E F G H J"
-        },
-        {
-          "t": "dim",
-          "s": " 9 . . . . . . . . .  9"
-        },
-        {
-          "t": "dim",
-          "s": " 8 . . . . . . . . .  8"
-        },
-        {
-          "t": "dim",
-          "s": " 7 . . . . . . . . .  7"
-        },
-        {
-          "t": "dim",
-          "s": " 6 . . . . . . . . .  6"
-        },
-        {
-          "t": "dim",
-          "s": " 5 . . . . X . . . .  5"
-        },
-        {
-          "t": "dim",
-          "s": " 4 . . . O). . . . .  4"
-        },
-        {
-          "t": "dim",
-          "s": " 3 . . . . . . . . .  3"
-        },
-        {
-          "t": "dim",
-          "s": " 2 . . . . . . . . .  2"
-        },
-        {
-          "t": "dim",
-          "s": " 1 . . . . . . . . .  1"
-        },
-        {
-          "t": "in",
-          "s": "hint"
-        },
-        {
-          "t": "out",
-          "s": "hint: D6 (win 45%)"
-        },
-        {
-          "t": "in",
-          "s": "C6"
-        },
-        {
-          "t": "dim",
-          "s": "   A B C D E F G H J"
-        },
-        {
-          "t": "dim",
-          "s": " 9 . . . . . . . . .  9"
-        },
-        {
-          "t": "dim",
-          "s": " 8 . . . . . . . . .  8"
-        },
-        {
-          "t": "dim",
-          "s": " 7 . . . . . . . . .  7"
-        },
-        {
-          "t": "dim",
-          "s": " 6 . . X). . . . . .  6"
-        },
-        {
-          "t": "dim",
-          "s": " 5 . . . . X . . . .  5"
-        },
-        {
-          "t": "dim",
-          "s": " 4 . . . O . . . . .  4"
-        },
-        {
-          "t": "dim",
-          "s": " 3 . . . . . . . . .  3"
-        },
-        {
-          "t": "dim",
-          "s": " 2 . . . . . . . . .  2"
-        },
-        {
-          "t": "dim",
-          "s": " 1 . . . . . . . . .  1"
-        },
-        {
-          "t": "gold",
-          "s": "Gofer plays F4 (win 54%, pv F4 F5 E3 G4 G3 H4)"
-        }
-      ]
-    },
-    "gtp": {
-      "title": "bin/gofer gtp -model models/gofer-9x9.onnx",
-      "lines": [
-        {
-          "t": "cmd",
-          "s": "bin/gofer gtp -model models/gofer-9x9.onnx"
-        },
-        {
-          "t": "in",
-          "s": "boardsize 9"
-        },
-        {
-          "t": "out",
-          "s": "= "
-        },
-        {
-          "t": "in",
-          "s": "clear_board"
-        },
-        {
-          "t": "out",
-          "s": "= "
-        },
-        {
-          "t": "in",
-          "s": "komi 7.5"
-        },
-        {
-          "t": "out",
-          "s": "= "
-        },
-        {
-          "t": "in",
-          "s": "play B E5"
-        },
-        {
-          "t": "out",
-          "s": "= "
-        },
-        {
-          "t": "in",
-          "s": "genmove W"
-        },
-        {
-          "t": "gold",
-          "s": "= D4"
-        },
-        {
-          "t": "in",
-          "s": "play B C4"
-        },
-        {
-          "t": "out",
-          "s": "= "
-        },
-        {
-          "t": "in",
-          "s": "gofer-analyze 800"
-        },
-        {
-          "t": "gold",
-          "s": "= value +0.125 winrate 56.2% visits 800"
-        },
-        {
-          "t": "gold",
-          "s": "D5    visits   459 winrate  58.4% prior  13.4%"
-        },
-        {
-          "t": "out",
-          "s": "C3    visits    62 winrate  55.4% prior   8.5%"
-        },
-        {
-          "t": "out",
-          "s": "C5    visits    58 winrate  54.1% prior  11.3%"
-        },
-        {
-          "t": "out",
-          "s": "E3    visits    24 winrate  53.1% prior   6.4%"
-        },
-        {
-          "t": "out",
-          "s": "E4    visits    20 winrate  55.4% prior   2.9%"
-        },
-        {
-          "t": "out",
-          "s": "F4    visits    17 winrate  52.1% prior   5.0%"
-        },
-        {
-          "t": "out",
-          "s": "D3    visits    14 winrate  52.5% prior   3.8%"
-        },
-        {
-          "t": "out",
-          "s": "F5    visits     8 winrate  54.6% prior   1.4%"
-        },
-        {
-          "t": "out",
-          "s": "pv D5 D6 C5 E4 E3 D3 C3 D2"
-        }
-      ]
-    },
-    "selfplay": {
-      "title": "bin/gofer selfplay",
-      "lines": [
-        {
-          "t": "cmd",
-          "s": "bin/gofer selfplay -model runs/9x9/models/gen-0016.onnx -games 600 \\"
-        },
-        {
-          "t": "cmd2",
-          "s": "    -full-visits 160 -fast-visits 32 -full-prob 0.25 -out runs/9x9/data/gen-0016"
-        },
-        {
-          "t": "out",
-          "s": "selfplay: 50/600 games, 1.0 games/s, 841 rows, black wins 38.0%"
-        },
-        {
-          "t": "out",
-          "s": "selfplay: 150/600 games, 1.2 games/s, 2717 rows, black wins 44.0%"
-        },
-        {
-          "t": "out",
-          "s": "selfplay: 250/600 games, 1.2 games/s, 4527 rows, black wins 46.8%"
-        },
-        {
-          "t": "out",
-          "s": "selfplay: 350/600 games, 1.2 games/s, 6336 rows, black wins 44.9%"
-        },
-        {
-          "t": "out",
-          "s": "selfplay: 450/600 games, 1.2 games/s, 8168 rows, black wins 45.3%"
-        },
-        {
-          "t": "dim",
-          "s": "…"
-        },
-        {
-          "t": "gold",
-          "s": "selfplay: 600 games, 10992 rows in 470s (1.28 games/s), black won 44.5%, resigned 440, false resigns 1/53"
-        },
-        {
-          "t": "com",
-          "s": "# 25% of moves get a full 160-visit search and become training rows;"
-        },
-        {
-          "t": "com",
-          "s": "# the rest get 32 visits and are only played (playout-cap randomization)."
-        }
-      ]
-    },
-    "loop": {
-      "title": "bin/gofer arena",
-      "lines": [
-        {
-          "t": "cmd",
-          "s": "bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=10 -games 100"
-        },
-        {
-          "t": "gold",
-          "s": "gen-0017@400 vs gnugo-l10: 66-34-0  score 0.660 [0.563, 0.745]  elo +115 [+44, +187]"
-        },
-        {
-          "t": "cmd",
-          "s": "bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=1 -games 100"
-        },
-        {
-          "t": "gold",
-          "s": "gen-0017@400 vs gnugo-l1: 78-22-0  score 0.780 [0.689, 0.850]  elo +220 [+138, +301]"
-        },
-        {
-          "t": "com",
-          "s": "# paired random openings, colors swapped, GNU Go judges dead stones."
-        },
-        {
-          "t": "cmd",
-          "s": "grep eval: runs/9x9/log.txt | tail -4"
-        },
-        {
-          "t": "out",
-          "s": "eval: gen-0016 vs gen-0015: 25-15-0 elo +89 [-21, +198]"
-        },
-        {
-          "t": "out",
-          "s": "eval: gen-0016 vs rollout: 40-0-0 score 1.00"
-        },
-        {
-          "t": "out",
-          "s": "eval: gen-0016 vs gnugo-l1: 26-14-0 score 0.65"
-        },
-        {
-          "t": "out",
-          "s": "eval: gen-0016 vs gnugo-l6: 23-17-0 score 0.57"
-        }
-      ]
-    }
-  };
-
-  const termBody = $('term-body'), termTitle = $('term-title');
-  let termToken = 0;
-  function lineSpan(l) {
-    const span = document.createElement('span');
-    if (l.t === 'cmd') { span.innerHTML = '<span style="color:#8B7CF6">$ </span>'; span.appendChild(document.createTextNode(l.s)); span.style.color = '#EAEAF4'; }
-    else if (l.t === 'cmd2') { span.textContent = l.s; span.style.color = '#EAEAF4'; }
-    else if (l.t === 'in') { span.innerHTML = '<span style="color:#8B7CF6">&gt; </span>'; span.appendChild(document.createTextNode(l.s)); span.style.color = '#EAEAF4'; }
-    else if (l.t === 'gold') { span.textContent = l.s; span.style.color = '#D6A85C'; }
-    else if (l.t === 'com') { span.textContent = l.s; span.style.color = '#636880'; }
-    else if (l.t === 'dim') { span.textContent = l.s; span.style.color = '#8F93AC'; }
-    else { span.textContent = l.s; }
-    return span;
-  }
-  async function typeSession(key) {
-    const my = ++termToken;
-    const ses = SESSIONS[key];
-    termTitle.textContent = ses.title;
-    termBody.textContent = '';
-    const sleep = ms => new Promise(r => setTimeout(r, ms));
-    for (const l of ses.lines) {
-      if (my !== termToken) return;
-      const isTyped = (l.t === 'cmd' || l.t === 'in') && !reduceMotion;
-      if (isTyped) {
-        const prefix = document.createElement('span');
-        prefix.innerHTML = l.t === 'cmd' ? '<span style="color:#8B7CF6">$ </span>' : '<span style="color:#8B7CF6">&gt; </span>';
-        const body = document.createElement('span');
-        body.style.color = '#EAEAF4';
-        termBody.appendChild(prefix); termBody.appendChild(body);
-        body.classList.add('caret');
-        for (const ch of l.s) {
-          if (my !== termToken) return;
-          body.textContent += ch;
-          await sleep(16);
-        }
-        body.classList.remove('caret');
-        termBody.appendChild(document.createTextNode('\n'));
-        await sleep(140);
-      } else {
-        termBody.appendChild(lineSpan(l));
-        termBody.appendChild(document.createTextNode('\n'));
-        if (!reduceMotion) await sleep(26);
-      }
-      termBody.scrollTop = termBody.scrollHeight;
-    }
-  }
-  document.querySelectorAll('.term-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.term-tab').forEach(b => b.className = 'term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink');
-      btn.className = 'term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet';
-      typeSession(btn.dataset.tab);
-    });
-  });
-  const termIO = new IntersectionObserver(es => {
-    if (es.some(e => e.isIntersecting)) { termIO.disconnect(); typeSession('play'); }
-  }, { threshold: 0.25 });
-  termIO.observe(termBody);
-})();
-</script>
+<script src="engine.js" defer></script>
+<script src="site.js" defer></script>
 </body>
 </html>
