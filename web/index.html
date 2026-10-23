@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gofer — a Go engine that teaches itself</title>
-<meta name="description" content="A complete Go engine in ~6,000 lines of Go: Chinese rules, PUCT Monte-Carlo tree search, GTP, in-process ONNX inference, and a self-play training loop with arena-gated promotion.">
+<meta name="description" content="An AlphaZero-style Go engine in ~4,300 lines of Go — bitset board, PUCT search, batched ONNX inference, GTP — with a PyTorch loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
 <meta name="author" content="DevomB">
 <meta property="og:title" content="Gofer — a Go engine that teaches itself">
-<meta property="og:description" content="Four thousand years of Go. Six thousand lines of Go. PUCT search, GTP, bit-exact ONNX inference, and an arena that only promotes networks that win.">
+<meta property="og:description" content="Four thousand years of Go. Four thousand lines of Go. Self-taught from random play, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Gofer">
 <meta property="og:image" content="og-image.png">
@@ -15,7 +15,7 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Gofer — a Go engine that teaches itself">
-<meta name="twitter:description" content="Chinese rules, PUCT search, GTP, bit-exact ONNX inference, and an arena that only promotes networks that win.">
+<meta name="twitter:description" content="PUCT search, batched ONNX inference, GTP, and a self-play loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.">
 <meta name="twitter:image" content="og-image.png">
 <meta name="theme-color" content="#07070D">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
@@ -23,7 +23,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Gofer","description":"A Go engine with Chinese rules, PUCT Monte-Carlo tree search, GTP, in-process ONNX inference, and a self-play training loop with arena-gated promotion.","codeRepository":"https://github.com/DevomB/Gofer","programmingLanguage":"Go","runtimePlatform":"Go 1.22+","author":{"@type":"Person","name":"DevomB","url":"https://github.com/DevomB"}}
+{"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"Gofer","description":"An AlphaZero-style Go engine in ~4,300 lines of Go — bitset board, PUCT search, batched ONNX inference, GTP — with a PyTorch loop that learned 9×9 Go from zero, beating GNU Go 66–34 after 3.6 hours on four CPU cores.","codeRepository":"https://github.com/DevomB/Gofer","programmingLanguage":"Go","runtimePlatform":"Go 1.22+","author":{"@type":"Person","name":"DevomB","url":"https://github.com/DevomB"}}
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -127,14 +127,14 @@ tailwind.config = {
         <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
       </svg>
       <span class="font-display text-lg tracking-wide">Gofer</span>
-      <span class="hidden sm:inline font-mono text-[.65rem] text-ink-mute border border-line rounded px-1.5 py-0.5 mt-0.5">v2.7.1</span>
+      <span class="hidden sm:inline font-mono text-[.65rem] text-ink-mute border border-line rounded px-1.5 py-0.5 mt-0.5">v3.0</span>
     </a>
     <div class="hidden md:flex items-center gap-7 text-sm text-ink-dim">
       <a href="#engine" class="hover:text-ink transition-colors">Engine</a>
       <a href="#loop" class="hover:text-ink transition-colors">The Loop</a>
       <a href="#terminal" class="hover:text-ink transition-colors">Terminal</a>
       <a href="#bench" class="hover:text-ink transition-colors">Benchmarks</a>
-      <a href="#decisions" class="hover:text-ink transition-colors">Decisions</a>
+      <a href="#decisions" class="hover:text-ink transition-colors">Paper trail</a>
       <a href="#quickstart" class="hover:text-ink transition-colors">Quickstart</a>
     </div>
     <a href="https://github.com/DevomB/Gofer" class="hidden sm:flex items-center gap-2 text-sm bg-surface2 text-ink border border-line rounded-lg px-3.5 py-1.5 hover:border-violet/50 hover:text-violet-bright transition-all">
@@ -152,7 +152,7 @@ tailwind.config = {
       <a href="#loop" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">The Loop</a>
       <a href="#terminal" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Terminal</a>
       <a href="#bench" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Benchmarks</a>
-      <a href="#decisions" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Decisions</a>
+      <a href="#decisions" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Paper trail</a>
       <a href="#quickstart" class="nav-link py-3 border-b border-line/60 hover:text-ink transition-colors">Quickstart</a>
       <a href="https://github.com/DevomB/Gofer" class="nav-link py-3 flex items-center gap-2 text-violet-bright">GitHub ↗</a>
     </div>
@@ -169,13 +169,13 @@ tailwind.config = {
     <div class="min-w-0">
       <p class="eyebrow mb-6 rv">MCTS &nbsp;·&nbsp; GTP &nbsp;·&nbsp; ONNX &nbsp;·&nbsp; self-play</p>
       <h1 class="rv font-display font-light text-[2.6rem] leading-[1.08] sm:text-6xl lg:text-[4.2rem] tracking-tight max-w-2xl">
-        Four thousand years of Go. <em class="italic whitespace-nowrap bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Six thousand lines</em> of&nbsp;Go.
+        Four thousand years of Go. <em class="italic whitespace-nowrap bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Four thousand lines</em> of&nbsp;Go.
       </h1>
       <p class="rv mt-7 text-lg text-ink-dim leading-relaxed max-w-xl">
-        Gofer is a complete Go engine — Chinese rules, PUCT Monte-Carlo search, GTP, and a
-        self-play loop where every new network must <span class="text-ink">beat the reigning champion</span>
-        to earn promotion. No hand-waving: Wilson confidence intervals, bit-exact ONNX parity,
-        and a benchmark gate in CI.
+        Gofer is an AlphaZero-style Go engine — a bitset board, PUCT search, batched ONNX
+        inference and GTP, in Go — plus a PyTorch loop that taught it 9×9 Go from random play.
+        <span class="text-ink">3.6 hours on four CPU cores later, it beats GNU Go 66–34.</span>
+        Every number on this page is measured: Wilson intervals, an Elo ladder, GNU Go as the yardstick.
       </p>
       <div class="rv mt-9 flex flex-wrap items-center gap-3">
         <button data-copy="git clone https://github.com/DevomB/Gofer.git" class="copy-btn group flex items-center gap-3 font-mono text-sm bg-surface border border-line rounded-lg pl-4 pr-3 py-2.5 hover:border-violet/50 transition-all text-left">
@@ -185,7 +185,7 @@ tailwind.config = {
         </button>
         <a href="#quickstart" class="text-sm font-medium text-white bg-gradient-to-r from-violet-deep to-violet rounded-lg px-5 py-2.5 hover:brightness-110 shadow-lg shadow-violet/20 transition-all">Quickstart →</a>
       </div>
-      <p class="rv mt-6 font-mono text-xs text-ink-mute">make build → bin/gofer &nbsp;·&nbsp; the heuristic engine needs nothing but Go</p>
+      <p class="rv mt-6 font-mono text-xs text-ink-mute">scripts/setup.sh → bin/gofer &nbsp;·&nbsp; rules, search, GTP and arena build in pure Go</p>
     </div>
 
     <!-- goban card -->
@@ -238,7 +238,7 @@ tailwind.config = {
         </div>
       </div>
       <p class="mt-4 text-center font-mono text-[.68rem] text-ink-mute leading-relaxed">
-        <span id="board-caption">The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. One of 95,894 pro games in Gofer’s warm-start corpus.</span>
+        <span id="board-caption">The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. Gofer itself never saw a human game.</span>
       </p>
     </div>
   </div>
@@ -248,24 +248,24 @@ tailwind.config = {
 <section class="border-y border-line bg-surface/40">
   <div class="mx-auto max-w-6xl px-5 py-12 grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-10">
     <div class="rv">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">3.52<span class="text-xl text-ink-dim ml-1">ns</span></div>
-      <div class="mt-2 text-sm text-ink-dim">to apply a stone</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">0 allocs/op · BenchmarkApplyStone</div>
+      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">66–34</div>
+      <div class="mt-2 text-sm text-ink-dim">against GNU Go 3.8, level 10</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">100 games · 400 visits · Elo +115 [+44, +187]</div>
     </div>
     <div class="rv" style="transition-delay:.07s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">7 <span class="text-xl text-ink-dim">allocs</span></div>
-      <div class="mt-2 text-sm text-ink-dim">per legal-move gen <span class="text-violet font-medium">— was 1,158</span></div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">scratch buffers, undo over clone</div>
+      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">3.6<span class="text-xl text-ink-dim ml-1">h</span></div>
+      <div class="mt-2 text-sm text-ink-dim">from random play, on 4 vCPUs</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">10,200 self-play games · no GPU · no human data</div>
     </div>
     <div class="rv" style="transition-delay:.14s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">1,721</div>
-      <div class="mt-2 text-sm text-ink-dim">positions bit-exact vs PyTorch</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">Go ORT ↔ Python parity harness</div>
+      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">20–0</div>
+      <div class="mt-2 text-sm text-ink-dim">against the v2 engine</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">at a quarter of its search budget</div>
     </div>
     <div class="rv" style="transition-delay:.21s">
-      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">45,243</div>
-      <div class="mt-2 text-sm text-ink-dim">positions in the replay buffer</div>
-      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">training cycle 7 · runs on a 2 GiB box</div>
+      <div class="font-display text-4xl lg:text-[2.75rem] text-ink">490k</div>
+      <div class="mt-2 text-sm text-ink-dim">playouts per second of pure search</div>
+      <div class="mt-1 font-mono text-[.68rem] text-ink-mute">4 vCPUs · ~4 µs per playout · was ~520 µs</div>
     </div>
   </div>
 </section>
@@ -274,44 +274,44 @@ tailwind.config = {
 <section id="engine" class="mx-auto max-w-6xl px-5 pt-24 pb-8">
   <p class="eyebrow rv">Inside the engine</p>
   <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Everything a Go engine needs. <em class="italic text-gold-bright">Nothing it doesn't.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">One binary plays, analyzes, referees, generates training data, and gates its own successors. The design choices are written down — every major one has an ADR.</p>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">One binary plays, analyzes, referees and generates training data; Python only trains. The design is written down in <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">docs/architecture.md</a>.</p>
 
   <div class="mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="4" y="4" width="20" height="20" rx="2"/><path d="M4 11h20M4 18h20M11 4v20M18 4v20"/></svg>
       <h3 class="mt-4 font-medium text-lg">Rules that hold up</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chinese area scoring and Tromp-Taylor, positional superko, suicide ban, SGF import and export. Scoring symmetry and arena-bias invariants are tested, not assumed.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">chinese_scoring_test.go · score_symmetry_test.go</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chains and exact liberties kept incrementally in bitsets, simple ko, positional superko from per-chain Zobrist hashes, Tromp-Taylor area scoring. Differential-tested against a naive reference on random games from 5×5 to 19×19.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">internal/game · 0.7 µs per move incl. legal moves</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="14" cy="5" r="2.5"/><circle cx="7" cy="14" r="2.5"/><circle cx="21" cy="14" r="2.5"/><circle cx="4" cy="23" r="2.5"/><circle cx="10" cy="23" r="2.5"/><path d="m12.5 6.8-4 4.7M15.5 6.8l4 4.7M6 16.4l-1.3 4.2M8 16.4l1.3 4.2"/></svg>
-      <h3 class="mt-4 font-medium text-lg">PUCT search</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Monte-Carlo tree search with policy priors, a transposition table, tree reuse between moves, root-parallel playouts — plus forced root playouts and policy-target pruning from the KataGo paper.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">AdvanceTree · playout-cap randomization</p>
+      <h3 class="mt-4 font-medium text-lg">PUCT search, done right</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">One documented sign convention, virtual-loss leaf batching, Dirichlet root noise, tree reuse, exact scoring of finished games, and a pass rule that keeps an untrained net from ending games at random.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">internal/mcts · regression test for every v2 defect</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="7" y="7" width="14" height="14" rx="2"/><path d="M11 7V3.5M17 7V3.5M11 24.5V21M17 24.5V21M7 11H3.5M7 17H3.5M24.5 11H21M24.5 17H21"/></svg>
-      <h3 class="mt-4 font-medium text-lg">Two brains</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">A hand-tuned heuristic evaluator — stones, liberties, territory, move priors — and a 6-block residual net running through in-process ONNX Runtime at ~0.9 ms per position. HTTP sidecar as fallback.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-eval heuristic|onnx · 1.2M params · 4.6 MB</p>
+      <h3 class="mt-4 font-medium text-lg">Batched inference</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Concurrent searches feed one evaluator; worker sessions run ONNX Runtime on every CPU core, or CUDA / TensorRT on a GPU. Random board symmetry per evaluation and a position cache.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-device cpu|cuda|tensorrt · 6×64 net · 477k params</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 8h12M4 14h20M4 20h16"/><path d="m20 5 3 3-3 3M18 17l3 3-3 3"/></svg>
       <h3 class="mt-4 font-medium text-lg">Speaks GTP</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Drop it into Sabaki or Lizzie as an engine. Think-time or fixed-playout budgets, <span class="font-mono text-[.8em]">time_left</span> handling, and an SGF of the game written on quit.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-gtp -size 9 -think-time 5s -o game.sgf</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Drop it into Sabaki or Lizzie. Live <span class="font-mono text-[.8em]">lz-analyze</span> overlays, <span class="font-mono text-[.8em]">time_settings</span>/<span class="font-mono text-[.8em]">time_left</span> budgets, undo, final_score, resignation.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">bin/gofer gtp -model models/gofer-9x9.onnx</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 4h13l5 5v15H5z"/><path d="M18 4v5h5M9 14h10M9 18h10M9 10h4"/></svg>
       <h3 class="mt-4 font-medium text-lg">A data factory</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play exports JSONL rows the trainer consumes directly: visit-count policy targets, opponent policy, ownership labels, 8 spatial feature planes and 4 globals per position.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">policy · policy_opp · ownership · full_search</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play with KataGo's playout-cap randomization writes compact NumPy shards: 13 feature planes, visit-count policy, game result, search value, final ownership. Resignation with measured false-positive rate.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">gofer selfplay → .npz · ~1.2 games/s on 4 vCPUs</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M14 4v20M6 24h16"/><path d="M14 7 7 12h14zM4 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3zM18 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3z"/></svg>
-      <h3 class="mt-4 font-medium text-lg">A merciless arena</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Champion versus challenger under identical configs. Wilson confidence intervals, early rejection when the gate is mathematically out of reach, and a config hash stamped on every report.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">promote only if win rate clears 0.55</p>
+      <h3 class="mt-4 font-medium text-lg">An honest arena</h3>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Any two players — networks, rollout MCTS, GNU Go or any GTP engine. Paired openings with colors swapped, GNU Go dead-stone adjudication, Wilson intervals, Elo, and SPRT for gating.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">gofer arena -a nn:model.onnx -b gnugo,level=10</p>
     </div>
   </div>
 </section>
@@ -319,12 +319,12 @@ tailwind.config = {
 <!-- ======================= THE LOOP ======================= -->
 <section id="loop" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
   <p class="eyebrow rv">The training loop</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Nothing gets promoted <em class="italic text-gold-bright">without a fight.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle: the champion plays itself, a network trains on the games, and the result walks into an arena against the very champion that generated its data. Lose, and it's discarded. Win past the Wilson gate, and it takes the throne — after the old champion is archived.</p>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Random play to <em class="italic text-gold-bright">GNU Go, in an afternoon.</em></h2>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every generation: the newest network plays itself, a replay window of recent games trains the next one with all eight board symmetries, the export is checked against PyTorch, and the result is rated against its predecessor and against GNU Go. Stop it anywhere — the same command resumes.</p>
 
   <!-- circular loop (desktop) -->
   <div class="rv mt-10 hidden md:block">
-    <svg viewBox="0 0 760 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay buffer, train, export ONNX, arena gate, promote, and back to self-play">
+    <svg viewBox="0 0 760 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay window, train, export ONNX, evaluate, Elo ladder, and back to self-play">
       <!-- ring -->
       <circle cx="380" cy="280" r="185" fill="none" stroke="#232741" stroke-width="1.5"/>
       <circle class="loop-ring" cx="380" cy="280" r="185" fill="none" stroke="#8B7CF6" stroke-width="1.5" opacity=".6"/>
@@ -340,8 +340,8 @@ tailwind.config = {
 
       <!-- center -->
       <text x="380" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#8B7CF6">THE LOOP</text>
-      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">cycle 7</text>
-      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">45,243 positions and counting</text>
+      <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">generation 17</text>
+      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">10,200 games · 197k positions</text>
 
       <!-- nodes: angles -90,-30,30,90,150,210 on r=185 around (380,280) -->
       <g font-family="Inter, sans-serif">
@@ -349,38 +349,38 @@ tailwind.config = {
         <g>
           <circle cx="380" cy="95" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="380" y="66" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Self-play</text>
-          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">champion vs champion → JSONL</text>
+          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">newest net vs itself → .npz</text>
         </g>
         <!-- REPLAY BUFFER (upper right) -->
         <g>
           <circle cx="540.2" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay buffer</text>
-          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">persistent · capped 50k rows</text>
+          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay window</text>
+          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">grows 60k → 400k rows</text>
         </g>
         <!-- TRAIN (lower right) -->
         <g>
           <circle cx="540.2" cy="372.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="562" y="368" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Train</text>
-          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · resume from best.pt</text>
+          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · 8 symmetries · AdamW</text>
         </g>
         <!-- EXPORT (bottom) -->
         <g>
           <circle cx="380" cy="465" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="380" y="497" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Export ONNX</text>
-          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · 4.6 MB · bit-exact parity</text>
+          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · 1.9 MB · verified vs PyTorch</text>
         </g>
         <!-- ARENA (lower left) — the gate, emphasized -->
         <g>
           <circle cx="219.8" cy="372.5" r="10" fill="#D6A85C"/>
           <circle cx="219.8" cy="372.5" r="15" fill="none" stroke="#D6A85C" stroke-width="1" opacity=".35"/>
-          <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Arena gate</text>
-          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">200 games vs champion · Wilson CI</text>
+          <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Evaluate</text>
+          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">vs previous gen + GNU Go</text>
         </g>
         <!-- PROMOTE (upper left) -->
         <g>
           <circle cx="219.8" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="198" y="180" text-anchor="end" font-size="13.5" font-weight="600" fill="#EAEAF4">Promote</text>
-          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">old champion archived first</text>
+          <text x="198" y="180" text-anchor="end" font-size="13.5" font-weight="600" fill="#EAEAF4">Elo ladder</text>
+          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">Bradley–Terry fit, gen 0 = 0</text>
         </g>
       </g>
     </svg>
@@ -388,26 +388,26 @@ tailwind.config = {
 
   <!-- stacked loop (mobile) -->
   <div class="rv mt-10 md:hidden space-y-0">
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">champion vs champion → JSONL</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay buffer</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">persistent · capped 50k rows</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · resume from best.pt</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 4.6 MB</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">200 games vs champion · Wilson CI</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Promote — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">old champion archived first</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">newest net vs itself → .npz</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay window</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">grows 60k → 400k rows</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · 8 symmetries · AdamW</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 1.9 MB · verified</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Evaluate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">vs previous gen + GNU Go</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Elo ladder — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">Bradley–Terry fit, gen 0 = 0</div></div></div>
   </div>
 
   <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
     <div class="rv bg-surface border border-line rounded-xl p-6">
-      <p class="eyebrow !text-[.62rem]">The gate</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger needs a <span class="text-ink">win rate whose Wilson interval clears 0.55</span> over up to 200 equal-config games — minimum 100 before promotion, early rejection the moment the bound becomes unreachable.</p>
+      <p class="eyebrow !text-[.62rem]">No gate</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Like AlphaZero and KataGo, the newest network always plays the next games. Evaluation is <span class="text-ink">measurement, not a toll booth</span> — v2 spent five times more compute gating than generating data. SPRT is there if you want a gate.</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
-      <p class="eyebrow !text-[.62rem]">The proof</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Training runs in PyTorch; play runs in Go. A parity harness holds them together: <span class="text-ink">1,721 positions, bit-exact</span> between Go ONNX Runtime and the Python reference session.</p>
+      <p class="eyebrow !text-[.62rem]">The yardstick</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Strength is measured against an engine nobody tuned for: <span class="text-ink">GNU Go 3.8 — 66–34 at its default level 10, 78–22 at level 1, over 100 games each with colors swapped.</span> GNU Go judges dead stones at the end of every game.</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.14s">
       <p class="eyebrow !text-[.62rem]">The honest part</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">The net is young. The current champion took the title in cycle 3; challengers since have peaked at a 30.5% arena win rate. <span class="text-ink">The loop is the point</span> — the strength is earned, cycle by cycle, on a 2 GiB cloud box.</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">v2's search backed values up with the wrong sign and skipped the search on fresh trees, so its training never had a chance. <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="text-ink underline underline-offset-4 decoration-violet/30 hover:text-violet-bright">The audit</a> lists every defect, with measurements and a regression test.</p>
     </div>
   </div>
 </section>
@@ -418,12 +418,12 @@ tailwind.config = {
     <div class="lg:sticky lg:top-28 min-w-0">
       <p class="eyebrow rv">One binary</p>
       <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Meet it in the <em class="italic text-gold-bright">terminal.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or read the loop's ledger. Every session below is real, captured output — including the engine's questionable taste in opening moves. It's cycle 7. It will learn.</p>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or referee a match against GNU Go. Every session below is real, captured output from the generation-17 network.</p>
       <div class="rv mt-8 flex flex-wrap gap-2 font-mono text-[.7rem]">
-        <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">-play</button>
-        <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-gtp</button>
-        <button data-tab="selfplay" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-selfplay</button>
-        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">the loop</button>
+        <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">play</button>
+        <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">gtp</button>
+        <button data-tab="selfplay" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">selfplay</button>
+        <button data-tab="loop" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">arena</button>
       </div>
     </div>
 
@@ -433,11 +433,11 @@ tailwind.config = {
           <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
           <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
           <span class="w-2.5 h-2.5 rounded-full bg-[#2A2D45]"></span>
-          <span id="term-title" class="ml-3 font-mono text-[.68rem] text-ink-mute">bin/gofer -play -size 9 -color b</span>
+          <span id="term-title" class="ml-3 font-mono text-[.68rem] text-ink-mute">bin/gofer play -model models/gofer-9x9.onnx</span>
         </div>
         <pre id="term-body" class="p-5 font-mono text-[.78rem] leading-[1.55] text-ink-dim overflow-x-auto min-h-[26rem] max-h-[26rem] overflow-y-auto whitespace-pre" aria-live="off"></pre>
       </div>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer v2.7.1 — not a mock-up</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer v3 — not a mock-up</p>
     </div>
   </div>
 </section>
@@ -446,10 +446,10 @@ tailwind.config = {
 <section id="bench" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
     <div class="min-w-0">
-      <p class="eyebrow rv">Hot path discipline</p>
-      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">The board <em class="italic text-gold-bright">never allocates.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">MCTS lives and dies by the inner loop. Gofer mutates one board and undoes, instead of cloning per playout — a measured decision (undo: 23 ns, clone: 130 ns), recorded in <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0002-legal-moves-repr.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADR 0002</a>. Legal-move generation dropped from 1,158 heap allocations to 7 with reusable scratch buffers.</p>
-      <p class="rv mt-4 text-ink-dim leading-relaxed">And it stays that way: <span class="font-mono text-[.85em] text-ink">make bench-check</span> compares every run against a committed baseline, in CI, on every push.</p>
+      <p class="eyebrow rv">Where the time goes</p>
+      <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">The network is <em class="italic text-gold-bright">the only bottleneck.</em></h2>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">v2 spent about as long in Go code as in the network for every evaluation, and ran the network on one core. v3 keeps chains and liberties incrementally, so a whole search step costs ~4 µs, and spreads inference over every core — or a GPU.</p>
+      <p class="rv mt-4 text-ink-dim leading-relaxed">Measured on a 4-vCPU cloud VM with <span class="font-mono text-[.85em] text-ink">go test -bench</span> and <span class="font-mono text-[.85em] text-ink">gofer bench</span>.</p>
     </div>
     <div class="rv min-w-0">
       <div class="bg-surface border border-line rounded-xl overflow-x-auto">
@@ -457,21 +457,21 @@ tailwind.config = {
           <thead>
             <tr class="border-b border-line font-mono text-[.66rem] uppercase tracking-wider text-ink-mute">
               <th class="text-left font-medium px-5 py-3">benchmark</th>
-              <th class="text-right font-medium px-3 py-3">ns/op</th>
-              <th class="text-right font-medium px-5 py-3">allocs/op</th>
+              <th class="text-right font-medium px-3 py-3">v3</th>
+              <th class="text-right font-medium px-5 py-3">v2</th>
             </tr>
           </thead>
           <tbody class="font-mono text-[.8rem] [font-variant-numeric:tabular-nums]">
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">ApplyStone</td><td class="px-3 py-3 text-right text-ink-dim">3.52</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">HashUpdate</td><td class="px-3 py-3 text-right text-ink-dim">3.44</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Undo</td><td class="px-3 py-3 text-right text-ink-dim">23.4</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Clone <span class="text-ink-mute">(the road not taken)</span></td><td class="px-3 py-3 text-right text-ink-dim">129.5</td><td class="px-5 py-3 text-right text-ink-dim">1</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">LegalMoves</td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">7 <span class="text-violet text-[.7rem]">▼ from 1,158</span></td></tr>
-            <tr><td class="px-5 py-3 text-ink">SGFReplay <span class="text-ink-mute">(full game)</span></td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">45</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Random 9×9 game <span class="text-ink-mute">(legal moves every ply)</span></td><td class="px-3 py-3 text-right text-ink-dim">134 µs</td><td class="px-5 py-3 text-right text-ink-dim">—</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Board copy</td><td class="px-3 py-3 text-right text-ink-dim">86 ns</td><td class="px-5 py-3 text-right text-ink-dim">130 ns</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Go-side cost per network eval</td><td class="px-3 py-3 text-right"><span class="text-violet">~4 µs</span></td><td class="px-5 py-3 text-right text-ink-dim">~520 µs</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Pure search, 4 vCPUs</td><td class="px-3 py-3 text-right"><span class="text-violet">490k/s</span></td><td class="px-5 py-3 text-right text-ink-dim">—</td></tr>
+            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Network evals, 6×64, 4 vCPUs</td><td class="px-3 py-3 text-right"><span class="text-violet">6,000/s</span></td><td class="px-5 py-3 text-right text-ink-dim">1,130/s</td></tr>
+            <tr><td class="px-5 py-3 text-ink">Cores used by self-play</td><td class="px-3 py-3 text-right"><span class="text-violet">4 of 4</span></td><td class="px-5 py-3 text-right text-ink-dim">1.2 of 4</td></tr>
           </tbody>
         </table>
       </div>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">from .tectonix/reports/bench-regression.json — the file CI gates against</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">v2 network figure is its own (larger) 6×64 net; see docs/v2-audit.md</p>
     </div>
   </div>
 </section>
@@ -479,38 +479,38 @@ tailwind.config = {
 <!-- ======================= DECISIONS ======================= -->
 <section id="decisions" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
   <p class="eyebrow rv">Paper trail</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Every reversal, <em class="italic text-gold-bright">written down first.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Five architecture decision records, in order. Including the ones where the answer was "tried it, reverted it" — that's the part most projects don't commit to git.</p>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Every defect, <em class="italic text-gold-bright">written down.</em></h2>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">v3 started with an audit of v2. The findings, the design that replaced it, and the run that proved it are all in the repo — including v2's original decision records.</p>
 
   <div class="mt-10 space-y-3">
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0001-inference-backend.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0001</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Inference backend</span>
-      <span class="text-sm text-ink-dim">Mock queue → HTTP sidecar → in-process ORT. Each hop earned by a measured constraint, not swapped for its own sake.</span>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">AUDIT</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Why v2 could not learn</span>
+      <span class="text-sm text-ink-dim">Inverted backup sign, searches that never ran, near-uniform policy targets, one-core inference, truncated games — 13 defects, each measured.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0002-legal-moves-repr.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.04s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0002</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">LegalMoves allocation</span>
-      <span class="text-sm text-ink-dim">Undo beat clone, 23 ns vs 130 ns. Measured on the reference laptop first, then written down.</span>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.04s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">DESIGN</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Architecture</span>
+      <span class="text-sm text-ink-dim">Packages, the search's sign convention, batching, feature schema, network and data format.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0003-iterative-training-loop.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.08s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0003</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Iterative training loop</span>
-      <span class="text-sm text-ink-dim">Win rate used to bounce — 33% → 58% → 35% — under weekly from-scratch retraining. Persistent state and monotonic promotion fixed it.</span>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/training.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.08s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">TRAIN</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Training guide</span>
+      <span class="text-sm text-ink-dim">The loop, its settings, throughput by network size, and how to run it on a GPU.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0004-in-process-onnx-inference.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.12s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0004</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">In-process ONNX inference</span>
-      <span class="text-sm text-ink-dim">Cut the HTTP hop — CGO + ORT in the same binary. Production target is a 2 GiB Lightsail box, not a GPU.</span>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/results/summary.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.12s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">RESULTS</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">The run</span>
+      <span class="text-sm text-ink-dim">Every generation: self-play speed, held-out losses, Elo, and results against GNU Go.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
-    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0005-net-size-ablation.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.16s">
-      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0005</span>
-      <span class="font-medium text-ink sm:w-64 shrink-0">Net-size ablation</span>
-      <span class="text-sm text-ink-dim">Tried smaller nets down to 4×32. <span class="text-ink">Not adopted</span> — would've forfeited --resume warm-start from the champion. Still 6×64.</span>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/archive/decisions" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:0.16s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">v2 decision records</span>
+      <span class="text-sm text-ink-dim">The original five ADRs, kept for the record.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
   </div>
@@ -519,7 +519,7 @@ tailwind.config = {
 <!-- ======================= QUICKSTART ======================= -->
 <section id="quickstart" class="mx-auto max-w-6xl px-5 pt-24 pb-24">
   <p class="eyebrow rv">Quickstart</p>
-  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">two minutes.</em></h2>
+  <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Playing in <em class="italic text-gold-bright">five minutes.</em></h2>
 
   <div class="mt-12 grid grid-cols-1 lg:grid-cols-[1.15fr_.85fr] gap-10 items-start">
     <ol class="space-y-4 min-w-0">
@@ -536,40 +536,40 @@ tailwind.config = {
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">2</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> make build &amp;&amp; make test</pre>
-            <button data-copy="make build && make test" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> scripts/setup.sh &amp;&amp; make test</pre>
+            <button data-copy="scripts/setup.sh && make test" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">pure Go — no CGO, no Python, no GPU required</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">ONNX Runtime, GNU Go, Python venv, bin/gofer</p>
         </div>
       </li>
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">3</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -play -size 9 -color b -o game.sgf</pre>
-            <button data-copy="bin/gofer -play -size 9 -color b -o game.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer play -model models/gofer-9x9.onnx</pre>
+            <button data-copy="bin/gofer play -model models/gofer-9x9.onnx" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">you're Black — beat it while you still can</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">you're Black — type hint if you get stuck</p>
         </div>
       </li>
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">4</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf</pre>
-            <button data-copy="bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer gtp -model models/gofer-9x9.onnx</pre>
+            <button data-copy="bin/gofer gtp -model models/gofer-9x9.onnx" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">register as an engine in Sabaki or Lizzie</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">register as an engine in Sabaki or Lizzie — lz-analyze works</p>
         </div>
       </li>
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
         <div class="flex-1 min-w-0">
           <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bash scripts/train-loop-v3.sh</pre>
-            <button data-copy="bash scripts/train-loop-v3.sh" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> .venv/bin/python -m training.loop --run runs/9x9 --gofer bin/gofer</pre>
+            <button data-copy=".venv/bin/python -m training.loop --run runs/9x9 --gofer bin/gofer" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop: self-play → train → export → arena → gate</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop, resumable: self-play → train → export → evaluate</p>
         </div>
       </li>
     </ol>
@@ -577,20 +577,20 @@ tailwind.config = {
     <div class="rv bg-surface border border-line rounded-xl p-6 lg:sticky lg:top-28 min-w-0">
       <p class="eyebrow !text-[.62rem]">What you need</p>
       <ul class="mt-4 space-y-3 text-sm text-ink-dim">
-        <li class="flex gap-3"><span class="text-violet mt-0.5">●</span><span><span class="text-ink">Go 1.22+</span> — that's it, for the engine</span></li>
+        <li class="flex gap-3"><span class="text-violet mt-0.5">●</span><span><span class="text-ink">Go 1.22+</span> and a C compiler for the engine</span></li>
+        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">ONNX Runtime</span> — fetched by scripts/install-ort.sh (CPU or GPU)</span></li>
         <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">Python + PyTorch</span> — only to train networks</span></li>
-        <li class="flex gap-3"><span class="text-ink-mute mt-0.5">○</span><span><span class="text-ink">CGO + <span class="font-mono text-[.85em]">make build-onnx</span></span> — only for in-process neural inference (ORT 1.26.0)</span></li>
       </ul>
       <div class="mt-6 pt-5 border-t border-line">
-        <p class="font-mono text-[.68rem] text-ink-mute leading-relaxed">Default playouts when <span class="text-ink-dim">-playouts 0</span>:</p>
+        <p class="font-mono text-[.68rem] text-ink-mute leading-relaxed">Default visits per move:</p>
         <div class="mt-3 grid grid-cols-3 gap-2 text-center font-mono text-[.7rem]">
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">9×9</div><div class="text-ink-mute mt-0.5">400</div></div>
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">13×13</div><div class="text-ink-mute mt-0.5">800</div></div>
-          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">19×19</div><div class="text-ink-mute mt-0.5">1600</div></div>
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">play</div><div class="text-ink-mute mt-0.5">400</div></div>
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">gtp</div><div class="text-ink-mute mt-0.5">800</div></div>
+          <div class="bg-surface2 rounded-lg py-2.5"><div class="text-ink">arena</div><div class="text-ink-mute mt-0.5">200</div></div>
         </div>
       </div>
       <div class="mt-6 pt-5 border-t border-line">
-        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/implementation-blueprint.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">implementation blueprint</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/research-traceability.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">paper-to-code traceability map</a>, and five <a href="https://github.com/DevomB/Gofer/tree/main/docs/decisions" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADRs</a>.</p>
+        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">architecture</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/training.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">training guide</a>, and the <a href="https://github.com/DevomB/Gofer/blob/main/docs/v2-audit.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">v2 audit</a>.</p>
       </div>
     </div>
   </div>
@@ -611,17 +611,17 @@ tailwind.config = {
           <span class="font-display text-lg">Gofer</span>
         </div>
         <p class="mt-3 font-display italic text-ink-dim">Not KataGo. <span class="text-gold-bright">Yet.</span></p>
-        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">6,089 lines of Go · 103 tests · 18 benchmarks · built with Go, PyTorch &amp; ONNX Runtime</p>
-        <p class="mt-1 font-mono text-[.68rem] text-ink-mute">solo project · 56 commits since Jun 2026</p>
+        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">4,315 lines of Go · Go + Python test suites · end-to-end CI · built with Go, PyTorch &amp; ONNX Runtime</p>
+        <p class="mt-1 font-mono text-[.68rem] text-ink-mute">solo project · v3 rewrite Oct 2026</p>
       </div>
       <div class="flex flex-col gap-2.5 text-sm text-ink-dim font-mono text-[.78rem]">
         <a href="https://github.com/DevomB/Gofer" class="hover:text-violet-bright transition-colors">github.com/DevomB/Gofer ↗</a>
         <a href="https://github.com/DevomB/Gofer/blob/main/CHANGELOG.md" class="hover:text-violet-bright transition-colors">changelog ↗</a>
-        <a href="https://github.com/DevomB/Gofer/blob/main/docs/model-input-schema.md" class="hover:text-violet-bright transition-colors">model input schema ↗</a>
+        <a href="https://github.com/DevomB/Gofer/blob/main/docs/architecture.md" class="hover:text-violet-bright transition-colors">architecture ↗</a>
         <a href="https://arxiv.org/abs/1902.10565" class="hover:text-violet-bright transition-colors">Wu et al. 2020 — the paper ↗</a>
       </div>
     </div>
-    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed report, a CI baseline, or a captured session — nothing is made up.</p>
+    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed result, a benchmark, or a captured session — nothing is made up.</p>
   </div>
 </footer>
 
@@ -1089,7 +1089,7 @@ tailwind.config = {
       fpUpdate('');
     } else {
       $('board-label').textContent = '1846 · Shusaku vs Gennan Inseki';
-      $('board-caption').innerHTML = 'The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. One of 95,894 pro games in Gofer’s warm-start corpus.';
+      $('board-caption').innerHTML = 'The “ear-reddening” game — <span class="text-ink-dim">Honinbo Shusaku vs Inoue Gennan Inseki, 1846</span>. Gofer itself never saw a human game.';
       replaySet(replayN, false);
     }
     hoverIdx = -1;
@@ -1120,93 +1120,316 @@ tailwind.config = {
     ' 3 . . . . . . . . .', ' 2 . . . . . . . . .', ' 1 . . . . . . . . .',
   ];
   const SESSIONS = {
-    play: {
-      title: 'bin/gofer -play -size 9 -color b',
-      lines: [
-        { t: 'cmd', s: 'bin/gofer -play -size 9 -color b' },
-        { t: 'out', s: 'Gofer 9x9 komi=6.5 — you are Black' },
-        { t: 'out', s: 'Commands: board | play <vertex> | genmove | analyze | score | undo | quit' },
-        ...B9.map(s => ({ t: 'dim', s })),
-        { t: 'out', s: 'Black to move' },
-        { t: 'out', s: '82 legal moves | your turn — play <vertex>' },
-        { t: 'in', s: 'play E5' },
-        { t: 'out', s: 'White to move' },
-        { t: 'out', s: '81 legal moves | engine turn — genmove' },
-        { t: 'in', s: 'genmove' },
-        { t: 'gold', s: '> engine A9' },
-        { t: 'dim', s: '  A B C D E F G H J' },
-        { t: 'dim', s: ' 9 O . . . . . . . .' },
-        { t: 'dim', s: ' 8 . . . . . . . . .' },
-        { t: 'dim', s: ' 7 . . . . . . . . .' },
-        { t: 'dim', s: ' 6 . . . . . . . . .' },
-        { t: 'dim', s: ' 5 . . . . X . . . .' },
-        { t: 'dim', s: ' 4 . . . . . . . . .' },
-        { t: 'dim', s: ' 3 . . . . . . . . .' },
-        { t: 'dim', s: ' 2 . . . . . . . . .' },
-        { t: 'dim', s: ' 1 . . . . . . . . .' },
-        { t: 'out', s: 'Black to move' },
-        { t: 'com', s: '# yes, it answered E5 with A9. cycle 7. it will learn.' },
+    "play": {
+      "title": "bin/gofer play -model models/gofer-9x9.onnx",
+      "lines": [
+        {
+          "t": "cmd",
+          "s": "bin/gofer play -model models/gofer-9x9.onnx"
+        },
+        {
+          "t": "out",
+          "s": "Moves: D4, pass, resign, hint, quit"
+        },
+        {
+          "t": "in",
+          "s": "E5"
+        },
+        {
+          "t": "gold",
+          "s": "Gofer plays D4 (win 54%, pv D4 D6 F4 E4 E3)"
+        },
+        {
+          "t": "dim",
+          "s": "   A B C D E F G H J"
+        },
+        {
+          "t": "dim",
+          "s": " 9 . . . . . . . . .  9"
+        },
+        {
+          "t": "dim",
+          "s": " 8 . . . . . . . . .  8"
+        },
+        {
+          "t": "dim",
+          "s": " 7 . . . . . . . . .  7"
+        },
+        {
+          "t": "dim",
+          "s": " 6 . . . . . . . . .  6"
+        },
+        {
+          "t": "dim",
+          "s": " 5 . . . . X . . . .  5"
+        },
+        {
+          "t": "dim",
+          "s": " 4 . . . O). . . . .  4"
+        },
+        {
+          "t": "dim",
+          "s": " 3 . . . . . . . . .  3"
+        },
+        {
+          "t": "dim",
+          "s": " 2 . . . . . . . . .  2"
+        },
+        {
+          "t": "dim",
+          "s": " 1 . . . . . . . . .  1"
+        },
+        {
+          "t": "in",
+          "s": "hint"
+        },
+        {
+          "t": "out",
+          "s": "hint: D6 (win 45%)"
+        },
+        {
+          "t": "in",
+          "s": "C6"
+        },
+        {
+          "t": "dim",
+          "s": "   A B C D E F G H J"
+        },
+        {
+          "t": "dim",
+          "s": " 9 . . . . . . . . .  9"
+        },
+        {
+          "t": "dim",
+          "s": " 8 . . . . . . . . .  8"
+        },
+        {
+          "t": "dim",
+          "s": " 7 . . . . . . . . .  7"
+        },
+        {
+          "t": "dim",
+          "s": " 6 . . X). . . . . .  6"
+        },
+        {
+          "t": "dim",
+          "s": " 5 . . . . X . . . .  5"
+        },
+        {
+          "t": "dim",
+          "s": " 4 . . . O . . . . .  4"
+        },
+        {
+          "t": "dim",
+          "s": " 3 . . . . . . . . .  3"
+        },
+        {
+          "t": "dim",
+          "s": " 2 . . . . . . . . .  2"
+        },
+        {
+          "t": "dim",
+          "s": " 1 . . . . . . . . .  1"
+        },
+        {
+          "t": "gold",
+          "s": "Gofer plays F4 (win 54%, pv F4 F5 E3 G4 G3 H4)"
+        }
       ]
     },
-    gtp: {
-      title: 'bin/gofer -gtp -size 9 -gtp-playouts 400',
-      lines: [
-        { t: 'cmd', s: 'bin/gofer -gtp -size 9 -gtp-playouts 400' },
-        { t: 'in', s: 'name' },
-        { t: 'gold', s: '= Gofer' },
-        { t: 'out', s: '' },
-        { t: 'in', s: 'version' },
-        { t: 'gold', s: '= 1.0' },
-        { t: 'out', s: '' },
-        { t: 'in', s: 'boardsize 9' },
-        { t: 'gold', s: '=' },
-        { t: 'out', s: '' },
-        { t: 'in', s: 'genmove b' },
-        { t: 'gold', s: '= A9' },
-        { t: 'out', s: '' },
-        { t: 'in', s: 'quit' },
-        { t: 'gold', s: '=' },
-        { t: 'com', s: '# same protocol Sabaki & Lizzie speak — add it as an engine' },
+    "gtp": {
+      "title": "bin/gofer gtp -model models/gofer-9x9.onnx",
+      "lines": [
+        {
+          "t": "cmd",
+          "s": "bin/gofer gtp -model models/gofer-9x9.onnx"
+        },
+        {
+          "t": "in",
+          "s": "boardsize 9"
+        },
+        {
+          "t": "out",
+          "s": "= "
+        },
+        {
+          "t": "in",
+          "s": "clear_board"
+        },
+        {
+          "t": "out",
+          "s": "= "
+        },
+        {
+          "t": "in",
+          "s": "komi 7.5"
+        },
+        {
+          "t": "out",
+          "s": "= "
+        },
+        {
+          "t": "in",
+          "s": "play B E5"
+        },
+        {
+          "t": "out",
+          "s": "= "
+        },
+        {
+          "t": "in",
+          "s": "genmove W"
+        },
+        {
+          "t": "gold",
+          "s": "= D4"
+        },
+        {
+          "t": "in",
+          "s": "play B C4"
+        },
+        {
+          "t": "out",
+          "s": "= "
+        },
+        {
+          "t": "in",
+          "s": "gofer-analyze 800"
+        },
+        {
+          "t": "gold",
+          "s": "= value +0.125 winrate 56.2% visits 800"
+        },
+        {
+          "t": "gold",
+          "s": "D5    visits   459 winrate  58.4% prior  13.4%"
+        },
+        {
+          "t": "out",
+          "s": "C3    visits    62 winrate  55.4% prior   8.5%"
+        },
+        {
+          "t": "out",
+          "s": "C5    visits    58 winrate  54.1% prior  11.3%"
+        },
+        {
+          "t": "out",
+          "s": "E3    visits    24 winrate  53.1% prior   6.4%"
+        },
+        {
+          "t": "out",
+          "s": "E4    visits    20 winrate  55.4% prior   2.9%"
+        },
+        {
+          "t": "out",
+          "s": "F4    visits    17 winrate  52.1% prior   5.0%"
+        },
+        {
+          "t": "out",
+          "s": "D3    visits    14 winrate  52.5% prior   3.8%"
+        },
+        {
+          "t": "out",
+          "s": "F5    visits     8 winrate  54.6% prior   1.4%"
+        },
+        {
+          "t": "out",
+          "s": "pv D5 D6 C5 E4 E3 D3 C3 D2"
+        }
       ]
     },
-    selfplay: {
-      title: 'bin/gofer -selfplay',
-      lines: [
-        { t: 'cmd', s: 'bin/gofer -selfplay -games 3 -size 9 -playouts 1500 \\' },
-        { t: 'cmd2', s: '    -selfplay-eval onnx -sgf-dir games/ -o samples.jsonl' },
-        { t: 'out', s: 'wrote 3 SGF files to games/' },
-        { t: 'com', s: '# warm-start too: -convert-sgf turns 95,894 pro SGFs into JSONL —' },
-        { t: 'com', s: '#   the 1846 Shusaku game replaying up top is Shusaku/126.sgf' },
-        { t: 'cmd', s: 'head -2 samples.jsonl | tail -1 | jq keys' },
-        { t: 'out', s: '[' },
-        { t: 'out', s: '  "board_hash",       "features_global",' },
-        { t: 'out', s: '  "features_spatial", "full_search",' },
-        { t: 'out', s: '  "komi",             "move_num",' },
-        { t: 'out', s: '  "ownership",        "policy",' },
-        { t: 'out', s: '  "policy_opp",       "to_play",' },
-        { t: 'out', s: '  "value"' },
-        { t: 'out', s: ']' },
-        { t: 'com', s: '# visit-count policy targets, ownership labels,' },
-        { t: 'com', s: '# 8 spatial planes + 4 globals — straight into the trainer' },
+    "selfplay": {
+      "title": "bin/gofer selfplay",
+      "lines": [
+        {
+          "t": "cmd",
+          "s": "bin/gofer selfplay -model runs/9x9/models/gen-0016.onnx -games 600 \\"
+        },
+        {
+          "t": "cmd2",
+          "s": "    -full-visits 160 -fast-visits 32 -full-prob 0.25 -out runs/9x9/data/gen-0016"
+        },
+        {
+          "t": "out",
+          "s": "selfplay: 50/600 games, 1.0 games/s, 841 rows, black wins 38.0%"
+        },
+        {
+          "t": "out",
+          "s": "selfplay: 150/600 games, 1.2 games/s, 2717 rows, black wins 44.0%"
+        },
+        {
+          "t": "out",
+          "s": "selfplay: 250/600 games, 1.2 games/s, 4527 rows, black wins 46.8%"
+        },
+        {
+          "t": "out",
+          "s": "selfplay: 350/600 games, 1.2 games/s, 6336 rows, black wins 44.9%"
+        },
+        {
+          "t": "out",
+          "s": "selfplay: 450/600 games, 1.2 games/s, 8168 rows, black wins 45.3%"
+        },
+        {
+          "t": "dim",
+          "s": "…"
+        },
+        {
+          "t": "gold",
+          "s": "selfplay: 600 games, 10992 rows in 470s (1.28 games/s), black won 44.5%, resigned 440, false resigns 1/53"
+        },
+        {
+          "t": "com",
+          "s": "# 25% of moves get a full 160-visit search and become training rows;"
+        },
+        {
+          "t": "com",
+          "s": "# the rest get 32 visits and are only played (playout-cap randomization)."
+        }
       ]
     },
-    loop: {
-      title: 'scripts/train-loop-v3.sh',
-      lines: [
-        { t: 'cmd', s: 'bash scripts/train-loop-v3.sh' },
-        { t: 'com', s: '# self-play → replay buffer → train → export → arena → gate …' },
-        { t: 'cmd', s: 'cat .tectonix/manifest.json' },
-        { t: 'out', s: '{' },
-        { t: 'out', s: '  "version": 3,' },
-        { t: 'out', s: '  "cycle": 7,' },
-        { t: 'gold', s: '  "best_win_rate": 0.305,' },
-        { t: 'out', s: '  "best_cycle": 3,' },
-        { t: 'gold', s: '  "replay_rows": 45243,' },
-        { t: 'out', s: '  "last_promoted_at": "2026-07-02T20:46:46Z",' },
-        { t: 'out', s: '  "seed": "fresh"' },
-        { t: 'out', s: '}' },
-        { t: 'com', s: '# the champion still holds the gate. that’s the ledger —' },
-        { t: 'com', s: '# a challenger has to clear a 0.55 Wilson bound to rewrite it.' },
+    "loop": {
+      "title": "bin/gofer arena",
+      "lines": [
+        {
+          "t": "cmd",
+          "s": "bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=10 -games 100"
+        },
+        {
+          "t": "gold",
+          "s": "gen-0017@400 vs gnugo-l10: 66-34-0  score 0.660 [0.563, 0.745]  elo +115 [+44, +187]"
+        },
+        {
+          "t": "cmd",
+          "s": "bin/gofer arena -a nn:models/gofer-9x9.onnx,visits=400 -b gnugo,level=1 -games 100"
+        },
+        {
+          "t": "gold",
+          "s": "gen-0017@400 vs gnugo-l1: 78-22-0  score 0.780 [0.689, 0.850]  elo +220 [+138, +301]"
+        },
+        {
+          "t": "com",
+          "s": "# paired random openings, colors swapped, GNU Go judges dead stones."
+        },
+        {
+          "t": "cmd",
+          "s": "grep eval: runs/9x9/log.txt | tail -4"
+        },
+        {
+          "t": "out",
+          "s": "eval: gen-0016 vs gen-0015: 25-15-0 elo +89 [-21, +198]"
+        },
+        {
+          "t": "out",
+          "s": "eval: gen-0016 vs rollout: 40-0-0 score 1.00"
+        },
+        {
+          "t": "out",
+          "s": "eval: gen-0016 vs gnugo-l1: 26-14-0 score 0.65"
+        },
+        {
+          "t": "out",
+          "s": "eval: gen-0016 vs gnugo-l6: 23-17-0 score 0.57"
+        }
       ]
     }
   };

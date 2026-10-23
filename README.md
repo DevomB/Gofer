@@ -13,7 +13,23 @@ network, ownership auxiliary target, Dirichlet root noise.
   export → evaluation against the previous generation and GNU Go → Elo ladder.
   Resumable, one command.
 
-<!-- RESULTS -->
+## Results
+
+Trained from random play on one 4-vCPU cloud VM (no GPU, no human games):
+17 generations, 10,200 self-play games, **3.6 hours**.
+
+| Final network (400 visits/move) vs | Games | Score | Elo difference (95% CI) |
+|------------------------------------|------:|------:|------------------------:|
+| GNU Go 3.8, level 10 (default) | 100 | **66–34** | +115 [+44, +187] |
+| GNU Go 3.8, level 1 | 100 | **78–22** | +220 [+138, +301] |
+| Gofer v2 engine + its model (400 playouts) — generation 9 at 100 visits | 20 | **20–0** | ≥ +287 |
+
+Games alternate colors over paired random openings; GNU Go judges dead
+stones at the end. The v2 engine lost 0–20 to GNU Go level 1.
+
+![Elo by generation](docs/results/elo.png)
+
+Per-generation numbers: [docs/results/summary.md](docs/results/summary.md).
 
 ## Quick start
 
