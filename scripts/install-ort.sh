@@ -34,6 +34,9 @@ tar -xzf "$TMP/ort.tgz" -C "$TMP"
 rm -rf "$DEST"
 mkdir -p "$(dirname "$DEST")"
 mv "$TMP/$NAME" "$DEST"
-LIB="$(ls "$DEST"/lib/libonnxruntime.so."$VERSION" "$DEST"/lib/libonnxruntime."$VERSION".dylib 2>/dev/null | head -1)"
+LIB=""
+for f in "$DEST/lib/libonnxruntime.so.$VERSION" "$DEST/lib/libonnxruntime.$VERSION.dylib"; do
+  if [[ -f "$f" ]]; then LIB="$f"; break; fi
+done
 echo "installed $LIB"
 echo "export ONNXRUNTIME_SHARED_LIBRARY_PATH=$LIB"
