@@ -31,7 +31,7 @@ way, NumPy shards and JSON match results the other.
 | `internal/nn` | Feature encoding (schema 3), the `Evaluator` interface, `Net` (batches concurrent requests across worker backends, random symmetry, position cache), ONNX Runtime backend (CPU, CUDA, TensorRT), network-free `Uniform` and `Rollout` evaluators. |
 | `internal/mcts` | PUCT search with virtual-loss leaf batching, Dirichlet root noise, tree reuse, exact terminal scoring and the conservative pass rule. |
 | `internal/selfplay` | Concurrent self-play games with playout-cap randomization, resignation with false-positive tracking, `.npz` shard writer. |
-| `internal/arena` | Matches between any two players (networks, rollout/uniform baselines, external GTP engines such as GNU Go) with paired openings, dead-stone adjudication, Wilson intervals, Elo and SPRT. |
+| `internal/arena` | Matches between any two players (networks, rollout/uniform baselines, external GTP engines such as GNU Go) with paired openings, dead-stone adjudication, Wilson intervals, Elo, and an SPRT on decisive opening pairs whose error rates are bounded by Wald's inequality (and checked by simulation). |
 | `internal/gtp` | GTP v2 server. |
 | `cmd/gofer` | CLI: `gtp`, `play`, `selfplay`, `arena`, `bench`. |
 

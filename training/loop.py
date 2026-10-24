@@ -62,10 +62,10 @@ class LoopConfig:
     anchor_every: int = 2
     anchor_games: int = 40
     # champions: on anchor generations, a network rated above the champion plays
-    # it directly and takes over if it wins (SPRT H1, or an Elo interval above 0)
-    champion_games: int = 100  # 0 disables champion tracking
+    # it directly and takes over only if the match's SPRT accepts H1
+    champion_games: int = 200  # game limit (SPRT usually stops sooner); 0 disables champions
     champion_visits: int = 200
-    champion_sprt: str = "0,50"  # elo0,elo1
+    champion_sprt: str = "0,50"  # elo0,elo1: false promotion <= 5.3% when not stronger
     champion_min_elo: float = 1500.0  # early generations (gen 0 = 0) never become champion
 
     @classmethod
@@ -250,7 +250,8 @@ class Run:
         asset = d / release.asset_name(c.board_size)
         shutil.copyfile(self.model_path(gen), asset)
         selfplay = [v["selfplay"] for g, v in self.state["done"].items() if int(g) < gen and isinstance(v.get("selfplay"), dict)]
-        keep = ("wins", "losses", "draws", "elo", "elo_ci_low", "elo_ci_high", "sprt", "opponent", "visits")
+        keep = ("wins", "losses", "draws", "elo", "elo_ci_low", "elo_ci_high", "sprt", "sprt_pairs",
+                "sprt_sweeps_a", "sprt_sweeps_b", "opponent", "visits")
         info = {
             "run": self.root.name, "gen": gen, "tag": release.release_tag(self.root, gen),
             "elo": ratings[name]["elo"], "stderr": ratings[name]["stderr"],

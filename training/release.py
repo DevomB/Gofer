@@ -1,8 +1,10 @@
 """Champions and GitHub releases.
 
 The training loop plays every anchor generation whose ladder rating passes the
-current champion's against that champion. A win (SPRT accepts H1, or the match
-ends with the Elo interval above zero) makes it the new champion. Each champion
+current champion's against that champion, and promotes it only if the match's
+SPRT accepts H1 (see internal/arena: with the default 0,50 bounds and
+alpha = beta = 0.05, a challenger that is not actually stronger is promoted
+with probability at most 5.3%; an undecided match promotes nothing). Each champion
 is copied to runs/<run>/champion/ and, when a repository is given, published
 as a GitHub Release whose model asset always has the same name, so the newest
 champion is one link away:
@@ -37,12 +39,9 @@ def release_tag(run: Path, gen: int) -> str:
 
 
 def won(match: dict) -> bool:
-    """Whether the challenger (player A) beat the champion convincingly."""
-    if match.get("sprt") == "H1":
-        return True
-    if match.get("sprt") == "H0":
-        return False
-    return match.get("elo_ci_low", 0.0) > 0
+    """Whether the challenger (player A) proved stronger than the champion:
+    only an SPRT acceptance counts, so the error bound holds."""
+    return match.get("sprt") == "H1"
 
 
 def sha256(path: Path) -> str:
@@ -73,10 +72,12 @@ def notes(info: dict, repo: str) -> str:
     ]
     m = info.get("match")
     if m:
-        decided = f", SPRT {m['sprt']}" if m.get("sprt") else ""
         lines.append(f"| Champion match | beat {_opponent(m['opponent'])} {m['wins']}–{m['losses']}"
                      f"{'–' + str(m['draws']) if m['draws'] else ''} (Elo {m['elo']:+.0f} "
-                     f"[{m['elo_ci_low']:+.0f}, {m['elo_ci_high']:+.0f}]), {m['visits']} visits{decided} |")
+                     f"[{m['elo_ci_low']:+.0f}, {m['elo_ci_high']:+.0f}]) at {m['visits']} visits |")
+        if m.get("sprt_pairs"):
+            lines.append(f"| Evidence | SPRT accepted after {m['sprt_pairs']} opening pairs: "
+                         f"{m['sprt_sweeps_a']} sweeps to {m['sprt_sweeps_b']} (split pairs carry no evidence) |")
     else:
         lines.append("| Champion match | first champion of the run |")
     lines.append(f"| Rating | Elo {info['elo']:+.0f} ± {info['stderr']:.0f} on the run's ladder (generation 0 = 0) |")

@@ -12,11 +12,12 @@ from training import release
 from training.loop import LoopConfig, Run
 
 
-def test_won():
+def test_won_needs_sprt_acceptance():
     assert release.won({"sprt": "H1", "elo_ci_low": -50})
     assert not release.won({"sprt": "H0", "elo_ci_low": 10})
-    assert release.won({"sprt": "", "elo_ci_low": 5})
-    assert not release.won({"elo_ci_low": -5})
+    # an undecided match promotes nothing, however good its point estimate
+    assert not release.won({"sprt": "", "elo_ci_low": 5})
+    assert not release.won({"elo_ci_low": 5})
 
 
 def fake_gh(tmp: Path, existing: bool = False, fail: bool = False) -> Path:
@@ -107,7 +108,8 @@ def test_publish_newest_pending_with_stable_asset_name(run, tmp_path):
     run.promote(2, json.loads((run.root / "eval" / "ratings.json").read_text()), None)
     run.promote(4, json.loads((run.root / "eval" / "ratings.json").read_text()),
                 {"wins": 70, "losses": 30, "draws": 0, "elo": 70, "elo_ci_low": 30, "elo_ci_high": 110,
-                 "sprt": "H1", "opponent": "gen-0002", "visits": 200})
+                 "sprt": "H1", "sprt_pairs": 50, "sprt_sweeps_a": 25, "sprt_sweeps_b": 5,
+                 "opponent": "gen-0002", "visits": 200})
     gh = fake_gh(tmp_path)
     assert release.publish_pending(run.root, run.state, "o/r", log=lambda m: None, gh=str(gh))
     assert run.state["releases"] == [
@@ -121,6 +123,7 @@ def test_publish_newest_pending_with_stable_asset_name(run, tmp_path):
     assert args[3].endswith("gen-0004/gofer-9x9.onnx") and args[4].endswith("gen-0004/champion.json")
     text = (run.root / "champion" / "gen-0004" / "notes.md").read_text()
     assert "beat generation 2 70–30" in text and "releases/latest/download/gofer-9x9.onnx" in text
+    assert "SPRT accepted after 50 opening pairs: 25 sweeps to 5" in text
     assert release.sha256(run.root / "champion" / "gen-0004" / "gofer-9x9.onnx") in text
 
 

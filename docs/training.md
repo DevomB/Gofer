@@ -48,10 +48,20 @@ Each generation:
    generations against fixed anchors (GNU Go by default). All results feed a
    Bradley-Terry fit in `eval/ratings.json` with `gen-0000` at 0 Elo.
 5. **Champion** (anchor generations only): if the new network is rated above
-   the champion, it plays the champion directly (`champion_games` games at
-   `champion_visits`, stopped early by SPRT `champion_sprt`) and becomes the
-   new champion if it wins. The first network rated at least
-   `champion_min_elo` becomes the first champion.
+   the champion, it plays the champion directly (up to `champion_games` games
+   at `champion_visits`) and becomes the new champion only if the match's SPRT
+   (`champion_sprt`, default `0,50`) accepts H1. The first network rated at
+   least `champion_min_elo` becomes the first champion.
+
+   The SPRT counts opening pairs (each opening played with both colors) that
+   one side wins twice, in pair order, and runs Wald's test on them. Under the
+   usual logistic Elo model the chance a decisive pair is the challenger's is
+   1 / (1 + 10^(-2d/400)) for an Elo advantage d, whatever the color or
+   opening bias, so Wald's inequality applies exactly: a challenger that is
+   not stronger than the champion is promoted with probability at most
+   alpha / (1 - beta) = 5.3%, and a match that reaches `champion_games`
+   undecided promotes nothing. `go test ./internal/arena` checks these rates
+   by simulating thousands of matches with color and opening advantages.
 
 There is no gating for training: like AlphaZero and KataGo, the newest
 network always plays the next self-play. The champion is only the best
