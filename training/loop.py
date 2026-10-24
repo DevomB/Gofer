@@ -1,9 +1,12 @@
-"""AlphaZero-style training loop: self-play -> train -> export -> evaluate.
+"""AlphaZero-style training loop: self-play -> train -> export -> evaluate -> champion.
 
 Every phase writes its outputs before state.json records it as done, so the
 loop can be stopped at any point and resumed with the same command.
 
-    python -m training.loop --run runs/9x9 --gofer bin/gofer --hours 6
+    python -m training.loop --run runs/9x9 --gofer bin/gofer --hours 6 --release-repo DevomB/Gofer
+
+With --release-repo, every new champion is published as a GitHub Release
+(see training/release.py).
 """
 
 from __future__ import annotations
@@ -24,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from training import elo
+from training import elo, release
 from training.data import load_shard, load_window
 from training.export import export
 from training.model import GoferNet, ModelConfig, param_count
@@ -58,6 +61,12 @@ class LoopConfig:
     anchors: list[str] = field(default_factory=lambda: ["gnugo,level=1", "gnugo,level=6"])
     anchor_every: int = 2
     anchor_games: int = 40
+    # champions: on anchor generations, a network rated above the champion plays
+    # it directly and takes over if it wins (SPRT H1, or an Elo interval above 0)
+    champion_games: int = 100  # 0 disables champion tracking
+    champion_visits: int = 200
+    champion_sprt: str = "0,50"  # elo0,elo1
+    champion_min_elo: float = 1500.0  # early generations (gen 0 = 0) never become champion
 
     @classmethod
     def from_dict(cls, d: dict) -> "LoopConfig":
@@ -67,8 +76,9 @@ class LoopConfig:
 
 
 class Run:
-    def __init__(self, root: Path, cfg: LoopConfig, gofer: Path, threads: int) -> None:
+    def __init__(self, root: Path, cfg: LoopConfig, gofer: Path, threads: int, release_repo: str = "") -> None:
         self.root, self.cfg, self.gofer, self.threads = root, cfg, gofer, threads
+        self.release_repo = release_repo
         for d in ("models", "ckpt", "data", "eval", "sgf"):
             (root / d).mkdir(parents=True, exist_ok=True)
         self.state_path = root / "state.json"
@@ -173,12 +183,13 @@ class Run:
                      **{f"val_{k}": v for k, v in val.items()}})
         self.mark(gen, "train", {"steps": steps})
 
-    def match(self, a: str, b: str, games: int, visits: int, tag: str) -> dict:
+    def match(self, a: str, b: str, games: int, visits: int, tag: str, extra: list[str] | None = None) -> dict:
         out = self.root / "eval" / f"{tag}.json"
         if not out.exists():
             self.gofer_run([
                 "arena", "-a", a, "-b", b, "-games", str(games), "-visits", str(visits), "-size", str(self.cfg.board_size),
                 "-komi", str(self.cfg.komi), "-parallel", str(2 * self.threads), "-json", str(out), "-seed", str(len(tag)),
+                *(extra or []),
             ])
         return json.loads(out.read_text())
 
@@ -205,12 +216,70 @@ class Run:
         self.log("ratings: " + ", ".join(f"{p} {v['elo']:+.0f}±{v['stderr']:.0f}" for p, v in sorted(ratings.items(), key=lambda kv: -kv[1]["elo"])[:8]))
         self.mark(gen, "eval")
 
+    def champion(self, gen: int) -> None:
+        if self.is_done(gen, "champion"):
+            return
+        c, new = self.cfg, gen + 1
+        if c.champion_games > 0 and new % c.anchor_every == 0:
+            ratings = json.loads((self.root / "eval" / "ratings.json").read_text())
+            name = lambda g: f"gen-{g:04d}"
+            mine = ratings[name(new)]["elo"]
+            champ = self.state.get("champion")
+            theirs = ratings.get(name(champ["gen"]), {}).get("elo", champ["elo"]) if champ else None
+            if mine >= c.champion_min_elo and (champ is None or mine > theirs):
+                if champ is None:
+                    self.promote(new, ratings, None)
+                else:
+                    r = self.match(f"nn:{self.model_path(new)}", f"nn:{self.model_path(champ['gen'])}", c.champion_games,
+                                   c.champion_visits, f"{name(new)}-vs-champion-{name(champ['gen'])}", ["-sprt", c.champion_sprt])
+                    self.state.setdefault("results", []).append(
+                        {"a": name(new), "b": name(champ["gen"]), "wins": r["wins"], "losses": r["losses"], "draws": r["draws"]})
+                    self.log(f"champion match: {name(new)} vs {name(champ['gen'])}: {r['wins']}-{r['losses']}-{r['draws']} "
+                             f"elo {r['elo']:+.0f} [{r['elo_ci_low']:+.0f}, {r['elo_ci_high']:+.0f}] sprt {r.get('sprt') or 'undecided'}")
+                    if release.won(r):
+                        self.promote(new, ratings, {**r, "opponent": name(champ["gen"]), "visits": c.champion_visits})
+        self.publish()
+        self.mark(gen, "champion")
+
+    def promote(self, gen: int, ratings: dict, match: dict | None) -> None:
+        """Make generation gen the champion: keep a copy of the network and its
+        metadata under champion/, and queue a release."""
+        c, name = self.cfg, f"gen-{gen:04d}"
+        d = self.root / "champion" / name
+        d.mkdir(parents=True, exist_ok=True)
+        asset = d / release.asset_name(c.board_size)
+        shutil.copyfile(self.model_path(gen), asset)
+        selfplay = [v["selfplay"] for g, v in self.state["done"].items() if int(g) < gen and isinstance(v.get("selfplay"), dict)]
+        keep = ("wins", "losses", "draws", "elo", "elo_ci_low", "elo_ci_high", "sprt", "opponent", "visits")
+        info = {
+            "run": self.root.name, "gen": gen, "tag": release.release_tag(self.root, gen),
+            "elo": ratings[name]["elo"], "stderr": ratings[name]["stderr"],
+            "match": {k: match.get(k) for k in keep} if match else None,
+            "anchors": [r for r in self.state.get("results", []) if r["a"] == name and not r["b"].startswith("gen-")],
+            "board_size": c.board_size, "komi": c.komi, "blocks": c.blocks, "channels": c.channels,
+            "games": c.games_per_gen * len(selfplay), "positions": sum(s["rows"] for s in selfplay),
+            "sha256": release.sha256(asset),
+        }
+        (d / "champion.json").write_text(json.dumps(info, indent=2))
+        latest = self.root / "champion" / release.asset_name(c.board_size)
+        shutil.copyfile(asset, latest.with_suffix(".tmp"))
+        latest.with_suffix(".tmp").replace(latest)
+        self.state["champion"] = {"gen": gen, "elo": info["elo"], "tag": info["tag"]}
+        self.state.setdefault("releases", []).append({"gen": gen, "tag": info["tag"], "published": False})
+        self.save_state()
+        self.log(f"champion: {name} (elo {info['elo']:+.0f}) -> {latest}")
+
+    def publish(self) -> None:
+        if release.publish_pending(self.root, self.state, self.release_repo, self.log):
+            self.save_state()
+
     def run(self, hours: float, max_gens: int) -> None:
         deadline = time.time() + hours * 3600
         self.init()
+        self.publish()  # retry anything a previous session could not publish
         while self.state["gen"] < max_gens:
             gen = self.state["gen"]
-            for phase in (self.selfplay, self.train, self.evaluate):
+            for phase in (self.selfplay, self.train, self.evaluate, self.champion):
                 if time.time() > deadline:
                     self.log("time budget reached; resume with the same command")
                     return
@@ -246,6 +315,8 @@ def main() -> None:
     ap.add_argument("--gens", type=int, default=10**6, help="stop after this many generations")
     ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE", help="override a LoopConfig field (new runs only)")
     ap.add_argument("--threads", type=int, default=os.cpu_count() or 4)
+    ap.add_argument("--release-repo", default=os.environ.get("GOFER_RELEASE_REPO", ""), metavar="OWNER/REPO",
+                    help="publish each new champion as a GitHub Release with gh (default: $GOFER_RELEASE_REPO)")
     args = ap.parse_args()
     cfg_path = args.run / "config.json"
     if cfg_path.exists():
@@ -264,7 +335,7 @@ def main() -> None:
         args.run.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(json.dumps(dataclasses.asdict(cfg), indent=2))
     torch.set_num_threads(args.threads)
-    Run(args.run, cfg, args.gofer.resolve(), args.threads).run(args.hours, args.gens)
+    Run(args.run, cfg, args.gofer.resolve(), args.threads, args.release_repo).run(args.hours, args.gens)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,15 @@ All notable changes to Gofer are documented here. Format based on [Keep a Change
 A rewrite of the engine core and the training pipeline. See
 [docs/v2-audit.md](docs/v2-audit.md) for the defects that motivated it.
 
+### Added
+
+- Champions and releases: on anchor generations, a network rated above the current champion
+  plays it directly (SPRT); a winner becomes the champion, is kept in `runs/<run>/champion/`,
+  and with `--release-repo OWNER/REPO` is published as a GitHub Release whose `gofer-9x9.onnx`
+  asset is always the newest champion. Failed publishes stay pending and are retried
+  (`python -m training.release`)
+- MIT license
+
 ### Fixed
 
 - Search backed values up with the wrong sign, so it chose the opponent's best move

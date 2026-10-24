@@ -67,6 +67,12 @@ Stop it any time and rerun the same command to resume. See
 [docs/training.md](docs/training.md) for the loop, settings, throughput, and
 how to use a GPU.
 
+Add `--release-repo OWNER/REPO` and every new champion (a generation that
+beats the previous best in a head-to-head match) is published as a GitHub
+Release, so the newest model is always at
+`https://github.com/OWNER/REPO/releases/latest/download/gofer-9x9.onnx`.
+See [Champions and releases](docs/training.md#champions-and-releases).
+
 ## Commands
 
 | Command | What it does |
@@ -113,3 +119,7 @@ v3 rewrote the engine core and the training pipeline after an audit found
 that v2's search backed up values with the wrong sign, skipped the search on
 fresh trees, and trained the policy toward uniform targets, among other
 defects. The details, with measurements, are in [docs/v2-audit.md](docs/v2-audit.md).
+
+## License
+
+[MIT](LICENSE)
