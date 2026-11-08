@@ -106,11 +106,6 @@ func NewBatchedEvaluatorDispatch(backend EvalBackend, fallback Evaluator, minBat
 // Dispatchers reports how many workers serve the queue (measurement only).
 func (b *BatchedEvaluator) Dispatchers() int { return b.dispatchers }
 
-// QueueDepth returns pending evaluate requests (measurement only).
-func (b *BatchedEvaluator) QueueDepth() int {
-	return len(b.reqCh)
-}
-
 // Close stops the batch worker.
 func (b *BatchedEvaluator) Close() {
 	b.once.Do(func() {

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gofer — a Go engine that teaches itself</title>
-<meta name="description" content="A complete Go engine in ~6,700 lines of Go: Chinese rules, PUCT Monte-Carlo tree search, GTP, in-process ONNX inference, and a self-play training loop with arena-gated promotion.">
+<meta name="description" content="A complete Go engine in ~6,800 lines of Go: Chinese rules, PUCT Monte-Carlo tree search, GTP, in-process ONNX inference, and a resumable self-play training loop with SPRT-gated promotion.">
 <meta name="author" content="DevomB">
 <meta property="og:title" content="Gofer — a Go engine that teaches itself">
 <meta property="og:description" content="Four thousand years of Go. Six thousand lines of Go. PUCT search, GTP, bit-exact ONNX inference, and an arena that only promotes networks that win.">
@@ -127,7 +127,6 @@ tailwind.config = {
         <circle cx="19.5" cy="6.5" r="3.4" fill="#EDE6DA"/>
       </svg>
       <span class="font-display text-lg tracking-wide">Gofer</span>
-      <span class="hidden sm:inline font-mono text-[.65rem] text-ink-mute border border-line rounded px-1.5 py-0.5 mt-0.5">v2.7.1</span>
     </a>
     <div class="hidden md:flex items-center gap-7 text-sm text-ink-dim">
       <a href="#engine" class="hover:text-ink transition-colors">Engine</a>
@@ -167,7 +166,7 @@ tailwind.config = {
 
   <div class="relative mx-auto max-w-6xl px-5 grid grid-cols-1 lg:grid-cols-[1.05fr_.95fr] gap-14 lg:gap-10 items-center">
     <div class="min-w-0">
-      <p class="eyebrow mb-6 rv">MCTS &nbsp;·&nbsp; GTP &nbsp;·&nbsp; ONNX &nbsp;·&nbsp; self-play</p>
+      <p class="eyebrow mb-6 rv">MCTS &nbsp;·&nbsp; GTP &nbsp;·&nbsp; ONNX &nbsp;·&nbsp; self&#8209;play</p>
       <h1 class="rv font-display font-light text-[2.6rem] leading-[1.08] sm:text-6xl lg:text-[4.2rem] tracking-tight max-w-2xl">
         Four thousand years of Go. <em class="italic whitespace-nowrap bg-gradient-to-r from-violet-bright via-violet to-gold bg-clip-text text-transparent">Six thousand lines</em> of&nbsp;Go.
       </h1>
@@ -216,7 +215,7 @@ tailwind.config = {
               <button id="rp-fwd" class="btn-ctl" title="Forward one move" aria-label="Forward one move"><svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true"><path d="M3.5 2 10 7l-6.5 5z"/></svg></button>
               <button id="rp-speed" class="btn-ctl !w-auto px-2 font-mono text-[.7rem]" title="Playback speed">×1</button>
               <input id="rp-scrub" type="range" class="scrub flex-1 mx-2" min="0" max="325" value="0" aria-label="Scrub through game moves">
-              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums w-16 text-right">0 / 325</span>
+              <span id="rp-count" class="font-mono text-[.7rem] text-ink-mute tabular-nums shrink-0 whitespace-nowrap text-right">0 / 325</span>
             </div>
           </div>
 
@@ -280,20 +279,20 @@ tailwind.config = {
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="4" y="4" width="20" height="20" rx="2"/><path d="M4 11h20M4 18h20M11 4v20M18 4v20"/></svg>
       <h3 class="mt-4 font-medium text-lg">Rules that hold up</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chinese area scoring and Tromp-Taylor, positional superko, suicide ban, SGF import and export. Scoring symmetry and arena-bias invariants are tested, not assumed.</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Chinese area scoring with simple ko, or Tromp-Taylor with positional superko. Suicide ban, SGF import and export. Scoring symmetry and arena-bias invariants are tested, not assumed.</p>
       <p class="mt-3 font-mono text-[.66rem] text-ink-mute">chinese_scoring_test.go · score_symmetry_test.go</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="14" cy="5" r="2.5"/><circle cx="7" cy="14" r="2.5"/><circle cx="21" cy="14" r="2.5"/><circle cx="4" cy="23" r="2.5"/><circle cx="10" cy="23" r="2.5"/><path d="m12.5 6.8-4 4.7M15.5 6.8l4 4.7M6 16.4l-1.3 4.2M8 16.4l1.3 4.2"/></svg>
       <h3 class="mt-4 font-medium text-lg">PUCT search</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Monte-Carlo tree search with policy priors, a transposition table, tree reuse between moves, root-parallel playouts — plus forced root playouts and policy-target pruning from the KataGo paper.</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Monte-Carlo tree search with policy priors, tree reuse between moves and root-parallel playouts. Forced root playouts and policy-target pruning from the KataGo paper, first-play urgency as KataGo does it, and finished games scored by the rules, not guessed.</p>
       <p class="mt-3 font-mono text-[.66rem] text-ink-mute">AdvanceTree · playout-cap randomization</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="7" y="7" width="14" height="14" rx="2"/><path d="M11 7V3.5M17 7V3.5M11 24.5V21M17 24.5V21M7 11H3.5M7 17H3.5M24.5 11H21M24.5 17H21"/></svg>
       <h3 class="mt-4 font-medium text-lg">Two brains</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">A hand-tuned heuristic evaluator — stones, liberties, territory, move priors — and a 6-block residual net running through in-process ONNX Runtime at ~0.9 ms per position. HTTP sidecar as fallback.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-eval heuristic|onnx · 1.2M params · 4.6 MB</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">A hand-tuned heuristic evaluator — stones, liberties, territory, move priors — and a 6×64 residual net running through ONNX Runtime inside the binary. An HTTP sidecar remains as the fallback.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">-eval heuristic|onnx · 1.2M params</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M4 8h12M4 14h20M4 20h16"/><path d="m20 5 3 3-3 3M18 17l3 3-3 3"/></svg>
@@ -304,14 +303,14 @@ tailwind.config = {
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.05s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M5 4h13l5 5v15H5z"/><path d="M18 4v5h5M9 14h10M9 18h10M9 10h4"/></svg>
       <h3 class="mt-4 font-medium text-lg">A data factory</h3>
-      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play exports JSONL rows the trainer consumes directly: visit-count policy targets, opponent policy, ownership labels, 8 spatial feature planes and 4 globals per position.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">policy · policy_opp · ownership · full_search</p>
+      <p class="mt-2 text-sm text-ink-dim leading-relaxed">Self-play writes <span class="font-mono text-[.8em]">.npz</span> shards straight from Go: uint8 input planes, visit-count policy, the opponent's reply, ownership and score, every label from the side to move. About 40× smaller than the JSONL it replaced.</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">policy · policy_opp · ownership · score · full_search</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6 hover:border-violet/40 hover:shadow-lg hover:shadow-violet/5 transition-all" style="transition-delay:.1s">
       <svg class="w-7 h-7 text-violet" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M14 4v20M6 24h16"/><path d="M14 7 7 12h14zM4 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3zM18 17l3-5 3 5c0 1.7-1.3 3-3 3s-3-1.3-3-3z"/></svg>
       <h3 class="mt-4 font-medium text-lg">A merciless arena</h3>
       <p class="mt-2 text-sm text-ink-dim leading-relaxed">Champion versus challenger under identical configs. A sequential probability ratio test on Elo, batches played out in full so its error control holds, and a config hash stamped on every report.</p>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">promote only if SPRT accepts H1 (elo &ge; +35)</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute">H0 +0 Elo · H1 +35 Elo · &alpha; 0.05 · &beta; 0.10</p>
     </div>
   </div>
 </section>
@@ -320,11 +319,11 @@ tailwind.config = {
 <section id="loop" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
   <p class="eyebrow rv">The training loop</p>
   <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Nothing gets promoted <em class="italic text-gold-bright">without a fight.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle: the champion plays itself, a network trains on the games, and the result walks into an arena against the very champion that generated its data. Lose, and it's discarded. Win past the SPRT gate, and it takes the throne — after the old champion is archived.</p>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Every cycle, the champion plays itself, a network trains on the games, and the result walks into an arena against the champion that generated its data. Lose, and it's discarded. Pass the SPRT gate, and it takes over, while every earlier champion stays in a registry you can roll back to. One resumable command runs it, and every stage picks up where it stopped.</p>
 
   <!-- circular loop (desktop) -->
   <div class="rv mt-10 hidden md:block">
-    <svg viewBox="0 0 760 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay buffer, train, export ONNX, arena gate, promote, and back to self-play">
+    <svg viewBox="-40 0 840 560" class="w-full max-w-3xl mx-auto" role="img" aria-label="Diagram of the self-play training loop: self-play, replay window, train, export ONNX, arena gate, promote, and back to self-play">
       <!-- ring -->
       <circle cx="380" cy="280" r="185" fill="none" stroke="#232741" stroke-width="1.5"/>
       <circle class="loop-ring" cx="380" cy="280" r="185" fill="none" stroke="#8B7CF6" stroke-width="1.5" opacity=".6"/>
@@ -341,7 +340,7 @@ tailwind.config = {
       <!-- center -->
       <text x="380" y="266" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" letter-spacing="3" fill="#8B7CF6">THE LOOP</text>
       <text x="380" y="292" text-anchor="middle" font-family="Fraunces, serif" font-size="26" fill="#EAEAF4">self-play</text>
-      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">every stage checkpointed</text>
+      <text x="380" y="314" text-anchor="middle" font-family="Inter, sans-serif" font-size="11.5" fill="#636880">every stage resumable</text>
 
       <!-- nodes: angles -90,-30,30,90,150,210 on r=185 around (380,280) -->
       <g font-family="Inter, sans-serif">
@@ -349,38 +348,38 @@ tailwind.config = {
         <g>
           <circle cx="380" cy="95" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="380" y="66" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Self-play</text>
-          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">champion vs champion → JSONL</text>
+          <text x="380" y="47" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">champion vs itself → .npz shards</text>
         </g>
-        <!-- REPLAY BUFFER (upper right) -->
+        <!-- REPLAY WINDOW (upper right) -->
         <g>
           <circle cx="540.2" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
-          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay buffer</text>
-          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">persistent · capped 50k rows</text>
+          <text x="562" y="180" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Replay window</text>
+          <text x="562" y="198" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">immutable shards · grows with the run</text>
         </g>
         <!-- TRAIN (lower right) -->
         <g>
           <circle cx="540.2" cy="372.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="562" y="368" text-anchor="start" font-size="13.5" font-weight="600" fill="#EAEAF4">Train</text>
-          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · resume from best.pt</text>
+          <text x="562" y="386" text-anchor="start" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">PyTorch · EMA · D4 symmetry</text>
         </g>
         <!-- EXPORT (bottom) -->
         <g>
           <circle cx="380" cy="465" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="380" y="497" text-anchor="middle" font-size="13.5" font-weight="600" fill="#EAEAF4">Export ONNX</text>
-          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · 4.6 MB · bit-exact parity</text>
+          <text x="380" y="516" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">6×64 resnet · parity-checked against ORT</text>
         </g>
         <!-- ARENA (lower left) — the gate, emphasized -->
         <g>
           <circle cx="219.8" cy="372.5" r="10" fill="#D6A85C"/>
           <circle cx="219.8" cy="372.5" r="15" fill="none" stroke="#D6A85C" stroke-width="1" opacity=".35"/>
           <text x="198" y="368" text-anchor="end" font-size="13.5" font-weight="600" fill="#E8C285">Arena gate</text>
-          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">up to 200 games vs champion · SPRT</text>
+          <text x="198" y="386" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">SPRT vs champion · 40-game batches</text>
         </g>
         <!-- PROMOTE (upper left) -->
         <g>
           <circle cx="219.8" cy="187.5" r="8" fill="#07070D" stroke="#8B7CF6" stroke-width="1.5"/>
           <text x="198" y="180" text-anchor="end" font-size="13.5" font-weight="600" fill="#EAEAF4">Promote</text>
-          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">old champion archived first</text>
+          <text x="198" y="198" text-anchor="end" font-family="JetBrains Mono, monospace" font-size="10" fill="#636880">registry never pruned · rollback</text>
         </g>
       </g>
     </svg>
@@ -388,24 +387,28 @@ tailwind.config = {
 
   <!-- stacked loop (mobile) -->
   <div class="rv mt-10 md:hidden space-y-0">
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">champion vs champion → JSONL</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay buffer</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">persistent · capped 50k rows</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · resume from best.pt</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · 4.6 MB</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">up to 200 games vs champion · SPRT</div></div></div>
-    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Promote — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">old champion archived first</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Self-play</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">champion vs itself → .npz shards</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Replay window</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">immutable shards · grows with the run</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Train</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">PyTorch · EMA · D4 symmetry</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium">Export ONNX</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">6×64 resnet · parity-checked against ORT</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-4 h-4 rounded-full bg-gold mt-1"></div><div class="w-px flex-1 bg-line"></div></div><div class="pb-7"><div class="font-medium text-gold-bright">Arena gate</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">SPRT vs champion · 40-game batches</div></div></div>
+    <div class="flex gap-4"><div class="flex flex-col items-center"><div class="w-3.5 h-3.5 rounded-full border-2 border-violet bg-bg mt-1"></div></div><div><div class="font-medium">Promote — and the loop restarts</div><div class="font-mono text-[.68rem] text-ink-mute mt-1">registry never pruned · rollback</div></div></div>
   </div>
 
-  <div class="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-5">
+  <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-5">
     <div class="rv bg-surface border border-line rounded-xl p-6">
       <p class="eyebrow !text-[.62rem]">The gate</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger faces a <span class="text-ink">sequential probability ratio test on Elo</span> — no gain against +35, &alpha; = &beta; = 0.05 — in fixed batches up to a configured cap. The v3 gate re-checked a Wilson bound after every game, which inflated false promotions to about 8%.</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">A challenger faces a <span class="text-ink">sequential probability ratio test on Elo</span>, no gain against +35 at &alpha; = 0.05 and &beta; = 0.10, in 40-game batches up to a cap. It promotes a real +50 Elo gain 90% of the time and a network with no gain 2.3% of the time. The v3 gate re-checked a Wilson bound after every game, which inflated false promotions to about 8%.</p>
     </div>
     <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
-      <p class="eyebrow !text-[.62rem]">The proof</p>
-      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Training runs in PyTorch; play runs in Go. A parity harness holds them together: <span class="text-ink">1,721 positions, bit-exact</span> between Go ONNX Runtime and the Python reference session.</p>
+      <p class="eyebrow !text-[.62rem]">The seed</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">The first network used to be crowned after one short match whatever its score, and the champion generates 70% of every later shard. A weak seed poisons the replay window, and no later gate can undo that. <span class="text-ink">The seed now faces the same SPRT</span>, against the heuristic; until a network passes, the heuristic keeps writing the data.</p>
     </div>
-    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.14s">
+    <div class="rv bg-surface border border-line rounded-xl p-6">
+      <p class="eyebrow !text-[.62rem]">The proof</p>
+      <p class="mt-3 text-sm text-ink-dim leading-relaxed">Training runs in PyTorch; play runs in Go. A parity harness holds them together: <span class="text-ink">1,721 positions, bit-exact</span> between Go ONNX Runtime and the Python reference session. Every export is parity-checked before the arena sees it.</p>
+    </div>
+    <div class="rv bg-surface border border-line rounded-xl p-6" style="transition-delay:.07s">
       <p class="eyebrow !text-[.62rem]">The honest part</p>
       <p class="mt-3 text-sm text-ink-dim leading-relaxed">Every strength number this project recorded before September 2026 is void: the search had been selecting the opponent's best move, so more search made it weaker. The same fixed benchmark — 600 playouts against 200 — moved from <span class="text-ink">&minus;576 Elo to +143 Elo</span> once that was repaired, with a 95% interval of [+106, +180] over 400 games. The loop is the point; the numbers only count after the thing doing the measuring works.</p>
     </div>
@@ -418,7 +421,7 @@ tailwind.config = {
     <div class="lg:sticky lg:top-28 min-w-0">
       <p class="eyebrow rv">One binary</p>
       <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight">Meet it in the <em class="italic text-gold-bright">terminal.</em></h2>
-      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or read the loop's ledger. Every session below is real, captured output, recorded before the search defects in ADR 0008 were found. They show the engine as it was, not as it now plays.</p>
+      <p class="rv mt-5 text-ink-dim leading-relaxed">Play it, pipe GTP at it, farm training data out of it, or ask the gate what a promotion will cost. Every session below is real output, captured after the search fixes in ADR 0008 — including the parts that show how far the heuristic engine still has to go.</p>
       <div class="rv mt-8 flex flex-wrap gap-2 font-mono text-[.7rem]">
         <button data-tab="play" class="term-tab px-3 py-1.5 rounded-lg border border-violet/50 bg-surface2 text-violet">-play</button>
         <button data-tab="gtp" class="term-tab px-3 py-1.5 rounded-lg border border-line text-ink-dim hover:text-ink">-gtp</button>
@@ -437,7 +440,7 @@ tailwind.config = {
         </div>
         <pre id="term-body" class="p-5 font-mono text-[.78rem] leading-[1.55] text-ink-dim overflow-x-auto min-h-[26rem] max-h-[26rem] overflow-y-auto whitespace-pre" aria-live="off"></pre>
       </div>
-      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer v2.7.1 — not a mock-up</p>
+      <p class="mt-3 font-mono text-[.66rem] text-ink-mute text-right">captured from bin/gofer at commit 662d8d0 — not a mock-up</p>
     </div>
   </div>
 </section>
@@ -453,21 +456,21 @@ tailwind.config = {
     </div>
     <div class="rv min-w-0">
       <div class="bg-surface border border-line rounded-xl overflow-x-auto">
-        <table class="w-full text-sm min-w-[26rem]">
+        <table class="w-full text-sm min-w-[20rem]">
           <thead>
             <tr class="border-b border-line font-mono text-[.66rem] uppercase tracking-wider text-ink-mute">
-              <th class="text-left font-medium px-5 py-3">benchmark</th>
+              <th class="text-left font-medium px-3 sm:px-5 py-3">benchmark</th>
               <th class="text-right font-medium px-3 py-3">ns/op</th>
-              <th class="text-right font-medium px-5 py-3">allocs/op</th>
+              <th class="text-right font-medium px-3 sm:px-5 py-3">allocs/op</th>
             </tr>
           </thead>
           <tbody class="font-mono text-[.8rem] [font-variant-numeric:tabular-nums]">
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">ApplyStone</td><td class="px-3 py-3 text-right text-ink-dim">3.52</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">HashUpdate</td><td class="px-3 py-3 text-right text-ink-dim">3.44</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Undo</td><td class="px-3 py-3 text-right text-ink-dim">23.4</td><td class="px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">Clone <span class="text-ink-mute">(the road not taken)</span></td><td class="px-3 py-3 text-right text-ink-dim">129.5</td><td class="px-5 py-3 text-right text-ink-dim">1</td></tr>
-            <tr class="border-b border-line/60"><td class="px-5 py-3 text-ink">LegalMoves</td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">7 <span class="text-violet text-[.7rem]">▼ from 1,158</span></td></tr>
-            <tr><td class="px-5 py-3 text-ink">SGFReplay <span class="text-ink-mute">(full game)</span></td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-5 py-3 text-right text-ink-dim">45</td></tr>
+            <tr class="border-b border-line/60"><td class="px-3 sm:px-5 py-3 text-ink">ApplyStone</td><td class="px-3 py-3 text-right text-ink-dim">3.52</td><td class="px-3 sm:px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-3 sm:px-5 py-3 text-ink">HashUpdate</td><td class="px-3 py-3 text-right text-ink-dim">3.44</td><td class="px-3 sm:px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-3 sm:px-5 py-3 text-ink">Undo</td><td class="px-3 py-3 text-right text-ink-dim">23.4</td><td class="px-3 sm:px-5 py-3 text-right"><span class="text-violet">0</span></td></tr>
+            <tr class="border-b border-line/60"><td class="px-3 sm:px-5 py-3 text-ink">Clone <span class="text-ink-mute">(the road not taken)</span></td><td class="px-3 py-3 text-right text-ink-dim">129.5</td><td class="px-3 sm:px-5 py-3 text-right text-ink-dim">1</td></tr>
+            <tr class="border-b border-line/60"><td class="px-3 sm:px-5 py-3 text-ink">LegalMoves</td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-3 sm:px-5 py-3 text-right text-ink-dim">7 <span class="text-violet text-[.7rem]">▼ from 1,158</span></td></tr>
+            <tr><td class="px-3 sm:px-5 py-3 text-ink">SGFReplay <span class="text-ink-mute">(full game)</span></td><td class="px-3 py-3 text-right text-ink-dim">—</td><td class="px-3 sm:px-5 py-3 text-right text-ink-dim">45</td></tr>
           </tbody>
         </table>
       </div>
@@ -478,9 +481,9 @@ tailwind.config = {
 
 <!-- ======================= DECISIONS ======================= -->
 <section id="decisions" class="mx-auto max-w-6xl px-5 pt-24 pb-12">
-  <p class="eyebrow rv">Paper trail</p>
+  <p class="eyebrow rv">Decision trail</p>
   <h2 class="rv mt-4 font-display font-light text-4xl sm:text-5xl tracking-tight max-w-2xl">Every reversal, <em class="italic text-gold-bright">written down first.</em></h2>
-  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">Five architecture decision records, in order. Including the ones where the answer was "tried it, reverted it" — that's the part most projects don't commit to git.</p>
+  <p class="rv mt-5 text-ink-dim max-w-2xl leading-relaxed">The architecture decision records, in order. Including the ones where the answer was "tried it, reverted it", and the one that voided every strength number before it. That's the part most projects don't commit to git.</p>
 
   <div class="mt-10 space-y-3">
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0001-inference-backend.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors">
@@ -498,7 +501,7 @@ tailwind.config = {
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0003-iterative-training-loop.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.08s">
       <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0003</span>
       <span class="font-medium text-ink sm:w-64 shrink-0">Iterative training loop</span>
-      <span class="text-sm text-ink-dim">Weekly from-scratch retraining made strength bounce between runs. Persistent state and monotonic promotion fixed it.</span>
+      <span class="text-sm text-ink-dim">Weekly from-scratch retraining made strength bounce between runs. Persistent state and monotonic promotion fixed it. Its mechanics are superseded by ADR 0007.</span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0004-in-process-onnx-inference.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.12s">
@@ -510,7 +513,25 @@ tailwind.config = {
     <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0005-net-size-ablation.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.16s">
       <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0005</span>
       <span class="font-medium text-ink sm:w-64 shrink-0">Net-size ablation</span>
-      <span class="text-sm text-ink-dim">Tried smaller nets down to 4×32. <span class="text-ink">Not adopted</span> — would've forfeited --resume warm-start from the champion. Still 6×64.</span>
+      <span class="text-sm text-ink-dim">Tried smaller nets down to 4×32. <span class="text-ink">Not adopted</span>; still 6×64. The evidence was later voided by ADR 0008. The decision stands, and so does the need to re-run it.</span>
+      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
+    </a>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0006-learner-v4.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.2s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0006</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Learner v4</span>
+      <span class="text-sm text-ink-dim">Shards instead of JSON parsing, policy loss only on full-search rows, validation split by game, D4 augmentation, EMA weights, and runs that survive a preempted GPU.</span>
+      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
+    </a>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0007-pipeline-orchestrator.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.24s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0007</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Pipeline orchestrator</span>
+      <span class="text-sm text-ink-dim">One resumable Python loop replaced a shell script: <span class="font-mono text-[.85em]">.npz</span> shards, SPRT gating, overlapped self-play, and a champion registry that is never pruned.</span>
+      <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
+    </a>
+    <a href="https://github.com/DevomB/Gofer/blob/main/docs/decisions/0008-search-correctness.md" class="rv group flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-6 bg-surface border border-line rounded-xl px-6 py-4 hover:border-violet/40 transition-colors" style="transition-delay:.28s">
+      <span class="font-mono text-[.72rem] text-violet w-16 shrink-0">ADR 0008</span>
+      <span class="font-medium text-ink sm:w-64 shrink-0">Search correctness</span>
+      <span class="text-sm text-ink-dim">Seven defects, found by asking why an experiment with a known answer gave the wrong one. On 9×9 the search never left the root. <span class="text-ink">Every earlier strength number is void.</span></span>
       <svg class="hidden sm:block w-4 h-4 text-ink-mute group-hover:text-violet shrink-0 ml-auto transition-colors" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 12 12 4M6 4h6v6"/></svg>
     </a>
   </div>
@@ -526,18 +547,18 @@ tailwind.config = {
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">1</span>
         <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> git clone https://github.com/DevomB/Gofer.git &amp;&amp; cd Gofer</pre>
-            <button data-copy="git clone https://github.com/DevomB/Gofer.git && cd Gofer" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          <div class="group flex items-center bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="flex-1 min-w-0 pl-4 pr-2 py-3 overflow-x-auto"><span class="text-violet">$</span> git clone https://github.com/DevomB/Gofer.git &amp;&amp; cd Gofer</pre>
+            <button data-copy="git clone https://github.com/DevomB/Gofer.git && cd Gofer" class="copy-btn shrink-0 mr-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
         </div>
       </li>
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">2</span>
         <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> make build &amp;&amp; make test</pre>
-            <button data-copy="make build && make test" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          <div class="group flex items-center bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="flex-1 min-w-0 pl-4 pr-2 py-3 overflow-x-auto"><span class="text-violet">$</span> make build &amp;&amp; make test</pre>
+            <button data-copy="make build && make test" class="copy-btn shrink-0 mr-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
           <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">pure Go — no CGO, no Python, no GPU required</p>
         </div>
@@ -545,9 +566,9 @@ tailwind.config = {
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">3</span>
         <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -play -size 9 -color b -o game.sgf</pre>
-            <button data-copy="bin/gofer -play -size 9 -color b -o game.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          <div class="group flex items-center bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="flex-1 min-w-0 pl-4 pr-2 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -play -size 9 -color b -o game.sgf</pre>
+            <button data-copy="bin/gofer -play -size 9 -color b -o game.sgf" class="copy-btn shrink-0 mr-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
           <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">you're Black — beat it while you still can</p>
         </div>
@@ -555,9 +576,9 @@ tailwind.config = {
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">4</span>
         <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf</pre>
-            <button data-copy="bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          <div class="group flex items-center bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="flex-1 min-w-0 pl-4 pr-2 py-3 overflow-x-auto"><span class="text-violet">$</span> bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf</pre>
+            <button data-copy="bin/gofer -gtp -size 9 -think-time 5s -o demo.sgf" class="copy-btn shrink-0 mr-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
           <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">register as an engine in Sabaki or Lizzie</p>
         </div>
@@ -565,11 +586,11 @@ tailwind.config = {
       <li class="rv flex gap-4">
         <span class="font-display text-violet-bright text-xl w-7 shrink-0 pt-2 text-right">5</span>
         <div class="flex-1 min-w-0">
-          <div class="group relative bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
-            <pre class="px-4 py-3 overflow-x-auto"><span class="text-violet">$</span> python -m training.pipeline run --config configs/pipeline-smoke.toml</pre>
-            <button data-copy="python -m training.pipeline run --config configs/pipeline-smoke.toml" class="copy-btn absolute right-2 top-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
+          <div class="group flex items-center bg-surface border border-line rounded-lg font-mono text-[.8rem] overflow-hidden">
+            <pre class="flex-1 min-w-0 pl-4 pr-2 py-3 overflow-x-auto"><span class="text-violet">$</span> python -m training.pipeline run --config configs/pipeline-smoke.toml</pre>
+            <button data-copy="python -m training.pipeline run --config configs/pipeline-smoke.toml" class="copy-btn shrink-0 mr-2 p-1.5 rounded-md text-ink-mute hover:text-violet hover:bg-surface2 transition-all" aria-label="Copy command"><svg class="copy-icon w-4 h-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1.5"/><path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"/></svg></button>
           </div>
-          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop: self-play → train → export → arena → gate</p>
+          <p class="mt-1.5 font-mono text-[.66rem] text-ink-mute pl-1">the whole loop, about 3 minutes: self-play → train → export → gate → promote</p>
         </div>
       </li>
     </ol>
@@ -590,7 +611,7 @@ tailwind.config = {
         </div>
       </div>
       <div class="mt-6 pt-5 border-t border-line">
-        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/known-issues.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">open problems and accepted limits</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/research-traceability.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">paper-to-code traceability map</a>, and the <a href="https://github.com/DevomB/Gofer/tree/main/docs/decisions" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADRs</a>.</p>
+        <p class="text-sm text-ink-dim leading-relaxed">Docs worth reading: the <a href="https://github.com/DevomB/Gofer/blob/main/docs/known-issues.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">open problems and accepted limits</a>, the <a href="https://github.com/DevomB/Gofer/blob/main/docs/research-traceability.md" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">research-to-code traceability map</a>, and the <a href="https://github.com/DevomB/Gofer/tree/main/docs/decisions" class="text-violet hover:text-violet-bright underline underline-offset-4 decoration-violet/30">ADRs</a>.</p>
       </div>
     </div>
   </div>
@@ -611,17 +632,17 @@ tailwind.config = {
           <span class="font-display text-lg">Gofer</span>
         </div>
         <p class="mt-3 font-display italic text-ink-dim">Not KataGo. <span class="text-gold-bright">Yet.</span></p>
-        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">6,749 lines of Go · 137 tests · 18 benchmarks · built with Go, PyTorch &amp; ONNX Runtime</p>
-        <p class="mt-1 font-mono text-[.68rem] text-ink-mute">solo project · 113 commits since Jun 2026</p>
+        <p class="mt-2 font-mono text-[.68rem] text-ink-mute">6,804 lines of Go · 148 tests · 18 benchmarks · built with Go, PyTorch &amp; ONNX Runtime</p>
+        <p class="mt-1 font-mono text-[.68rem] text-ink-mute">solo project · 128 commits since Jun 2026</p>
       </div>
       <div class="flex flex-col gap-2.5 text-sm text-ink-dim font-mono text-[.78rem]">
         <a href="https://github.com/DevomB/Gofer" class="hover:text-violet-bright transition-colors">github.com/DevomB/Gofer ↗</a>
         <a href="https://github.com/DevomB/Gofer/blob/main/CHANGELOG.md" class="hover:text-violet-bright transition-colors">changelog ↗</a>
         <a href="https://github.com/DevomB/Gofer/blob/main/docs/model-input-schema.md" class="hover:text-violet-bright transition-colors">model input schema ↗</a>
-        <a href="https://arxiv.org/abs/1902.10565" class="hover:text-violet-bright transition-colors">Wu et al. 2020 — the paper ↗</a>
+        <a href="https://arxiv.org/abs/1902.10565" class="hover:text-violet-bright transition-colors">Wu et al. 2020 — KataGo ↗</a>
       </div>
     </div>
-    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed report, a CI baseline, or a captured session — nothing is made up.</p>
+    <p class="mt-10 pt-6 border-t border-line font-mono text-[.66rem] text-ink-mute">© 2026 DevomB · every number on this page comes from a committed doc or report, a CI baseline, a count of the repo, or a captured session — nothing is made up.</p>
   </div>
 </footer>
 
@@ -1130,12 +1151,9 @@ tailwind.config = {
         { t: 'out', s: 'Black to move' },
         { t: 'out', s: '82 legal moves | your turn — play <vertex>' },
         { t: 'in', s: 'play E5' },
-        { t: 'out', s: 'White to move' },
-        { t: 'out', s: '81 legal moves | engine turn — genmove' },
-        { t: 'in', s: 'genmove' },
-        { t: 'gold', s: '> engine A9' },
+        { t: 'out', s: 'played E5' },
         { t: 'dim', s: '  A B C D E F G H J' },
-        { t: 'dim', s: ' 9 O . . . . . . . .' },
+        { t: 'dim', s: ' 9 . . . . . . . . .' },
         { t: 'dim', s: ' 8 . . . . . . . . .' },
         { t: 'dim', s: ' 7 . . . . . . . . .' },
         { t: 'dim', s: ' 6 . . . . . . . . .' },
@@ -1144,8 +1162,23 @@ tailwind.config = {
         { t: 'dim', s: ' 3 . . . . . . . . .' },
         { t: 'dim', s: ' 2 . . . . . . . . .' },
         { t: 'dim', s: ' 1 . . . . . . . . .' },
-        { t: 'out', s: 'Black to move' },
-        { t: 'com', s: '# it answered E5 with A9. the net is young; the loop is the point.' },
+        { t: 'out', s: 'White to move' },
+        { t: 'out', s: '81 legal moves | engine turn — genmove' },
+        { t: 'in', s: 'analyze' },
+        { t: 'out', s: '400 playouts | root -0.013' },
+        { t: 'dim', s: '  move      visits   share    value    prior     puct' },
+        { t: 'out', s: '  A9             9    2.2%   -0.012    0.013    0.017' },
+        { t: 'out', s: '  B9             8    2.0%   -0.011    0.013    0.021' },
+        { t: 'out', s: '  C5             6    1.5%   -0.008    0.013    0.033' },
+        { t: 'out', s: '  E3             6    1.5%   -0.008    0.013    0.033' },
+        { t: 'out', s: '  F4             6    1.5%   -0.008    0.013    0.033' },
+        { t: 'out', s: '' },
+        { t: 'out', s: 'PV: A9 E6 B9 C9' },
+        { t: 'out', s: '' },
+        { t: 'gold', s: 'Best: A9' },
+        { t: 'com', s: '# flat priors, values within 0.004 of each other: the heuristic' },
+        { t: 'com', s: '# cannot tell opening moves apart, so the search drifts to the edge.' },
+        { t: 'com', s: '# the loop exists to train something that can.' },
       ]
     },
     gtp: {
@@ -1161,8 +1194,11 @@ tailwind.config = {
         { t: 'in', s: 'boardsize 9' },
         { t: 'gold', s: '=' },
         { t: 'out', s: '' },
-        { t: 'in', s: 'genmove b' },
-        { t: 'gold', s: '= A9' },
+        { t: 'in', s: 'play b E5' },
+        { t: 'gold', s: '=' },
+        { t: 'out', s: '' },
+        { t: 'in', s: 'genmove w' },
+        { t: 'gold', s: '= B9' },
         { t: 'out', s: '' },
         { t: 'in', s: 'quit' },
         { t: 'gold', s: '=' },
@@ -1172,39 +1208,46 @@ tailwind.config = {
     selfplay: {
       title: 'bin/gofer -selfplay',
       lines: [
-        { t: 'cmd', s: 'bin/gofer -selfplay -games 3 -size 9 -playouts 1500 \\' },
-        { t: 'cmd2', s: '    -selfplay-eval onnx -sgf-dir games/ -o samples.jsonl' },
-        { t: 'out', s: 'wrote 3 SGF files to games/' },
-        { t: 'com', s: '# warm-start too: -convert-sgf turns 95,894 pro SGFs into JSONL —' },
-        { t: 'com', s: '#   the 1846 Shusaku game replaying up top is Shusaku/126.sgf' },
-        { t: 'cmd', s: 'head -2 samples.jsonl | tail -1 | jq keys' },
-        { t: 'out', s: '[' },
-        { t: 'out', s: '  "board_hash",       "features_global",' },
-        { t: 'out', s: '  "features_spatial", "full_search",' },
-        { t: 'out', s: '  "komi",             "move_num",' },
-        { t: 'out', s: '  "ownership",        "policy",' },
-        { t: 'out', s: '  "policy_opp",       "to_play",' },
-        { t: 'out', s: '  "value"' },
-        { t: 'out', s: ']' },
-        { t: 'com', s: '# visit-count policy targets, ownership labels,' },
-        { t: 'com', s: '# 8 spatial planes + 4 globals — straight into the trainer' },
+        { t: 'cmd', s: 'bin/gofer -selfplay -games 2 -size 9 -playouts 200 \\' },
+        { t: 'cmd2', s: '    -selfplay-eval heuristic -o samples.npz' },
+        { t: 'out', s: 'opening pass share 0.038 over 2 full-search rows' },
+        { t: 'out', s: 'wrote 162 rows (2 games) to samples.npz' },
+        { t: 'cmd', s: 'python -c "import numpy as n; z=n.load(\'samples.npz\'); [print(k,z[k].dtype,z[k].shape) for k in z]"' },
+        { t: 'out', s: 'spatial uint8 (162, 8, 9, 9)' },
+        { t: 'out', s: 'globals float32 (162, 4)' },
+        { t: 'out', s: 'policy float32 (162, 82)' },
+        { t: 'out', s: 'policy_opp float32 (162, 82)' },
+        { t: 'out', s: 'value float32 (162,)' },
+        { t: 'out', s: 'score float32 (162,)' },
+        { t: 'out', s: 'ownership int8 (162, 81)' },
+        { t: 'out', s: 'full_search uint8 (162,)' },
+        { t: 'out', s: 'game_id int32 (162,)' },
+        { t: 'out', s: 'move_num int16 (162,)' },
+        { t: 'out', s: 'meta uint8 (228,)' },
+        { t: 'com', s: '# fast-search rows are kept and flagged: they train value, ownership' },
+        { t: 'com', s: '# and score, and the policy loss masks them out' },
       ]
     },
     loop: {
       title: 'python -m training.pipeline plan-sprt',
       lines: [
         { t: 'cmd', s: 'python -m training.pipeline plan-sprt --config configs/pipeline-cpu.toml' },
-        { t: 'out', s: 'SPRT elo0=0 elo1=35 alpha=0.05 beta=0.1  LLR bounds [-2.25, +2.89]  batch=40 cap=600' },
+        { t: 'out', s: 'SPRT elo0=0 elo1=35 alpha=0.05 beta=0.1 LLR bounds [-2.25, +2.89] batch=40 cap=600 fallback: score>=0.55 and Wilson low>0.5' },
+        { t: 'out', s: 'computing exact operating characteristics...' },
         { t: 'out', s: '' },
         { t: 'out', s: ' true Elo  promoted  E[games]' },
         { t: 'out', s: '     -100     0.000        94' },
+        { t: 'out', s: '      -50     0.000       150' },
         { t: 'out', s: '      -20     0.001       254' },
         { t: 'out', s: '        0     0.023       397' },
+        { t: 'out', s: '       20     0.233       492' },
         { t: 'gold', s: '       35     0.605       444' },
         { t: 'gold', s: '       50     0.899       339' },
         { t: 'out', s: '      100     1.000       154' },
-        { t: 'com', s: '# false promotion at no real gain: 2.3%' },
-        { t: 'com', s: '# that is the ledger — a challenger has to pass it to rewrite it.' },
+        { t: 'out', s: '      200     1.000        85' },
+        { t: 'out', s: '' },
+        { t: 'out', s: 'false promotion at no real gain: 2.3% (costing 397 games)' },
+        { t: 'out', s: 'smallest listed gain promoted at least 80% of the time: +50 Elo' },
       ]
     }
   };

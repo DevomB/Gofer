@@ -16,7 +16,7 @@ no simulation. The model covers what the pipeline actually runs:
 On 9x9 with komi 6.5 a game cannot be drawn, so games are Bernoulli trials.
 numpy only: scipy is not a dependency of this project.
 
-Used by `python -m training.pipeline plan-sprt` and by paper/analysis/gate_oc.py.
+Used by `python -m training.pipeline plan-sprt`.
 """
 
 from __future__ import annotations

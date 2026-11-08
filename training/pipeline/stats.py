@@ -5,7 +5,7 @@ which inflates the false-promotion rate (about 8% for a candidate with no real
 gain). A sequential probability ratio test (Wald 1945; as in Stockfish's
 Fishtest) keeps the configured error rates while still stopping early on clear
 results. It is not uniformly cheaper: near zero true gain it plays more games
-than v3. paper/analysis/gate_oc.py computes the exact trade-off.
+than v3. `gate_oc.py` computes the exact trade-off.
 """
 
 from __future__ import annotations

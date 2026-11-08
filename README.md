@@ -191,7 +191,7 @@ make bench-check    # compare before/after
 - [`docs/decisions/`](docs/decisions/) — why the engine and pipeline are shaped the way they are
 - [`docs/pipeline.md`](docs/pipeline.md) — running the v4 training loop
 - [`docs/training-data-format.md`](docs/training-data-format.md) — the shard format
-- [`docs/research-traceability.md`](docs/research-traceability.md) — paper ↔ code
+- [`docs/research-traceability.md`](docs/research-traceability.md) — research ↔ code
 - [`docs/known-issues.md`](docs/known-issues.md) — open problems and accepted limits
 
 ## Included

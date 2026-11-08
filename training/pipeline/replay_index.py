@@ -82,10 +82,6 @@ def window_rows(total_rows: int, cfg: ReplayConfig) -> int:
     return int(min(grown, cfg.max_window_rows))
 
 
-def total_rows(shards: list[ShardInfo]) -> int:
-    return sum(s.rows for s in shards)
-
-
 def select_window(shards: list[ShardInfo], rows: int) -> list[ShardInfo]:
     """Newest shards covering at least `rows` rows (whole shards; oldest first)."""
     picked: list[ShardInfo] = []

@@ -114,19 +114,16 @@ def export_onnx(
     global_in = torch.zeros(1, 4)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     outputs = ["policy_logits", "value"] + (["ownership"] if with_ownership else [])
-    # eval() on the wrapper, not just the net: the exporter restores the wrapper's
-    # train flag recursively afterwards, which would flip BN back to batch stats.
     wrapper = (PolicyValueOwnershipNet(net) if with_ownership else PolicyValueNet(net)).eval()
-    torch.onnx.export(
+    onnx_program = torch.onnx.export(
         wrapper,
         (spatial, global_in),
-        str(out_path),
         input_names=["spatial_input", "global_input"],
         output_names=outputs,
-        dynamic_axes={name: {0: "batch"} for name in ["spatial_input", "global_input", *outputs]},
+        dynamic_shapes=({0: torch.export.Dim.DYNAMIC}, {0: torch.export.Dim.DYNAMIC}),
         opset_version=OPSET,
-        dynamo=False,
     )
+    onnx_program.save(out_path)
     weights_sha = hashlib.sha256(
         b"".join(t.detach().cpu().numpy().tobytes() for t in net.state_dict().values())
     ).hexdigest()[:16]

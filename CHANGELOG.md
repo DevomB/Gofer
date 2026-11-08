@@ -147,7 +147,7 @@ evaluators, 200 games now split 99-101 by colour.
 
 - Training pipeline v4: `.npz` self-play shards, a resumable orchestrator
   (`python -m training.pipeline`), SPRT gating, a champion registry with rollback, Docker /
-  SkyPilot / free-CI deployment, and a paper in `paper/`. See
+  SkyPilot / free-CI deployment. See
   [docs/pipeline.md](docs/pipeline.md) and [ADR 0007](docs/decisions/0007-pipeline-orchestrator.md).
 - `plan-sprt` reports a gate's exact promotion rate and expected length
   (`training/pipeline/gate_oc.py`). Three short-mode tests guard the search: root children
