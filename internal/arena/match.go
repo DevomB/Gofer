@@ -27,9 +27,27 @@ type Config struct {
 	Log            func(format string, args ...any)
 }
 
-// SPRT is a sequential probability ratio test on A's Elo advantage.
+// SPRT is Wald's sequential probability ratio test on A's Elo advantage d,
+// with H0: d <= Elo0 and H1: d >= Elo1.
+//
+// The unit of evidence is an opening pair: games 2k and 2k+1 share an opening
+// with colors swapped. A pair one player wins twice is a sweep; a split pair
+// says nothing about who is stronger and is skipped. If game results are
+// logistic in strength plus any color and opening advantage, and the two games
+// of a pair are independent given the opening, then
+//
+//	q = P(A sweeps | the pair is decisive) = 1 / (1 + 10^(-2d/400))
+//
+// for every opening and either color advantage, because those terms cancel in
+// P(A sweeps) / P(B sweeps) = e^(2d). Decisive pairs are therefore independent
+// Bernoulli(q) trials, and the test is Wald's SPRT of q(Elo0) against q(Elo1)
+// over them, in pair order (so games finishing early, such as resignations,
+// cannot bias it). Wald's inequality bounds the probability of accepting H1
+// when d <= Elo0 by Alpha/(1-Beta), and of accepting H0 when d >= Elo1 by
+// Beta/(1-Alpha), at any game limit: a match that ends undecided accepts
+// neither.
 type SPRT struct {
-	Elo0, Elo1  float64 // H0: elo <= Elo0, H1: elo >= Elo1
+	Elo0, Elo1  float64
 	Alpha, Beta float64
 }
 
@@ -63,7 +81,10 @@ type Result struct {
 	WinsAsWhite   int     `json:"wins_as_white"`
 	BlackWinRate  float64 `json:"black_win_rate"`
 	LLR           float64 `json:"llr,omitempty"`
-	SPRTDecision  string  `json:"sprt,omitempty"` // "H1" (A stronger), "H0", or "" (undecided)
+	SPRTDecision  string  `json:"sprt,omitempty"`          // "H1" (A stronger), "H0", or "" (undecided)
+	SPRTPairs     int     `json:"sprt_pairs,omitempty"`    // complete opening pairs the test used, in order
+	SweepsA       int     `json:"sprt_sweeps_a,omitempty"` // pairs A won twice
+	SweepsB       int     `json:"sprt_sweeps_b,omitempty"` // pairs B won twice
 	ElapsedSecond float64 `json:"elapsed_seconds"`
 }
 
@@ -135,8 +156,10 @@ func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 				res.NameA, res.NameB = nameA, nameB
 				res.Games = append(res.Games, out)
 				res.summarize()
-				if cfg.SPRT != nil {
-					res.LLR, res.SPRTDecision = cfg.SPRT.test(res)
+				if cfg.SPRT != nil && res.SPRTDecision == "" {
+					// the decision is made once, at the first crossing; games
+					// still in flight afterwards are reported but do not revisit it
+					cfg.SPRT.test(res)
 					if res.SPRTDecision != "" {
 						stopped = true
 					}
@@ -333,26 +356,44 @@ func elo(s float64) float64 {
 	return -400 * math.Log10(1/s-1)
 }
 
-func (t *SPRT) test(r *Result) (float64, string) {
-	n := float64(len(r.Games))
-	if n < 2 {
-		return 0, ""
+// sweepProb is q(d): the probability that a decisive pair is A's sweep when A
+// is d Elo stronger.
+func sweepProb(d float64) float64 { return 1 / (1 + math.Pow(10, -2*d/400)) }
+
+// test runs the SPRT over the complete opening pairs at the start of the
+// match (pairs 0, 1, 2, ... while both games of each are in), stopping at the
+// first pair whose evidence crosses a bound, and records the outcome in r.
+func (t *SPRT) test(r *Result) {
+	byIndex := make(map[int]Game, len(r.Games))
+	for _, g := range r.Games {
+		byIndex[g.Index] = g
 	}
-	s := r.Score
-	v := (float64(r.Wins)*(1-s)*(1-s) + float64(r.Losses)*s*s + float64(r.Draws)*(0.5-s)*(0.5-s)) / n
-	if v <= 0 {
-		v = 1e-3
+	q0, q1 := sweepProb(t.Elo0), sweepProb(t.Elo1)
+	winA, winB := math.Log(q1/q0), math.Log((1-q1)/(1-q0))
+	lower, upper := math.Log(t.Beta/(1-t.Alpha)), math.Log((1-t.Beta)/t.Alpha)
+	r.LLR, r.SPRTPairs, r.SweepsA, r.SweepsB = 0, 0, 0, 0
+	for k := 0; ; k++ {
+		g0, ok0 := byIndex[2*k]
+		g1, ok1 := byIndex[2*k+1]
+		if !ok0 || !ok1 {
+			return
+		}
+		r.SPRTPairs++
+		switch {
+		case g0.Winner == "A" && g1.Winner == "A":
+			r.SweepsA++
+			r.LLR += winA
+		case g0.Winner == "B" && g1.Winner == "B":
+			r.SweepsB++
+			r.LLR += winB
+		}
+		switch {
+		case r.LLR >= upper:
+			r.SPRTDecision = "H1"
+			return
+		case r.LLR <= lower:
+			r.SPRTDecision = "H0"
+			return
+		}
 	}
-	s0 := 1 / (1 + math.Pow(10, -t.Elo0/400))
-	s1 := 1 / (1 + math.Pow(10, -t.Elo1/400))
-	llr := (s1 - s0) * (2*s - s0 - s1) * n / (2 * v)
-	lower := math.Log(t.Beta / (1 - t.Alpha))
-	upper := math.Log((1 - t.Beta) / t.Alpha)
-	switch {
-	case llr >= upper:
-		return llr, "H1"
-	case llr <= lower:
-		return llr, "H0"
-	}
-	return llr, ""
 }

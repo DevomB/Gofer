@@ -29,6 +29,7 @@ runs/9x9/
   data/gen-NNNN/   self-play shards (.npz)
   sgf/gen-NNNN/    every self-play game
   eval/            arena results (JSON) and ratings.json
+  champion/        gofer-9x9.onnx (the current champion) and gen-NNNN/ per champion
 ```
 
 Each generation:
@@ -46,10 +47,52 @@ Each generation:
 4. **Evaluate**: new vs previous generation, and every `anchor_every`
    generations against fixed anchors (GNU Go by default). All results feed a
    Bradley-Terry fit in `eval/ratings.json` with `gen-0000` at 0 Elo.
+5. **Champion** (anchor generations only): if the new network is rated above
+   the champion, it plays the champion directly (up to `champion_games` games
+   at `champion_visits`) and becomes the new champion only if the match's SPRT
+   (`champion_sprt`, default `0,50`) accepts H1. The first network rated at
+   least `champion_min_elo` becomes the first champion.
 
-There is no gating: like AlphaZero and KataGo, the newest network always
-plays the next self-play. (`gofer arena -sprt 0,35` is available if you want
-a promotion gate.)
+   The SPRT counts opening pairs (each opening played with both colors) that
+   one side wins twice, in pair order, and runs Wald's test on them. Under the
+   usual logistic Elo model the chance a decisive pair is the challenger's is
+   1 / (1 + 10^(-2d/400)) for an Elo advantage d, whatever the color or
+   opening bias, so Wald's inequality applies exactly: a challenger that is
+   not stronger than the champion is promoted with probability at most
+   alpha / (1 - beta) = 5.3%, and a match that reaches `champion_games`
+   undecided promotes nothing. `go test ./internal/arena` checks these rates
+   by simulating thousands of matches with color and opening advantages.
+
+There is no gating for training: like AlphaZero and KataGo, the newest
+network always plays the next self-play. The champion is only the best
+network so far, the one worth downloading.
+
+## Champions and releases
+
+Every champion is copied to `champion/gen-NNNN/` (network, `champion.json`
+with its rating, match and anchor results, and release notes), and
+`champion/gofer-9x9.onnx` always holds the current one.
+
+Pass `--release-repo OWNER/REPO` (or set `GOFER_RELEASE_REPO`) and each new
+champion is also published as a GitHub Release, tagged
+`model-<run>-gNNNN`, with the network as `gofer-9x9.onnx`. Because the asset
+name never changes, this link always downloads the newest champion:
+
+```
+https://github.com/OWNER/REPO/releases/latest/download/gofer-9x9.onnx
+```
+
+Publishing uses the GitHub CLI on the training machine: run `gh auth login`,
+or set `GH_TOKEN` to a fine-grained token with *Contents: read and write* on
+the repository. If a release cannot be published (no network, expired
+token), it stays pending and the loop retries it on the next generation;
+`python -m training.release --run runs/9x9 --repo OWNER/REPO` shows the
+champion and publishes anything pending. Only the newest pending champion is
+published, so a long outage does not produce a burst of stale releases.
+
+The repository's committed `models/gofer-9x9.onnx` (used by the website and
+the examples) is not touched; update it deliberately when a release is worth
+promoting.
 
 Override settings when creating a run, e.g.
 `--set games_per_gen=1000 --set full_visits=400 --set train.lr=1e-3`.
