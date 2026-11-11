@@ -1,4 +1,4 @@
-torch>=2.2
+torch>=2.9  # training.export uses the torch.export-based ONNX exporter
 numpy>=1.24
 onnx>=1.15
 onnxruntime>=1.17

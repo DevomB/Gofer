@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import time
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -86,8 +87,7 @@ class Run:
         self.env = dict(os.environ)
         if "ONNXRUNTIME_SHARED_LIBRARY_PATH" not in self.env:
             self.env["ONNXRUNTIME_SHARED_LIBRARY_PATH"] = find_ort_library()
-        if Path("/usr/games").is_dir():  # Debian/Ubuntu install gnugo there
-            self.env["PATH"] = self.env.get("PATH", "") + ":/usr/games"
+        self.env["PATH"] = tool_path()
 
     # ---- bookkeeping -------------------------------------------------
     def log(self, msg: str) -> None:
@@ -125,15 +125,18 @@ class Run:
 
     # ---- phases ------------------------------------------------------
     def init(self) -> None:
-        if self.ckpt_path(0).exists():
-            return
-        torch.manual_seed(0)
-        mc = ModelConfig(board_size=self.cfg.board_size, blocks=self.cfg.blocks, channels=self.cfg.channels)
-        model = GoferNet(mc).to(device())
-        opt = make_optimizer(model, self.cfg.train)
-        save_checkpoint(self.ckpt_path(0), model, opt, 0)
-        export(model, self.model_path(0))
-        self.log(f"initialized {mc.blocks}x{mc.channels} network ({param_count(model):,} parameters)")
+        """Create the random initial network. The checkpoint and its ONNX export
+        are checked separately, so a run stopped between the two still starts."""
+        c = self.cfg
+        if not self.ckpt_path(0).exists():
+            torch.manual_seed(0)
+            mc = ModelConfig(board_size=c.board_size, blocks=c.blocks, channels=c.channels)
+            model = GoferNet(mc).to(device())
+            save_checkpoint(self.ckpt_path(0), model, make_optimizer(model, c.train), 0)
+            self.log(f"initialized {mc.blocks}x{mc.channels} network ({param_count(model):,} parameters)")
+        if not self.model_path(0).exists():
+            model, _, _ = load_checkpoint(self.ckpt_path(0), c.train, device())
+            export(model, self.model_path(0))
 
     def selfplay(self, gen: int) -> None:
         if self.is_done(gen, "selfplay"):
@@ -188,7 +191,7 @@ class Run:
         if not out.exists():
             self.gofer_run([
                 "arena", "-a", a, "-b", b, "-games", str(games), "-visits", str(visits), "-size", str(self.cfg.board_size),
-                "-komi", str(self.cfg.komi), "-parallel", str(2 * self.threads), "-json", str(out), "-seed", str(len(tag)),
+                "-komi", str(self.cfg.komi), "-parallel", str(2 * self.threads), "-json", str(out), "-seed", str(match_seed(tag)),
                 *(extra or []),
             ])
         return json.loads(out.read_text())
@@ -298,6 +301,74 @@ def anchor_label(spec: str) -> str:
     return re.sub(r"[^A-Za-z0-9.-]+", "-", label)
 
 
+def match_seed(tag: str) -> int:
+    """Arena seed for the match named tag. Each match gets its own seed, so each
+    draws its own random openings; the same match always gets the same seed."""
+    return zlib.crc32(tag.encode())
+
+
+def tool_path() -> str:
+    """PATH for the engine and the programs it starts; Debian and Ubuntu install gnugo in /usr/games."""
+    path = os.environ.get("PATH", "")
+    return f"{path}:/usr/games" if Path("/usr/games").is_dir() else path
+
+
+def anchor_problems(anchors: list[str], path: str) -> list[str]:
+    """Anchors that cannot play on this machine, one message each: an external
+    program that is not on path, or a network file that is missing. Specs are
+    those of `gofer arena` (see cmd/gofer/engine.go)."""
+    problems = []
+    for spec in anchors:
+        head, *opts = spec.split(",")
+        kind, _, arg = head.partition(":")
+        if kind == "gnugo":
+            program = next((o.split("=", 1)[1] for o in opts if o.startswith("bin=")), "gnugo")
+            if shutil.which(program, path=path) is None:
+                problems.append(f"{spec}: GNU Go ({program}) is not installed")
+        elif kind == "gtp":
+            program = (spec.removeprefix("gtp:").split() or [""])[0]
+            if shutil.which(program, path=path) is None:
+                problems.append(f"{spec}: program {program!r} not found")
+        elif kind == "nn" and not Path(arg).exists():
+            problems.append(f"{spec}: network file {arg} not found")
+    return problems
+
+
+def check_anchors(anchors: list[str], run: Path) -> None:
+    """Stop before any work is done if an anchor cannot play: the first anchor
+    match comes only after a full generation of self-play and training."""
+    problems = anchor_problems(anchors, tool_path())
+    if not problems:
+        return
+    lines = ["cannot start: these anchors cannot play on this machine", *(f"  {p}" for p in problems)]
+    if any("GNU Go" in p for p in problems):
+        lines.append("Install GNU Go: sudo dnf install gnugo (Fedora), sudo apt-get install gnugo (Debian, Ubuntu).")
+    lines.append(f"""To use other anchors: --set 'anchors=["rollout,visits=800"]' on a new run, or edit "anchors" in {run / 'config.json'}.""")
+    raise SystemExit("\n".join(lines))
+
+
+def apply_overrides(d: dict, overrides: list[str]) -> list[str]:
+    """Apply KEY=VALUE settings to a LoopConfig dict in place. Returns the keys
+    whose value changed."""
+    changed = []
+    for kv in overrides:
+        k, eq, v = kv.partition("=")
+        if not eq:
+            raise SystemExit(f"--set expects KEY=VALUE, got {kv!r}")
+        target = d["train"] if k.startswith("train.") else d
+        name = k.removeprefix("train.")
+        if name not in target:
+            raise SystemExit(f"unknown config key {k}")
+        try:
+            new = v if isinstance(target[name], str) else json.loads(v)
+        except json.JSONDecodeError:
+            raise SystemExit(f"--set {k}: {v!r} is not a valid value (current: {json.dumps(target[name])})") from None
+        if new != target[name]:
+            changed.append(k)
+        target[name] = new
+    return changed
+
+
 def find_ort_library() -> str:
     import onnxruntime
 
@@ -320,19 +391,16 @@ def main() -> None:
                     help="publish each new champion as a GitHub Release with gh (default: $GOFER_RELEASE_REPO)")
     args = ap.parse_args()
     cfg_path = args.run / "config.json"
-    if cfg_path.exists():
-        cfg = LoopConfig.from_dict(json.loads(cfg_path.read_text()))
-    else:
-        d = dataclasses.asdict(LoopConfig())
-        for kv in args.set:
-            k, v = kv.split("=", 1)
-            target = d["train"] if k.startswith("train.") else d
-            k = k.removeprefix("train.")
-            if k not in target:
-                raise SystemExit(f"unknown config key {k}")
-            cur = target[k]
-            target[k] = json.loads(v) if not isinstance(cur, str) else v
-        cfg = LoopConfig.from_dict(d)
+    resuming = cfg_path.exists()
+    d = dataclasses.asdict(LoopConfig.from_dict(json.loads(cfg_path.read_text())) if resuming else LoopConfig())
+    changed = apply_overrides(d, args.set)
+    if resuming and changed:
+        # the same command resumes a run, so --set may repeat the run's settings, but not change them
+        raise SystemExit(f"{cfg_path} already fixes this run's settings, and --set would change {', '.join(changed)}. "
+                         "Edit that file to change a running run, or start a new one with another --run directory.")
+    cfg = LoopConfig.from_dict(d)
+    check_anchors(cfg.anchors, args.run)
+    if not resuming:
         args.run.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(json.dumps(dataclasses.asdict(cfg), indent=2))
     torch.set_num_threads(args.threads)

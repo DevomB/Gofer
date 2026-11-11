@@ -186,9 +186,20 @@ func cmdSelfplay(args []string) error {
 		st.Resigned, st.FalseResigns, st.NoResignWithTrigger)
 	if *statsPath != "" {
 		data, _ := json.MarshalIndent(out, "", "  ")
-		return os.WriteFile(*statsPath, data, 0o644)
+		return writeFileAtomic(*statsPath, data)
 	}
 	return nil
+}
+
+// writeFileAtomic writes data to path through a temporary file and a rename.
+// The training loop treats these result files as proof that a match or a
+// self-play phase finished, so it must never find a partial one.
+func writeFileAtomic(path string, data []byte) error {
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func cmdArena(args []string) error {
@@ -245,7 +256,7 @@ func cmdArena(args []string) error {
 		res.Elo, res.EloLow, res.EloHigh, 100*res.BlackWinRate, res.SPRTDecision)
 	if *jsonPath != "" {
 		data, _ := json.MarshalIndent(res, "", "  ")
-		return os.WriteFile(*jsonPath, data, 0o644)
+		return writeFileAtomic(*jsonPath, data)
 	}
 	return nil
 }

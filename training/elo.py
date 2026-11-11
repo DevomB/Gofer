@@ -12,6 +12,11 @@ def fit(results: list[dict], anchor: str, prior_games: float = 1.0, iters: int =
     Draws count as half a win each way. `prior_games` adds that many virtual
     drawn games between every pair that met, which keeps perfect scores finite.
     Returns {player: {"elo": r, "stderr": s, "games": n}} with `anchor` at 0.
+
+    stderr treats the other players' ratings as exact: it is the uncertainty of
+    a player's rating against the opponents it actually played, not against the
+    anchor. Along a chain of generations the error against the anchor is
+    larger, because it accumulates over every link of the chain.
     """
     wins: dict[tuple[str, str], float] = defaultdict(float)
     games: dict[tuple[str, str], float] = defaultdict(float)
@@ -42,7 +47,7 @@ def fit(results: list[dict], anchor: str, prior_games: float = 1.0, iters: int =
     ref = gamma.get(anchor, 1.0)
     out = {}
     for p in players:
-        # Fisher information of log-strength gives an approximate standard error.
+        # Fisher information of this player's log-strength alone (see the docstring).
         info = sum(games[(p, q)] * gamma[p] * gamma[q] / (gamma[p] + gamma[q]) ** 2 for q in players if (p, q) in games)
         se = 400 / math.log(10) / math.sqrt(info) if info > 0 else float("inf")
         n = sum(games[(p, q)] for q in players if (p, q) in games) - prior_games * sum(1 for q in players if (p, q) in games)
