@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# One-shot setup for a fresh Ubuntu/Debian machine (laptop, Vultr, Lambda, ...):
+# One-shot setup for a fresh Linux machine (laptop, Vultr, Lambda, ...):
 # Go toolchain check, GNU Go (evaluation anchor), ONNX Runtime, Python venv, build.
+# GNU Go is installed with apt-get (Debian/Ubuntu) or dnf (Fedora).
 #
 #   scripts/setup.sh          # CPU box
 #   scripts/setup.sh gpu      # NVIDIA box: GPU ONNX Runtime + CUDA PyTorch
@@ -11,8 +12,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 command -v go >/dev/null || { echo "install Go 1.22+ first: https://go.dev/dl/" >&2; exit 1; }
-if command -v apt-get >/dev/null && ! command -v gnugo >/dev/null && [[ ! -x /usr/games/gnugo ]]; then
-  sudo apt-get install -y gnugo python3-venv || echo "warning: could not install gnugo (evaluation anchors will be unavailable)"
+if ! command -v gnugo >/dev/null && [[ ! -x /usr/games/gnugo ]]; then
+  if command -v apt-get >/dev/null; then
+    sudo apt-get install -y gnugo python3-venv || echo "warning: could not install gnugo (the default evaluation anchors need it)"
+  elif command -v dnf >/dev/null; then
+    sudo dnf install -y gnugo || echo "warning: could not install gnugo (the default evaluation anchors need it)"
+  else
+    echo "warning: install GNU Go yourself (the default evaluation anchors need it)"
+  fi
 fi
 
 scripts/install-ort.sh "$FLAVOR"
