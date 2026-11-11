@@ -41,6 +41,7 @@ class LoopConfig:
     komi: float = 7.5
     blocks: int = 6
     channels: int = 64
+    init_from: str = ""  # checkpoint (.pt) whose network the run starts from; empty: random weights
     # self-play
     games_per_gen: int = 600
     full_visits: int = 160
@@ -125,15 +126,20 @@ class Run:
 
     # ---- phases ------------------------------------------------------
     def init(self) -> None:
-        """Create the random initial network. The checkpoint and its ONNX export
-        are checked separately, so a run stopped between the two still starts."""
+        """Create the initial network: random weights, or the network of the
+        checkpoint named by init_from. The checkpoint and its ONNX export are
+        checked separately, so a run stopped between the two still starts."""
         c = self.cfg
         if not self.ckpt_path(0).exists():
-            torch.manual_seed(0)
-            mc = ModelConfig(board_size=c.board_size, blocks=c.blocks, channels=c.channels)
-            model = GoferNet(mc).to(device())
+            if c.init_from:
+                model = load_network(Path(c.init_from), c).to(device())
+                origin = f"started from the network of {c.init_from}: {c.blocks}x{c.channels}"
+            else:
+                torch.manual_seed(0)
+                model = GoferNet(ModelConfig(board_size=c.board_size, blocks=c.blocks, channels=c.channels)).to(device())
+                origin = f"initialized {c.blocks}x{c.channels} network"
             save_checkpoint(self.ckpt_path(0), model, make_optimizer(model, c.train), 0)
-            self.log(f"initialized {mc.blocks}x{mc.channels} network ({param_count(model):,} parameters)")
+            self.log(f"{origin} ({param_count(model):,} parameters)")
         if not self.model_path(0).exists():
             model, _, _ = load_checkpoint(self.ckpt_path(0), c.train, device())
             export(model, self.model_path(0))
@@ -261,6 +267,7 @@ class Run:
             "match": {k: match.get(k) for k in keep} if match else None,
             "anchors": [r for r in self.state.get("results", []) if r["a"] == name and not r["b"].startswith("gen-")],
             "board_size": c.board_size, "komi": c.komi, "blocks": c.blocks, "channels": c.channels,
+            "init_from": c.init_from,
             "games": c.games_per_gen * len(selfplay), "positions": sum(s["rows"] for s in selfplay),
             "sha256": release.sha256(asset),
         }
@@ -299,6 +306,24 @@ def anchor_label(spec: str) -> str:
     level = next((o.split("=", 1)[1] for o in opts if o.startswith("level=")), None)
     label = f"{kind}-l{level}" if level else kind
     return re.sub(r"[^A-Za-z0-9.-]+", "-", label)
+
+
+def load_network(path: Path, cfg: LoopConfig) -> GoferNet:
+    """The network of checkpoint path, for a run with settings cfg. No weight
+    depends on the board size (the network is convolutions and board-wide
+    pooling), so a network trained on one size can start a run on another.
+    The optimizer state is left behind: the new run has its own learning-rate
+    schedule."""
+    if not path.is_file():
+        raise SystemExit(f"cannot start: init_from names {path}, which is not a file")
+    ck = torch.load(path, map_location="cpu", weights_only=False)
+    mc = ModelConfig(**{**ck["model_config"], "board_size": cfg.board_size})
+    if (mc.blocks, mc.channels) != (cfg.blocks, cfg.channels):
+        raise SystemExit(f"cannot start: {path} holds a {mc.blocks}x{mc.channels} network and this run is set to "
+                         f"{cfg.blocks}x{cfg.channels}. Add --set blocks={mc.blocks} --set channels={mc.channels}.")
+    model = GoferNet(mc)
+    model.load_state_dict(ck["model"])
+    return model
 
 
 def match_seed(tag: str) -> int:
@@ -400,6 +425,8 @@ def main() -> None:
                          "Edit that file to change a running run, or start a new one with another --run directory.")
     cfg = LoopConfig.from_dict(d)
     check_anchors(cfg.anchors, args.run)
+    if cfg.init_from and not (args.run / "ckpt" / "gen-0000.pt").exists():
+        load_network(Path(cfg.init_from), cfg)  # refuse a missing or mismatched checkpoint before anything is written
     if not resuming:
         args.run.mkdir(parents=True, exist_ok=True)
         cfg_path.write_text(json.dumps(dataclasses.asdict(cfg), indent=2))
