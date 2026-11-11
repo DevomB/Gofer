@@ -53,7 +53,12 @@ Each generation:
    sizes other than the one it was exported with.
 4. **Evaluate**: new vs previous generation, and every `anchor_every`
    generations against fixed anchors (GNU Go by default). Each match plays
-   its own set of random openings, each opening once with either color. All
+   its own set of random openings, each opening once with either color.
+   GNU Go is started with positional superko, the ko rule of the match. A
+   game an external program cannot finish (it crashed, or played a move the
+   match's rules forbid) is replayed up to three times and then left out of
+   the result and logged; the match fails only if more than a tenth of its
+   games do. All
    results feed a Bradley-Terry fit in `eval/ratings.json` with `gen-0000` at
    0 Elo. The `±` beside a rating is its error against the opponents that
    network actually played; against `gen-0000` the error is larger, because it

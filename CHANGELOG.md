@@ -18,6 +18,11 @@ A rewrite of the engine core and the training pipeline. See
 
 ### Fixed
 
+- One unplayable game no longer fails a whole evaluation match, and with it the training loop:
+  the game is left out of the result and listed under `skipped` (the match still fails when more
+  than a tenth of its games cannot be played). GNU Go is now started with `--positional-superko`,
+  the ko rule the arena plays; under its default simple ko it could repeat a position, a move the
+  arena rejects as illegal
 - Search backed values up with the wrong sign, so it chose the opponent's best move
 - Fresh searches did no work: the root lost its `Expanded` flag when the node arena reallocated
 - Transposition table returned other positions' values (no key check; pass collided with the parent)

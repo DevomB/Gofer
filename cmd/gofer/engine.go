@@ -221,7 +221,10 @@ func (ps playerSpec) factory(pool *nets, sf *searchFlags, seed *int64) func() (a
 			return &arena.MCTSPlayer{Label: ps.label(), Eval: nn.Uniform{}, Config: cfg, Visits: ps.visits}, nil
 		case "gnugo":
 			bin := ps.optOr("bin", "gnugo")
-			return arena.NewGTPPlayer(ps.label(), []string{bin, "--mode", "gtp", "--level", ps.optOr("level", "10"), "--chinese-rules"}), nil
+			// The arena plays positional superko. GNU Go's default is simple ko,
+			// under which it can repeat a position: a move the arena rejects.
+			return arena.NewGTPPlayer(ps.label(), []string{bin, "--mode", "gtp", "--level", ps.optOr("level", "10"),
+				"--chinese-rules", "--positional-superko"}), nil
 		default:
 			return arena.NewGTPPlayer(ps.label(), strings.Fields(ps.arg)), nil
 		}

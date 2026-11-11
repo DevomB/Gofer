@@ -1,11 +1,15 @@
 package arena
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 
+	"github.com/DevomB/gofer/internal/game"
 	"github.com/DevomB/gofer/internal/mcts"
 	"github.com/DevomB/gofer/internal/nn"
 )
@@ -165,6 +169,78 @@ func TestSPRTErrorRates(t *testing.T) {
 	}
 }
 
+func TestSPRTPassesOverSkippedGames(t *testing.T) {
+	s := &SPRT{Elo0: 0, Elo1: 50, Alpha: 0.05, Beta: 0.05}
+	full := pairs(repeat("AA", 60)...)
+	s.test(full)
+	if full.SPRTDecision != "H1" {
+		t.Fatalf("60 sweeps should accept H1, got %q", full.SPRTDecision)
+	}
+	// The same match, except that the first game could not be played. Its
+	// pair carries no evidence; the test must go on to the pairs after it
+	// instead of waiting for a game that will never arrive.
+	r := pairs(repeat("AA", 61)...)
+	r.Games = r.Games[1:]
+	r.Skipped = []int{0}
+	s.test(r)
+	if r.SPRTDecision != "H1" || r.SPRTPairs != full.SPRTPairs || r.SweepsA != full.SweepsA {
+		t.Fatalf("skipped game: decision %q after %d pairs (%d sweeps), want H1 after %d (%d)",
+			r.SPRTDecision, r.SPRTPairs, r.SweepsA, full.SPRTPairs, full.SweepsA)
+	}
+}
+
+// illegalMover plays on an occupied point: a move the arena's rules reject,
+// as an external engine that plays by other rules can.
+type illegalMover struct{ MCTSPlayer }
+
+func (p *illegalMover) GenMove(b *game.Board) (game.Point, bool, error) {
+	for q := 0; q < b.NumPoints(); q++ {
+		if b.At(game.Point(q)) != game.Empty {
+			return game.Point(q), false, nil
+		}
+	}
+	return p.MCTSPlayer.GenMove(b)
+}
+
+func TestUnplayableGameIsLeftOutOfTheResult(t *testing.T) {
+	uniform := func(label string) MCTSPlayer {
+		return MCTSPlayer{Label: label, Eval: nn.Uniform{}, Config: mcts.DefaultConfig(), Visits: 4}
+	}
+	a := func() (Player, error) { p := uniform("a"); return &p, nil }
+	var logged []string
+	cfg := Config{Size: 5, Komi: 0.5, Games: 10, Parallel: 1, OpeningMoves: 1, Seed: 3,
+		Log: func(f string, args ...any) { logged = append(logged, fmt.Sprintf(f, args...)) }}
+
+	// One game at a time, so the first three players made for B are the
+	// three attempts at game 0.
+	made := 0
+	b := func() (Player, error) {
+		made++
+		if made <= 3 {
+			return &illegalMover{uniform("b")}, nil
+		}
+		p := uniform("b")
+		return &p, nil
+	}
+	res, err := Run(cfg, a, b)
+	if err != nil {
+		t.Fatalf("one unplayable game failed the match: %v", err)
+	}
+	if len(res.Games) != 9 || !reflect.DeepEqual(res.Skipped, []int{0}) || res.Wins+res.Losses+res.Draws != 9 {
+		t.Fatalf("want 9 games counted and game 0 skipped, got %d games, skipped %v, %d-%d-%d",
+			len(res.Games), res.Skipped, res.Wins, res.Losses, res.Draws)
+	}
+	if text := strings.Join(logged, "\n"); !strings.Contains(text, "game 0 left out") || !strings.Contains(text, "illegal move") {
+		t.Fatalf("the log does not say which game was left out and why:\n%s", text)
+	}
+
+	// An engine that cannot play at all still fails the match.
+	broken := func() (Player, error) { return &illegalMover{uniform("b")}, nil }
+	if _, err := Run(cfg, a, broken); err == nil || !strings.Contains(err.Error(), "could not be played") {
+		t.Fatalf("a match in which no game can be played returned %v", err)
+	}
+}
+
 func TestWilson(t *testing.T) {
 	lo, hi := wilson(0.5, 100, 1.96)
 	if math.Abs(lo-0.404) > 0.002 || math.Abs(hi-0.596) > 0.002 {
@@ -178,7 +254,7 @@ func TestGNUGo(t *testing.T) {
 	}
 	cfg := Config{Size: 9, Komi: 7.5, Games: 2, Parallel: 2, Seed: 1}
 	gnugo := func() (Player, error) {
-		return NewGTPPlayer("gnugo-l1", []string{"/usr/games/gnugo", "--mode", "gtp", "--level", "1"}), nil
+		return NewGTPPlayer("gnugo-l1", []string{"/usr/games/gnugo", "--mode", "gtp", "--level", "1", "--chinese-rules", "--positional-superko"}), nil
 	}
 	weak := func() (Player, error) {
 		return &MCTSPlayer{Label: "uniform-1", Eval: nn.Uniform{}, Config: mcts.DefaultConfig(), Visits: 1}, nil
