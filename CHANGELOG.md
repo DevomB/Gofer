@@ -26,6 +26,15 @@ A rewrite of the engine core and the training pipeline. See
 - Superko/Tromp-Taylor state was shared with search playouts; simple ko was set on any single-stone capture
 - Self-play and arena games were truncated at 83 moves and scored unfinished
 - ONNX export traced BatchNorm in training mode when the wrapper module was not in `eval()`
+- Every evaluation match of a training run replayed the same random openings, because the arena
+  seed was the length of the match name; each match now draws its own
+- A run stopped between saving the first checkpoint and exporting it could not be resumed
+- The training loop failed after the first generation when an anchor such as GNU Go was not
+  installed; it now checks its anchors before starting and says what to install
+- Arena and self-play result files are written through a rename, so a resumed run never reads
+  a partial one
+- `--set` on an existing run was ignored without a word; a value that would change the run's
+  settings is now refused
 
 ### Changed
 
@@ -43,6 +52,10 @@ A rewrite of the engine core and the training pipeline. See
   per-generation cosine schedule, resumable `python -m training.loop`
 - Evaluation: arena with paired openings, GNU Go (or any GTP engine) as anchors with dead-stone
   adjudication, Wilson intervals, Elo, SPRT, and a Bradley-Terry ladder across generations
+- ONNX export uses PyTorch's `torch.export`-based exporter (opset 18) in place of the deprecated
+  TorchScript one, and is verified at several batch sizes; `training/requirements.txt` asks for
+  PyTorch 2.9 or newer
+- `scripts/setup.sh` installs GNU Go on Fedora (`dnf`) as well as Debian and Ubuntu
 
 ### Web
 

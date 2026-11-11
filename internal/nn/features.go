@@ -4,7 +4,7 @@ package nn
 
 import "github.com/DevomB/gofer/internal/game"
 
-// Feature layout (schema 3). Keep in sync with training/gofer/features.py.
+// Feature layout (schema 3). Keep in sync with training/features.py.
 const (
 	SchemaVersion = 3
 

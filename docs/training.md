@@ -8,6 +8,12 @@ scripts/setup.sh gpu      # NVIDIA machine: GPU ONNX Runtime and CUDA PyTorch
 make test
 ```
 
+The default anchors are GNU Go, which `scripts/setup.sh` installs with
+`apt-get` or `dnf`. The loop checks that every anchor can play before it
+starts, so a missing GNU Go is reported at once rather than after the first
+generation. To train without it, create the run with other anchors, e.g.
+`--set 'anchors=["rollout,visits=800"]'`.
+
 ## Run
 
 ```bash
@@ -43,10 +49,15 @@ Each generation:
    `sample_reuse` samples per new row, with a random board symmetry per
    sample. The loss on the new data *before* training (logged as
    "previous net on new data") is an honest held-out metric.
-3. **Export** the network to ONNX and verify it against PyTorch.
+3. **Export** the network to ONNX and verify it against PyTorch at batch
+   sizes other than the one it was exported with.
 4. **Evaluate**: new vs previous generation, and every `anchor_every`
-   generations against fixed anchors (GNU Go by default). All results feed a
-   Bradley-Terry fit in `eval/ratings.json` with `gen-0000` at 0 Elo.
+   generations against fixed anchors (GNU Go by default). Each match plays
+   its own set of random openings, each opening once with either color. All
+   results feed a Bradley-Terry fit in `eval/ratings.json` with `gen-0000` at
+   0 Elo. The `±` beside a rating is its error against the opponents that
+   network actually played; against `gen-0000` the error is larger, because it
+   accumulates along the chain of generations.
 5. **Champion** (anchor generations only): if the new network is rated above
    the champion, it plays the champion directly (up to `champion_games` games
    at `champion_visits`) and becomes the new champion only if the match's SPRT
@@ -63,8 +74,9 @@ Each generation:
    undecided promotes nothing. `go test ./internal/arena` checks these rates
    by simulating thousands of matches with color and opening advantages.
 
-There is no gating for training: like AlphaZero and KataGo, the newest
-network always plays the next self-play. The champion is only the best
+There is no gating for training: as in AlphaZero, the newest network always
+plays the next self-play. (KataGo does gate, lightly: a candidate must win
+100 of 200 games against the current network.) The champion is only the best
 network so far, the one worth downloading.
 
 ## Champions and releases
@@ -95,7 +107,11 @@ the examples) is not touched; update it deliberately when a release is worth
 promoting.
 
 Override settings when creating a run, e.g.
-`--set games_per_gen=1000 --set full_visits=400 --set train.lr=1e-3`.
+`--set games_per_gen=1000 --set full_visits=400 --set train.lr=1e-3`. They are
+saved in the run's `config.json`. Resuming with the same `--set` values (or
+none) is fine; values that would change an existing run are refused, so a
+setting is never ignored silently. To change a run that has started, edit its
+`config.json`.
 
 ## Throughput
 
