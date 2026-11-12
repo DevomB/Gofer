@@ -66,6 +66,10 @@ class LoopConfig:
     # champions: on anchor generations, a network rated above the champion plays
     # it directly and takes over only if the match's SPRT accepts H1
     champion_games: int = 200  # game limit (SPRT usually stops sooner); 0 disables champions
+    # ...and so does a network rated below it, once no network has played the
+    # champion for this many generations (0: never). The ladder cannot see slow
+    # progress: its error grows along the chain of generations
+    champion_every: int = 8
     champion_visits: int = 200
     champion_sprt: str = "0,50"  # elo0,elo1: false promotion <= 5.3% when not stronger
     champion_min_elo: float = 1500.0  # early generations (gen 0 = 0) never become champion
@@ -238,10 +242,12 @@ class Run:
             mine = ratings[name(new)]["elo"]
             champ = self.state.get("champion")
             theirs = ratings.get(name(champ["gen"]), {}).get("elo", champ["elo"]) if champ else None
-            if mine >= c.champion_min_elo and (champ is None or mine > theirs):
+            due = champ is not None and c.champion_every > 0 and new - champ.get("challenged", champ["gen"]) >= c.champion_every
+            if mine >= c.champion_min_elo and (champ is None or mine > theirs or due):
                 if champ is None:
                     self.promote(new, ratings, None)
                 else:
+                    champ["challenged"] = new
                     r = self.match(f"nn:{self.model_path(new)}", f"nn:{self.model_path(champ['gen'])}", c.champion_games,
                                    c.champion_visits, f"{name(new)}-vs-champion-{name(champ['gen'])}", ["-sprt", c.champion_sprt])
                     self.state.setdefault("results", []).append(

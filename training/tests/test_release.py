@@ -103,6 +103,54 @@ def test_lower_rated_generation_does_not_play_the_champion(run, monkeypatch):
     assert run.state["champion"]["gen"] == 2
 
 
+def test_a_champion_is_challenged_on_a_schedule_whatever_the_ratings_say(run, monkeypatch):
+    # Seen in a real run: the last network beat the champion 97-23 in a direct
+    # match, but the ladder had rated every generation after the champion below
+    # it for 20 generations, so none of them ever played it.
+    run.state["champion"] = {"gen": 2, "elo": 1200, "tag": "model-9x9-g0002"}
+    for g in range(5, 21):
+        run.model_path(g).write_bytes(f"model {g}".encode())
+        run.state["done"][str(g)] = {"selfplay": {"rows": 100, "seconds": 1.0}}
+    played = []
+    result = {"wins": 45, "losses": 55, "draws": 0, "elo": -35, "elo_ci_low": -90, "elo_ci_high": 20, "sprt": "H0"}
+
+    def match(a, b, games, visits, tag, extra=None):
+        played.append(tag)
+        return result
+
+    monkeypatch.setattr(run, "match", match)
+    below = lambda new: set_ratings(run, {0: 0, 2: 1200, new: 1100})
+
+    for new in (4, 6, 8):  # fewer than champion_every (8) generations after the champion
+        below(new)
+        run.champion(new - 1)
+    assert played == []
+    below(10)
+    run.champion(9)  # eight generations after it: plays although rated below
+    assert played == ["gen-0010-vs-champion-gen-0002"] and run.state["champion"]["gen"] == 2
+    below(12)
+    run.champion(11)  # the champion was challenged two generations ago
+    assert len(played) == 1
+    result = {"wins": 97, "losses": 23, "draws": 0, "elo": 250, "elo_ci_low": 172, "elo_ci_high": 328, "sprt": "H1"}
+    below(18)
+    run.champion(17)  # eight generations after the last challenge
+    assert played[-1] == "gen-0018-vs-champion-gen-0002" and run.state["champion"]["gen"] == 18
+    below(20)
+    run.champion(19)  # the new champion's own count starts at its generation
+    assert len(played) == 2
+
+
+def test_champion_every_zero_leaves_challenges_to_the_ratings(tmp_path, monkeypatch):
+    monkeypatch.setenv("ONNXRUNTIME_SHARED_LIBRARY_PATH", "/dev/null")
+    r = Run(tmp_path / "9x9", LoopConfig(champion_min_elo=1000, champion_every=0), Path("gofer"), threads=1)
+    monkeypatch.setattr(r, "log", lambda msg: None)
+    monkeypatch.setattr(r, "match", lambda *a, **k: pytest.fail("no match expected"))
+    r.state["champion"] = {"gen": 2, "elo": 1200, "tag": "model-9x9-g0002"}
+    set_ratings(r, {0: 0, 2: 1200, 40: 1100})
+    r.champion(39)
+    assert r.state["champion"]["gen"] == 2
+
+
 def test_publish_newest_pending_with_stable_asset_name(run, tmp_path):
     set_ratings(run, {0: 0, 2: 1200, 4: 1300})
     run.promote(2, json.loads((run.root / "eval" / "ratings.json").read_text()), None)

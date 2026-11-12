@@ -69,6 +69,13 @@ Each generation:
    (`champion_sprt`, default `0,50`) accepts H1. The first network rated at
    least `champion_min_elo` becomes the first champion.
 
+   A network rated below the champion also plays it once no network has for
+   `champion_every` generations (default 8). The ratings cannot be trusted to
+   call for that match: every generation is rated through the chain of
+   40-game matches behind it, so over twenty generations the error is some
+   hundreds of Elo. In one run the last network beat the champion 97–23
+   directly after twenty generations in which none had been rated above it.
+
    The SPRT counts opening pairs (each opening played with both colors) that
    one side wins twice, in pair order, and runs Wald's test on them. Under the
    usual logistic Elo model the chance a decisive pair is the challenger's is

@@ -47,6 +47,9 @@ A rewrite of the engine core and the training pipeline. See
 
 ### Changed
 
+- Champions: a network also plays the champion when none has for `champion_every` generations
+  (default 8), not only when the rating ladder puts it above the champion. The ladder's error grows
+  along the chain of generations and missed a network 250 Elo stronger than the champion
 - Engine split into packages: `internal/{game,sgf,nn,mcts,selfplay,arena,gtp}`; `cmd/gofer` is a
   subcommand CLI (`gtp`, `play`, `selfplay`, `arena`, `bench`) replacing the v2 flag set
 - Board with incremental chains and exact liberties: ~0.7 µs per move including legal-move generation;
