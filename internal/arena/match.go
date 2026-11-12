@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -85,10 +86,20 @@ type Result struct {
 	SPRTPairs     int     `json:"sprt_pairs,omitempty"`    // complete opening pairs the test used, in order
 	SweepsA       int     `json:"sprt_sweeps_a,omitempty"` // pairs A won twice
 	SweepsB       int     `json:"sprt_sweeps_b,omitempty"` // pairs B won twice
+	Skipped       []int   `json:"skipped,omitempty"`       // indexes of games that could not be played (see Run)
 	ElapsedSecond float64 `json:"elapsed_seconds"`
 }
 
+// maxSkipped is how many games of a match may fail before the match does: a
+// tenth of it, and at least one.
+func maxSkipped(games int) int { return max(1, games/10) }
+
 // Run plays the match. newA/newB build a fresh player for each game.
+//
+// A game that fails three times (an external engine crashed, or played a move
+// that is illegal under the match's rules) is left out of the result and
+// listed in Skipped; the match itself fails only when more than a tenth of
+// its games do, which points at a broken engine rather than a bad game.
 func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 	if cfg.Games%2 == 1 {
 		cfg.Games++
@@ -135,7 +146,7 @@ func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 
 				// External engines occasionally crash (GNU Go 3.8 has known
 				// assertion failures); replay the game with fresh players
-				// before giving up on the match.
+				// before giving up on it.
 				var (
 					out          Game
 					nameA, nameB string
@@ -149,9 +160,15 @@ func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 				}
 				mu.Lock()
 				if err != nil {
-					errOut = err
+					res.Skipped = append(res.Skipped, g)
+					if len(res.Skipped) > maxSkipped(cfg.Games) {
+						errOut = fmt.Errorf("arena: %d of %d games could not be played, the last one: %w", len(res.Skipped), cfg.Games, err)
+						mu.Unlock()
+						return
+					}
+					cfg.Log("arena: game %d left out of the result: %v", g, err)
 					mu.Unlock()
-					return
+					continue
 				}
 				res.NameA, res.NameB = nameA, nameB
 				res.Games = append(res.Games, out)
@@ -173,6 +190,7 @@ func Run(cfg Config, newA, newB func() (Player, error)) (*Result, error) {
 		}()
 	}
 	wg.Wait()
+	sort.Ints(res.Skipped)
 	res.ElapsedSecond = time.Since(start).Seconds()
 	return res, errOut
 }
@@ -333,6 +351,9 @@ func (r *Result) summarize() {
 		}
 	}
 	n := float64(len(r.Games))
+	if n == 0 {
+		return
+	}
 	r.Score = (float64(r.Wins) + 0.5*float64(r.Draws)) / n
 	r.ScoreLow, r.ScoreHigh = wilson(r.Score, n, 1.96)
 	r.Elo, r.EloLow, r.EloHigh = elo(r.Score), elo(r.ScoreLow), elo(r.ScoreHigh)
@@ -363,16 +384,25 @@ func sweepProb(d float64) float64 { return 1 / (1 + math.Pow(10, -2*d/400)) }
 // test runs the SPRT over the complete opening pairs at the start of the
 // match (pairs 0, 1, 2, ... while both games of each are in), stopping at the
 // first pair whose evidence crosses a bound, and records the outcome in r.
+// A pair with a skipped game is passed over: like a split pair, it says
+// nothing about who is stronger.
 func (t *SPRT) test(r *Result) {
 	byIndex := make(map[int]Game, len(r.Games))
 	for _, g := range r.Games {
 		byIndex[g.Index] = g
+	}
+	skipped := make(map[int]bool, len(r.Skipped))
+	for _, i := range r.Skipped {
+		skipped[i] = true
 	}
 	q0, q1 := sweepProb(t.Elo0), sweepProb(t.Elo1)
 	winA, winB := math.Log(q1/q0), math.Log((1-q1)/(1-q0))
 	lower, upper := math.Log(t.Beta/(1-t.Alpha)), math.Log((1-t.Beta)/t.Alpha)
 	r.LLR, r.SPRTPairs, r.SweepsA, r.SweepsB = 0, 0, 0, 0
 	for k := 0; ; k++ {
+		if skipped[2*k] || skipped[2*k+1] {
+			continue
+		}
 		g0, ok0 := byIndex[2*k]
 		g1, ok1 := byIndex[2*k+1]
 		if !ok0 || !ok1 {

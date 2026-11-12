@@ -51,6 +51,18 @@ def test_every_match_gets_its_own_openings(run, monkeypatch):
     assert len(calls) == 2  # a finished match is read back, not replayed
 
 
+def test_games_the_arena_could_not_play_are_reported(run, monkeypatch):
+    def fake_gofer(args):
+        Path(args[args.index("-json") + 1]).write_text(json.dumps({"wins": 30, "losses": 9, "draws": 0, "skipped": [17]}))
+
+    logged = []
+    monkeypatch.setattr(run, "gofer_run", fake_gofer)
+    monkeypatch.setattr(run, "log", logged.append)
+    r = run.match("nn:a.onnx", "gnugo,level=1", 40, 100, "gen-0004-vs-gnugo-l1")
+    assert (r["wins"], r["losses"]) == (30, 9)
+    assert len(logged) == 1 and "1 of the 40 games of gen-0004-vs-gnugo-l1" in logged[0]
+
+
 def test_init_exports_the_network_when_only_the_checkpoint_exists(run):
     import onnxruntime as ort
 

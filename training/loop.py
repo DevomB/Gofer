@@ -200,6 +200,9 @@ class Run:
                 "-komi", str(self.cfg.komi), "-parallel", str(2 * self.threads), "-json", str(out), "-seed", str(match_seed(tag)),
                 *(extra or []),
             ])
+            skipped = json.loads(out.read_text()).get("skipped")
+            if skipped:
+                self.log(f"eval: {len(skipped)} of the {games} games of {tag} could not be played and are left out of its result")
         return json.loads(out.read_text())
 
     def evaluate(self, gen: int) -> None:
