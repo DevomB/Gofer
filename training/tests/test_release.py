@@ -142,3 +142,13 @@ def test_no_repo_means_no_publishing(run, tmp_path):
     run.promote(2, json.loads((run.root / "eval" / "ratings.json").read_text()), None)
     assert not release.publish_pending(run.root, run.state, "", gh=str(fake_gh(tmp_path)))
     assert not (tmp_path / "gh.log").exists()
+
+
+def test_notes_say_when_a_run_started_from_another_network(run):
+    set_ratings(run, {2: 1600.0})
+    run.champion(1)
+    info = json.loads((run.root / "champion" / "gen-0002" / "champion.json").read_text())
+    assert info["init_from"] == ""
+    assert "on top of" not in release.notes(info, "")
+    text = release.notes({**info, "init_from": "runs/9x9/ckpt/gen-0040.pt"}, "")
+    assert "on top of the network this run started from (`gen-0040.pt`)" in text

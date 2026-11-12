@@ -9,6 +9,10 @@ A rewrite of the engine core and the training pipeline. See
 
 ### Added
 
+- `init_from`: a training run can start from another run's network instead of random weights,
+  on any board size, since the network's weights do not depend on it
+  (`--set board_size=13 --set init_from=runs/9x9/ckpt/gen-0044.pt`). Champions record the
+  starting checkpoint
 - Champions and releases: on anchor generations, a network rated above the current champion
   plays it directly (SPRT); a winner becomes the champion, is kept in `runs/<run>/champion/`,
   and with `--release-repo OWNER/REPO` is published as a GitHub Release whose `gofer-9x9.onnx`

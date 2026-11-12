@@ -123,3 +123,89 @@ def test_set_may_repeat_a_runs_settings_but_not_change_them(tmp_path, monkeypatc
         loop_main(monkeypatch, tmp_path / "other", "--set", "chanels=16")
     with pytest.raises(SystemExit, match="KEY=VALUE"):
         loop_main(monkeypatch, tmp_path / "other", "--set", "channels")
+
+
+def trained_checkpoint(path: Path, size: int = 9) -> Path:
+    """A checkpoint whose weights differ from the random initial network's."""
+    import torch
+
+    from training.model import GoferNet, ModelConfig
+    from training.train import TrainConfig, make_optimizer, save_checkpoint
+
+    torch.manual_seed(5)
+    model = GoferNet(ModelConfig(board_size=size, blocks=1, channels=8))
+    save_checkpoint(path, model, make_optimizer(model, TrainConfig()), 1234)
+    return path
+
+
+def test_a_run_can_start_on_a_larger_board_from_another_runs_network(tmp_path, monkeypatch):
+    import onnxruntime as ort
+    import torch
+
+    from training.model import GoferNet, ModelConfig
+
+    src = trained_checkpoint(tmp_path / "small-board.pt")
+    cfg = LoopConfig(board_size=13, blocks=1, channels=8, anchors=[], init_from=str(src))
+    r = Run(tmp_path / "run", cfg, Path("gofer"), threads=1)
+    logged = []
+    monkeypatch.setattr(r, "log", logged.append)
+    r.init()
+    assert "started from" in logged[0] and "small-board.pt" in logged[0]
+
+    source, start = torch.load(src, weights_only=False), torch.load(r.ckpt_path(0), weights_only=False)
+    assert start["model_config"]["board_size"] == 13
+    assert start["step"] == 0  # the new run has its own schedule
+    assert source["model"].keys() == start["model"].keys()
+    assert all(torch.equal(source["model"][k], start["model"][k].cpu()) for k in source["model"])
+
+    # the exported network plays the new size and is the source network there
+    model = GoferNet(ModelConfig(board_size=13, blocks=1, channels=8)).eval()
+    model.load_state_dict(source["model"])
+    rng = np.random.default_rng(1)
+    spatial = (rng.random((3, NUM_PLANES, 13, 13)) < 0.3).astype(np.float32)
+    glob = rng.standard_normal((3, NUM_GLOBALS)).astype(np.float32)
+    sess = ort.InferenceSession(str(r.model_path(0)), providers=["CPUExecutionProvider"])
+    policy, value = sess.run(None, {"spatial": spatial, "global": glob})
+    with torch.no_grad():
+        want_policy, want_value, _ = model(torch.from_numpy(spatial), torch.from_numpy(glob))
+    assert policy.shape == (3, 13 * 13 + 1)
+    assert np.allclose(policy, want_policy.numpy(), atol=1e-3) and np.allclose(value, want_value.numpy(), atol=1e-3)
+
+    # a resumed run does not need the source checkpoint any more
+    src.unlink()
+    r.init()
+
+
+def test_a_checkpoint_can_be_exported_for_another_board_size(tmp_path, capsys):
+    import onnxruntime as ort
+
+    from training import export
+
+    src = trained_checkpoint(tmp_path / "big-board.pt", size=13)
+    export.main([str(src), str(tmp_path / "own.onnx")])
+    export.main([str(src), str(tmp_path / "small.onnx"), "--size", "9"])
+    assert "(13x13)" in capsys.readouterr().out.splitlines()[0]
+    for name, size in (("own", 13), ("small", 9)):
+        sess = ort.InferenceSession(str(tmp_path / f"{name}.onnx"), providers=["CPUExecutionProvider"])
+        policy, _ = sess.run(None, {"spatial": np.zeros((2, NUM_PLANES, size, size), np.float32),
+                                    "global": np.zeros((2, NUM_GLOBALS), np.float32)})
+        assert policy.shape == (2, size * size + 1)
+
+
+def test_loop_refuses_a_starting_network_it_cannot_use(tmp_path, monkeypatch, capsys):
+    src = trained_checkpoint(tmp_path / "small-board.pt")
+    tiny = ["--set", "anchors=[]", "--set", "board_size=13", "--set", f"init_from={src}"]
+    run_dir = tmp_path / "run"
+    with pytest.raises(SystemExit) as stop:
+        loop_main(monkeypatch, run_dir, *tiny)  # the run defaults to 6x64
+    assert "1x8" in str(stop.value) and "6x64" in str(stop.value) and "--set blocks=1 --set channels=8" in str(stop.value)
+    assert not run_dir.exists()
+    with pytest.raises(SystemExit, match="not a file"):
+        loop_main(monkeypatch, run_dir, "--set", "anchors=[]", "--set", f"init_from={tmp_path}/missing.pt")
+    assert not run_dir.exists()
+
+    loop_main(monkeypatch, run_dir, *tiny, "--set", "blocks=1", "--set", "channels=8")
+    assert json.loads((run_dir / "config.json").read_text())["init_from"] == str(src)
+    assert (run_dir / "ckpt" / "gen-0000.pt").exists()
+    src.unlink()
+    loop_main(monkeypatch, run_dir)  # resuming works without the source checkpoint

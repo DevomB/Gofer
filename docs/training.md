@@ -30,7 +30,7 @@ runs/9x9/
   state.json       current generation, completed phases, all match results
   log.txt          human-readable log
   metrics.jsonl    per-generation self-play, training and evaluation metrics
-  models/          gen-NNNN.onnx  (gen-0000 is the random initial network)
+  models/          gen-NNNN.onnx  (gen-0000 is the random initial network, or the one named by init_from)
   ckpt/            gen-NNNN.pt    (model + optimizer state)
   data/gen-NNNN/   self-play shards (.npz)
   sgf/gen-NNNN/    every self-play game
@@ -78,6 +78,40 @@ There is no gating for training: as in AlphaZero, the newest network always
 plays the next self-play. (KataGo does gate, lightly: a candidate must win
 100 of 200 games against the current network.) The champion is only the best
 network so far, the one worth downloading.
+
+## Moving to a larger board
+
+No weight of the network depends on the board size (it is convolutions and
+board-wide pooling), so a network trained on one size can start a run on
+another. `init_from` names the checkpoint to start from:
+
+```bash
+.venv/bin/python -m training.loop --run runs/13x13 --gofer bin/gofer --hours 48 \
+  --set board_size=13 --set init_from=runs/9x9/ckpt/gen-0044.pt \
+  --set temp_moves=20 --set champion_min_elo=0
+```
+
+The new run takes the weights and nothing else: its own optimizer state, its
+own learning-rate schedule, its own replay window and its own rating ladder,
+on which `gen-0000` (the network it started from) is 0. That is why
+`champion_min_elo` is lowered: generation 0 is no longer random play. The
+checkpoint must hold a network of the run's `blocks` and `channels`, and is
+read once, when the run is created; resuming does not need it. A champion's
+`champion.json` and release notes name the starting checkpoint, because the
+games counted there are only this run's.
+
+Settings counted in moves or rows were chosen for 9×9 and want scaling with
+the board: `temp_moves`, and the replay window (`window_min`, `window_growth`,
+`window_max`), since a 13×13 game yields more rows than a 9×9 game.
+
+A network trained on only the new size from then on is not trained on the old
+one any more; measure it there before calling it a network for both. An ONNX
+file plays one board size, so export the checkpoint for the old size first:
+
+```bash
+.venv/bin/python -m training.export runs/13x13/ckpt/gen-0036.pt /tmp/13x13-gen-0036-on-9x9.onnx --size 9
+bin/gofer arena -size 9 -a nn:/tmp/13x13-gen-0036-on-9x9.onnx -b nn:runs/9x9/models/gen-0044.onnx -games 100 -visits 200
+```
 
 ## Champions and releases
 

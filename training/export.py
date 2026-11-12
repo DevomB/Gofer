@@ -87,18 +87,24 @@ def verify_onnx(model: GoferNet, path: Path, atol: float = 1e-3) -> None:
             raise RuntimeError(f"ONNX export of {path} does not match PyTorch")
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("checkpoint", type=Path)
     ap.add_argument("out", type=Path)
-    args = ap.parse_args()
+    ap.add_argument("--size", type=int, default=0,
+                    help="board size to export for (default: the checkpoint's own). An ONNX file plays one "
+                         "size; the weights are the same for every size")
+    args = ap.parse_args(argv)
     from training.model import ModelConfig
 
     ck = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-    model = GoferNet(ModelConfig(**ck["model_config"]))
+    cfg = ModelConfig(**ck["model_config"])
+    if args.size:
+        cfg.board_size = args.size
+    model = GoferNet(cfg)
     model.load_state_dict(ck["model"])
     export(model, args.out)
-    print(f"wrote {args.out}")
+    print(f"wrote {args.out} ({cfg.board_size}x{cfg.board_size})")
 
 
 if __name__ == "__main__":

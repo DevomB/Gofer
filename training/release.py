@@ -86,7 +86,8 @@ def notes(info: dict, repo: str) -> str:
         lines.append(f"| Latest anchor results | {anchors} |")
     lines += [
         f"| Network | {info['blocks']} blocks × {info['channels']} channels, {size}×{size}, komi {info['komi']} |",
-        f"| Training so far | {info['gen']} generations, {info['games']:,} self-play games, {info['positions']:,} positions |",
+        f"| Training so far | {info['gen']} generations, {info['games']:,} self-play games, {info['positions']:,} positions"
+        f"{', on top of the network this run started from (`' + Path(info['init_from']).name + '`)' if info.get('init_from') else ''} |",
         f"| SHA-256 | `{info['sha256']}` |",
         "",
         f"Play it: `bin/gofer play -model {asset}` or `bin/gofer gtp -model {asset}` (GTP, for Sabaki or Lizzie).",
