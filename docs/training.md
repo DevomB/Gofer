@@ -105,8 +105,13 @@ the board: `temp_moves`, and the replay window (`window_min`, `window_growth`,
 `window_max`), since a 13×13 game yields more rows than a 9×9 game.
 
 A network trained on only the new size from then on is not trained on the old
-one any more; measure it there (`gofer arena -size 9` against the old run's
-champion) before calling it a network for both.
+one any more; measure it there before calling it a network for both. An ONNX
+file plays one board size, so export the checkpoint for the old size first:
+
+```bash
+.venv/bin/python -m training.export runs/13x13/ckpt/gen-0036.pt /tmp/13x13-gen-0036-on-9x9.onnx --size 9
+bin/gofer arena -size 9 -a nn:/tmp/13x13-gen-0036-on-9x9.onnx -b nn:runs/9x9/models/gen-0044.onnx -games 100 -visits 200
+```
 
 ## Champions and releases
 

@@ -176,6 +176,22 @@ def test_a_run_can_start_on_a_larger_board_from_another_runs_network(tmp_path, m
     r.init()
 
 
+def test_a_checkpoint_can_be_exported_for_another_board_size(tmp_path, capsys):
+    import onnxruntime as ort
+
+    from training import export
+
+    src = trained_checkpoint(tmp_path / "big-board.pt", size=13)
+    export.main([str(src), str(tmp_path / "own.onnx")])
+    export.main([str(src), str(tmp_path / "small.onnx"), "--size", "9"])
+    assert "(13x13)" in capsys.readouterr().out.splitlines()[0]
+    for name, size in (("own", 13), ("small", 9)):
+        sess = ort.InferenceSession(str(tmp_path / f"{name}.onnx"), providers=["CPUExecutionProvider"])
+        policy, _ = sess.run(None, {"spatial": np.zeros((2, NUM_PLANES, size, size), np.float32),
+                                    "global": np.zeros((2, NUM_GLOBALS), np.float32)})
+        assert policy.shape == (2, size * size + 1)
+
+
 def test_loop_refuses_a_starting_network_it_cannot_use(tmp_path, monkeypatch, capsys):
     src = trained_checkpoint(tmp_path / "small-board.pt")
     tiny = ["--set", "anchors=[]", "--set", "board_size=13", "--set", f"init_from={src}"]
